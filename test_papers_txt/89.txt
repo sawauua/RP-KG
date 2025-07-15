@@ -1,0 +1,832 @@
+Large-scale Deep Unsupervised Learning using Graphics Processors
+
+Rajat Raina rajatr@cs.stanford.edu
+Anand Madhavan manand@stanford.edu
+Andrew Y. Ng ang@cs.stanford.edu
+Computer Science Department, Stanford University, Stanford CA 94305 USA
+Abstract
+The promise of unsupervised learning meth-
+ods lies in their potential to use vast amounts
+of unlabeled data to learn complex, highly
+nonlinear models with millions of free param-
+eters. We consider two well-known unsuper-
+vised learning models, deep belief networks
+(DBNs) and sparse coding, that have recently
+been applied to a ﬂurry of machine learning
+applications (Hinton & Salakhutdinov, 2006;
+Raina et al., 2007). Unfortunately, current
+learning algorithms for both models are too
+slow for large-scale applications, forcing re-
+searchers to focus on smaller-scale models, or
+to use fewer training examples.
+In this paper, we suggest massively paral-
+lel methods to help resolve these problems.
+We argue that modern graphics processors
+far surpass the computational capabilities of
+multicore CPUs, and have the potential to
+revolutionize the applicability of deep unsu-
+pervised learning methods. We develop gen-
+eral principles for massively parallelizing un-
+supervised learning tasks using graphics pro-
+cessors. We show that these principles can
+be applied to successfully scaling up learning
+algorithms for both DBNs and sparse coding.
+Our implementation of DBN learning is up to
+70 times faster than a dual-core CPU imple-
+mentation for large models. For example, we
+are able to reduce the time required to learn a
+four-layer DBN with 100 million free param-
+eters from several weeks to around a single
+day. For sparse coding, we develop a simple,
+inherently parallel algorithm, that leads to a
+5 to 15-fold speedup over previous methods.
+Appearing in Proceedings of the 26thInternational Confer-
+ence on Machine Learning , Montreal, Canada, 2009. Copy-
+right 2009 by the author(s)/owner(s).1. Introduction
+We consider two well-known unsupervised learning
+models, deep belief networks (DBNs) and sparse cod-
+ing, that can learn hierarchical representations of their
+input (Olshausen & Field, 1996; Hinton & Salakhutdi-
+nov, 2006). With the invention of increasingly eﬃcient
+learning algorithms over the past decade, these mod-
+els have been applied to a number of machine learning
+applications, including computer vision, text modeling
+and collaborative ﬁltering, among others. These mod-
+els are especially well-suited to problems with high-
+dimensional inputs, over which they can learn rich
+models with many latent variables or layers. When
+applied to images, these models can easily have tens
+of millions of free parameters, and ideally, we would
+want to use millions of unlabeled training examples
+to richly cover the input space. Unfortunately, with
+current algorithms, parameter learning can take weeks
+using a conventional implementation on a single CPU.
+Partly due to such daunting computational require-
+ments, typical applications of DBNs and sparse cod-
+ing considered in the literature generally contain many
+fewer free parameters (e.g., see Table 1), or are trained
+on a fraction of the available input examples.
+In our view, if the goal is to deploy better machine
+learning applications, the diﬃculty of learning large
+models is a severe limitation. To take a speciﬁc case
+study, for two widely-studied statistical learning tasks
+in natural language processing—language modeling
+and spelling correction—it has been shown that sim-
+ple, classical models can outperform newer, more com-
+plex models, just because the simple models can be
+tractably learnt using orders of magnitude more input
+data (Banko & Brill, 2001; Brants et al., 2007).
+Analogously, in our view, scaling up existing DBN and
+sparse coding models to use more parameters, or more
+training data, might produce very signiﬁcant perfor-
+mance beneﬁts. For example, it has been shown that
+sparse coding exhibits a qualitatively diﬀerent and
+highly selective behavior called “end-stopping” whenLarge-scale Deep Unsupervised Learning using Graphics Processors
+Table 1. A rough estimate of the number of free parame-
+ters (in millions) in some recent deep belief network appli-
+cations reported in the literature, compared to our desired
+model. To pick the applications, we looked through several
+research papers and picked the ones for which we could re-
+liably tell the number of parameters in the model. All the
+models do not implement exactly the same algorithm, and
+the applications cited may not have used the largest-scale
+models possible, so this is not an exact comparison; but the
+order of magnitude diﬀerence between our desired model
+and recent work is striking.
+Published source Application Params
+Hinton et al., 2006 Digit images 1.6mn
+Hinton & Salakhutdinov Face images 3.8mn
+Salakhutdinov & Hinton Sem. hashing 2.6mn
+Ranzato & Szummer Text 3mn
+Our model 100mn
+the model is large, but not otherwise (Lee et al., 2006).
+There has been a lot of recent work on scaling up DBN
+and sparse coding algorithms, sometimes with entire
+research papers devoted to ingenious methods devised
+speciﬁcally for each of these models (Hinton et al.,
+2006; Bengio et al., 2006; Murray & Kreutz-Delgado,
+2006; Lee et al., 2006; Kavukcuoglu et al., 2008).
+Meanwhile, the raw clock speed of single CPUs has
+begun to hit a hardware power limit, and most of
+the growth in processing power is increasingly ob-
+tained by throwing together multiple CPU cores, in-
+stead of speeding up a single core (Gelsinger, 2001;
+Frank, 2002). Recent work has shown that several
+popular learning algorithms such as logistic regres-
+sion, linear SVMs and others can be easily imple-
+mented in parallel on multicore architectures, by hav-
+ing each core perform the required computations for a
+subset of input examples, and then combining the re-
+sults centrally (Dean & Ghemawat, 2004; Chu et al.,
+2006). However, standard algorithms for DBNs and
+sparse coding are diﬃcult to parallelize with such
+“data-parallel” schemes, because they involve itera-
+tive, stochastic parameter updates, where any update
+depends on the previous updates. This makes the up-
+dates hard to massively parallelize at a coarse, data-
+parallel level (e.g., by computing the updates in par-
+allel and summing them together centrally) without
+losing the critical stochastic nature of the updates. It
+appears that ﬁne-grained parallelism might be needed
+to successfully parallelize these tasks.
+In this paper, we exploit the power of modern graph-
+ics processors (GPUs) to tractably learn large DBN
+and sparse coding models. The typical graphics card
+shipped with current desktops contains over a hun-
+dred processing cores, and has a peak memory band-
+width several times higher than modern CPUs. The
+Global Memory (1GB )…30 MPs
+MP1
+Shared 
+Memory
+(16K)
+SPSPSPSP
+SPSPSPSPMP2
+Shared 
+Memory
+(16K)MP30
+Shared 
+Memory
+(16K)
+100 GB/s
+(coalesced)SPSPSPSP
+SPSPSPSPSPSPSPSP
+SPSPSPSP1000 
+GB/sFigure 1. Simpliﬁed schematic for the Nvidia GeForce
+GTX 280 graphics card, with 240 total cores (30 multi-
+processors with 8 stream processors each).
+hardware can work concurrently with thousands of
+threads, and is able to schedule these threads on the
+available cores with very little overhead. Such ﬁne-
+grained parallelism makes GPUs increasingly attrac-
+tive for general-purpose computation that is hard to
+parallelize on other distributed architectures.
+There is of course a tradeoﬀ—this parallelism is ob-
+tained by devoting many more transistors to data pro-
+cessing, rather than to caching and control ﬂow, as
+in a regular CPU core. This puts constraints on the
+types of instructions and memory accesses that can be
+eﬃciently implemented. Thus, the main challenge in
+successfully applying GPUs to a machine learning task
+is to redesign the learning algorithms to meet these
+constraints as far as possible. While a thorough intro-
+duction to graphics processor architecture is beyond
+the scope of this paper, we now review the basic ideas
+behind successful computation with GPUs.
+2. Computing with graphics processors
+We illustrate the principles of GPU computing using
+Nvidia’s CUDA programming model (Harris, 2008).
+Figure 1 shows a simpliﬁed schematic of a typical
+Nvidia GPU. The GPU hardware provides two levels of
+parallelism: there are several multiprocessors (MPs),
+and each multiprocessor contains several stream pro-
+cessors (SPs) that run the actual computation. The
+computation is organized into groups of threads, called
+“blocks”, such that each block is scheduled to run on
+a multiprocessor, and within a multiprocessor, each
+thread is scheduled to run on a stream processor.
+All threads within a block (and thus executing on the
+same multiprocessor) have shared access to a small
+amount (16 KB) of very fast “shared memory,” and
+they can synchronize with each other at diﬀerent
+points in their execution. All threads also have access
+to a much larger GPU-wide “global memory” (cur-
+rently up to 4 GB) which is slower than the shared
+memory, but is optimized for certain types of simul-Large-scale Deep Unsupervised Learning using Graphics Processors
+taneous access patterns called “coalesced” accesses.
+Brieﬂy, memory access requests from threads in a
+block are said to be coalesced if the threads access
+memory in sequence (i.e., the k-th thread accesses the
+k-th consecutive location in memory).1When memory
+accesses are coalesced, the hardware can perform them
+in parallel for all stream processors, and the eﬀective
+access speed (between the stream processors and the
+global memory) is several times faster than the access
+speed between a CPU and RAM.
+Since GPU computation and within-GPU memory ac-
+cesses themselves are highly parallel, in many algo-
+rithms, the main bottleneck arises in transferring data
+between RAM and the GPU’s global memory. For ex-
+ample, the total time taken to multiply two 1000x1000
+matrices using our GPU conﬁguration (and a vendor-
+supplied linear algebra package) is roughly 20 millisec-
+onds, but the actual computation takes only 0.5% of
+that time, with the remaining time being used for
+transfer in and out of global memory. A partial so-
+lution is to perform memory transfers only in large
+batches, grouped over several computations. In our
+example, if we were doing 25 diﬀerent matrix multi-
+plications and were able to perform memory transfers
+in large chunks (by transferring all inputs together,
+and transferring all outputs together), then as much
+as 25% of the total time is spent in computation. Thus,
+eﬃcient use of the GPU’s parallelism requires careful
+consideration of the data ﬂow in the application.
+3. Preliminaries
+We now introduce the unsupervised learning problems
+we consider in this paper, and analyze the speciﬁc is-
+sues faced in applying GPUs to those problems. We
+consider an unsupervised learning task where we are
+given a large unlabeled dataset {x(1), x(2), . . . , x(m)},
+with each input x(i)∈Rk. The goal is to learn a
+model for the inputs x, and to then apply the model
+to speciﬁc machine learning tasks. For example, each
+unlabeled input x(i)∈R900might represent a 30x30
+pixel image of a handwritten character (represented as
+a vector of pixel intensities). We might want to learn
+a model for the complex 900-dimensional space of in-
+puts, and then use this model to classify new hand-
+written characters using only very little labeled data.
+3.1. Deep Belief Networks
+DBNs are multilayer neural network models that learn
+hierarchical representations for their input data. Hin-
+1For simplicity, we ignore certain other technical condi-
+tions that are easy to obey in practice. We also omit dis-
+cussion of two other types of memory—constant and tex-
+ture memory—that are optimized for other speciﬁc types
+of access patterns that we do not use in our applications.ton et al. (2006) proposed an unsupervised algorithm
+for learning DBNs, in which the DBN is greedily built
+up layer-by-layer, starting from the input data. Each
+layer is learnt using a probabilistic model called a re-
+stricted Boltzmann machine (RBM). Brieﬂy, an RBM
+contains a set of stochastic hidden units hthat are fully
+connected in an undirected model to a set of stochas-
+tic visible units x. Assuming binary-valued units, the
+RBM deﬁnes the following joint distribution:
+P(x, h)∝exp/parenleftBig/summationtext
+i,jxiwijhj+/summationtext
+icixi+/summationtext
+jbjhj/parenrightBig
+where the weights wand biases bandcare parame-
+ters to be tuned. The conditional distributions can be
+analytically computed:
+P(hj|x) = sigmoid( bj+/summationtext
+iwijxi) (1)
+P(xi|h) = sigmoid( ci+/summationtext
+jwijhj) (2)
+Maximum likelihood parameter learning for an RBM
+can be eﬃciently approximated by contrastive diver-
+gence updates (Hinton, 2002), where we start with the
+unlabeled examples as the visible units, alternately
+sample the hidden units hand visible units xusing
+Gibbs sampling (Equations 1-2), and update the pa-
+rameters as:
+wij:=wij+η(/angbracketleftxihj/angbracketrightdata− /angbracketleftxihj/angbracketrightsample ) (3)
+ci:=ci+η(/angbracketleftxi/angbracketrightdata− /angbracketleftxi/angbracketrightsample ) (4)
+bj:=bj+η(/angbracketlefthj/angbracketrightdata− /angbracketlefthj/angbracketrightsample ) (5)
+where ηis the learning rate, /angbracketleft·/angbracketrightdatarepresents expecta-
+tions with the visible units tied to the input examples,
+and/angbracketleft·/angbracketrightsample represents expectations after T≥1 itera-
+tions of Gibbs sampling. Since each update requires a
+Gibbs sampling operation, and the updates have to be
+applied over many unlabeled examples to reach con-
+vergence, unsupervised learning of the parameters can
+take several days to complete on a modern CPU.
+3.2. Sparse Coding
+Sparse coding is an algorithm for constructing suc-
+cinct representations of input data (Olshausen & Field,
+1996). Using our earlier example, if each input x(i)∈
+R900represents a handwritten character image, sparse
+coding attempts to learn that each handwritten char-
+acter is composed of only a few building blocks, such
+as pen strokes (instead of 900 arbitrary intensity val-
+ues). Such a higher-level representation can then be
+applied to classiﬁcation tasks, where it leads to good
+results even with limited labeled data (Raina et al.,
+2007; Bradley & Bagnell, 2008).
+Speciﬁcally, given inputs x∈Rk, sparse coding at-
+tempts to ﬁnd basis vectors b={b1, b2, . . . , b n},bj∈
+Rksuch that each input xcan be represented as a lin-
+ear combination of a few basis vectors: x≈/summationtext
+jajbj,
+where aj∈Rrepresents the activation of basis bj,Large-scale Deep Unsupervised Learning using Graphics Processors
+and most of the ajvalues are zero (or, the vector a
+is sparse). The basis vectors are found by solving the
+following optimization problem (Lee et al., 2006):
+minimize b,a1
+2/summationtext
+i/bardblx(i)−/summationtext
+ja(i)
+jbj/bardbl2+β/summationtext
+i,j|a(i)
+j|
+s.t. /bardblbj/bardbl ≤ 1,∀j∈ {1, ..., n }
+where the ﬁrst term in the objective function encour-
+ages good reconstruction ( x(i)≈/summationtext
+jbja(i)
+j), and the
+second term encourages sparsity by penalizing non-
+zero activations (Tibshirani, 1996). The optimization
+problem is notjointly convex in both bandavari-
+ables, but it is convex in either one of those variables,
+if the other is kept ﬁxed. This suggests an alternating
+minimization algorithm with two steps: ﬁrst, keep-
+ingbﬁxed, we optimize over a, which leads to an L1-
+regularized least squares problem, that can be solved
+using custom-designed solvers (Efron et al., 2004; Lee
+et al., 2006; Andrew & Gao, 2007). Then, we keep a
+ﬁxed, and optimize over busing convex optimization
+techniques (Lee et al., 2006). For problems with high-
+dimensional inputs and large numbers of basis vectors,
+the ﬁrst step is particularly time consuming as it in-
+volves a non-diﬀerentiable objective function, and the
+overall learning algorithm can take several days.
+4. GPUs for unsupervised learning
+Both the above algorithms repeatedly execute the fol-
+lowing computations: pick a small number of unla-
+beled examples, compute an update (by contrastive di-
+vergence or by solving a convex optimization problem),
+and apply it to the parameters. To successfully apply
+GPUs to such unsupervised learning algorithms, we
+need to satisfy two major requirements. First, memory
+transfers between RAM and the GPU’s global memory
+need to be minimized, or grouped into large chunks.
+For machine learning applications, we can achieve this
+by storing all parameters permanently in GPU global
+memory during learning. Unlabeled examples usually
+cannot all be stored in global memory, but they should
+be transferred only occasionally into global memory in
+as large chunks as possible. With both parameters and
+unlabeled examples in GPU global memory, the up-
+dates can be computed without any memory transfer
+operations, with any intermediate computations also
+stored in global memory.
+A second requirement is that the learning updates
+should be implemented to ﬁt the two level hierar-
+chy of blocks and threads, in such a way that shared
+memory can be used where possible, and global mem-
+ory accesses can be coalesced. Often, blocks can ex-
+ploit data parallelism (e.g., each block can work on
+a separate input example), while threads can exploit
+more ﬁne-grained parallelism because they have access
+to very fast shared memory and can be synchronized(e.g., each thread can work on a single coordinate of
+the input example assigned to the block). Further,
+the graphics hardware can hide memory latencies for
+blocks waiting on global memory accesses by schedul-
+ing a ready-to-run block in that time. To fully use such
+latency hiding, it is beneﬁcial to use a large number
+of independently executing blocks. In some cases, as
+discussed for sparse coding in Section 6, we can com-
+pletely redesign the updates to be inherently parallel
+and require less synchronization between threads.
+We thus arrive at the following template algorithm for
+applying GPUs to unsupervised learning tasks:
+Algorithm 1 Parallel unsupervised learning on GPUs
+Initialize parameters in global memory.
+while convergence criterion is not satisﬁed do
+Periodically transfer a large number of unlabeled
+examples into global memory.
+Pick a few of the unlabeled examples at a time,
+and compute the updates in parallel using the
+GPU’s two-level parallelism (blocks and threads).
+end while
+Transfer learnt parameters from global memory.
+5. Learning large deep belief networks
+We apply Algorithm 1 to learning large DBNs using
+the contrastive divergence updates in Equations (3-
+5). The parameters w,candbfor all the DBN layers
+are maintained permanently in global memory during
+training. The updates require repeated Gibbs sam-
+pling using the distributions in Equations (1-2). These
+distributions can be rewritten using matrix notation:
+P(h|x) = vectorSigmoid( b+wTx)
+P(x|h) = vectorSigmoid( c+wh)
+where vectorSigmoid( ·) represents the elementwise sig-
+moid function, and x,hare vectors containing an el-
+ement corresponding to each visible and hidden unit
+respectively. The above computations can be batched
+together for several examples for further eﬃciency.
+The matrix operations can be performed in parallel us-
+ing optimized linear algebra packages for the GPU, and
+the sigmoid computation and sampling can be done by
+a simple parallelization scheme where each block works
+on a single example, and each thread in the block
+works on a single element of the example. Finally,
+once the samples have been generated, the updates
+can again be applied in parallel using linear algebra
+packages: e.g., w:=w+η/parenleftbig
+/angbracketleftxTh/angbracketrightdata− /angbracketleftxTh/angbracketrightsample/parenrightbig
+We extend our method to learning deep belief networks
+with “overlapping patches” (Figure 2). This model is
+most easily understood with hidden and visible units
+arranged in a 2-D array (e.g., when the input is anLarge-scale Deep Unsupervised Learning using Graphics Processors
+Hidden UnitsB Hidden UnitsA
+Input imagePatch A
+Patch BwA, bA, cA wB, bB, cB. . . . . .
+Figure 2. A schematic of the overlapping patches model.
+Two patches A and B in the input image are shown, with
+each patch connected to a diﬀerent set of hidden units.
+The connections are parameterized by their own sets of
+parameters wA, bA, cAandwB, bB, cB.
+image and each visible unit is a pixel). The input im-
+age is tiled by equally-spaced, equal-sized patches (or
+receptive ﬁelds), and each patch is fully connected to
+a unique group of hidden units. There is no weight
+sharing in this model, and each connection is param-
+eterized by a free parameter. Because of the overlap-
+ping patches, all the parameters in the model depend
+on each other, making learning hard. However, Gibbs
+sampling can still be performed in parallel for this
+model: each visible unit depends on hidden units at
+many diﬀerent locations, but the sampling operation
+x|hcan be implemented using only coalesced global
+memory accesses (implementation details omitted).
+These overlapping patch RBMs can be stacked on top
+of each other, such that the second-layer RBM con-
+tains hidden units connected locally to ﬁrst-layer hid-
+den units, and so on. The resulting deep networks
+have a very large number of units, but only sparse,
+local connections, which make learning tractable even
+for models with more than 100 million parameters.
+Experimental Results: We compare our GPU-
+based algorithm against CPU-based methods using the
+following multicore hardware:
+•GPU : Nvidia GeForce GTX 280 graphics card
+with 1GB memory. Dual-core CPU @ 3.16GHz.
+Reported results show the total running time (in-
+cluding all computation, memory transfer, etc.).
+•Single CPU : Single core @ 3.16GHz.
+•Dual-core CPU : Two cores, each @ 3.16GHz.
+(Identical machine as for the GPU result.)
+The CPU-based method was implemented using two
+highly optimized multithreaded linear algebra pack-
+ages: ATLAS BLAS (Whaley et al., 2001) and Goto
+BLAS (Goto & Van De Geijn, 2008). Consistent
+with previous results, we found that Goto BLAS was
+faster (Bengio, 2007), so we report CPU results us-
+ing it. As input, we used a large dataset of naturalimages (van Hateren & van der Schaaﬀ, 1997) and ob-
+tained input examples by randomly extracting square
+image patches of the required size. Following previ-
+ous work, we used Gaussian visible units and binary
+hidden units, and trained a sparse RBM by adding an
+additional penalty term to the objective (Lee et al.,
+2007)—however, these modiﬁcations do not aﬀect the
+running time results signiﬁcantly. For learning, we
+performed one-step contrastive divergence updates us-
+ing a mini-batch of 192 examples.
+Table 2 shows the running time for processing 1 million
+examples for RBMs of varying size (denoted by num-
+ber of visible units ×number of hidden units). The
+GPU method is between 12 to 72 times faster. The
+speedup obtained is highest for large RBMs, where
+the computations involve large matrices and can be
+more eﬃciently parallelized by using a large number
+of concurrent blocks (which allows the graphics hard-
+ware to better hide memory latencies). The largest
+model in Table 2 has 45 million parameters, and our
+GPU method can update these parameters using a mil-
+lion examples in about 29 minutes. In comparison, our
+multicore CPU takes more than a day per million ex-
+amples. Since we would ideally want to use tens of
+millions of training examples for learning such a large
+model, the CPU method is impractical for such tasks.
+Table 3 shows a similar running time comparison for
+two “overlapping patch” models (see table caption for
+details). The GPU method is about 10 times faster
+than the dual-core CPU. This speedup is somewhat
+lower than the speedup observed for a fully connected
+RBM (Table 2), because Gibbs sampling in the over-
+lapping patch model requires many operations involv-
+ing small matrices (one weight matrix per patch), in-
+stead of only a few operations involving large matri-
+ces. Using the overlapping patch model, we can learn a
+four-layer DBN with 96 million parameters, and 25600,
+82944, 8192, 4608 and 1024 units respectively in the
+input layer and the four successive hidden layers. Such
+models are at least an order of magnitude larger than
+previously published work on DBNs.
+Finally, we note that the overlapping patches model
+can be modiﬁed to share parameters in all patches,
+such that, for example, wA=wBin Figure 2. If over-
+lapping patches are tiled one pixel apart, this model is
+identical to the convolutional RBM model (Desjardins
+& Bengio, 2008; Lee et al., 2009). Contrastive diver-
+gence learning in this model can be implemented by
+using convolutions to perform the Gibbs sampling op-
+eration h|x. For small to medium ﬁlter (patch) sizes,
+spatial convolution can be implemented very eﬃciently
+using GPUs, by having each block read a ﬁlter into
+shared memory, then reading the input image column-Large-scale Deep Unsupervised Learning using Graphics Processors
+Table 2. Average running time in seconds for processing 1 million input examples for learning an RBM, with contrastive
+divergence updates applied in batches of 192 examples each. The size of the RBM in each column is denoted by the
+number of visible units ×number of hidden units. The GPU speedup is computed w.r.t. the fastest CPU-based result.
+Package Architecture 576x1024 1024x4096 2304x16000 4096x11008
+Goto BLAS Single CPU 563s 3638s 172803s 223741s
+Goto BLAS Dual-core CPU 497s 2987s 93586s 125381s
+GPU 38.6s 184s 1376s 1726s
+GPU Speedup 12.9x 16.2x 68.0x 72.6x
+Table 3. Average time in seconds for processing 1 million
+examples for the overlapping patch model, with contrastive
+divergence updates applied in batches of 192 examples
+each. The model size in each column is denoted by the
+number of visible units ×number of hidden units (but note
+that the units are not fully connected). The two models
+were created by taking 144x144 pixel and 192x192 pixel
+inputs respectively; the size of each patch is 24x24 pixels,
+there are 192 hidden units connected to each patch, and
+neighboring patches are 8 pixels apart. Overall, the models
+have 28 million and 54 million free parameters respectively.
+Package Arch. 20736x49152 36864x92928
+Goto Single CPU 38455s 77246s
+Goto Dual-core 32236s 65235s
+GPU 3415s 6435s
+GPU Speedup 9.4x 10.1x
+by-column into shared memory, and ﬁnally aggregat-
+ing the output elements aﬀected by that ﬁlter and that
+input image column. It can be shown that by ordering
+operations in this way, we use only fast shared memory
+accesses and coalesced global memory accesses.2For
+example, on computing the convolution of 32 128x128
+images with 32 16x16 ﬁlters, our GPU implementation
+of spatial convolution (including the time to transfer
+images/ﬁlters into GPU memory) is over 100 times
+faster than either spatial convolution implemented in
+C or FFT-based convolution in Matlab.
+6. Parallel sparse coding
+We now consider the sparse coding optimization prob-
+lem discussed in Section 3.2. Following the tem-
+plate in Algorithm 1, we maintain the basis param-
+eters bpermanently in global memory, and transfer
+input examples to GPU global memory periodically in
+large batches. Following the alternating minimization
+method, each update itself consists of two steps: the
+ﬁrst, simpler part of the update involves optimizing
+over b, given ﬁxed a:
+minimize b/summationtext
+i/bardblx(i)−/summationtext
+ja(i)
+jbj/bardbl2s.t./bardblbj/bardbl ≤ 1,∀j
+We solve this problem using projected gradient de-
+scent, where we follow the gradient of the quadratic
+objective function, and project at each step to the
+2For larger ﬁlter sizes FFT-based convolution is gener-
+ally better, and a GPU FFT package can be used.feasible set.3This method is guaranteed to converge
+to the optimal band can be straightforwardly imple-
+mented using a GPU linear algebra package.
+The other part of the update involves optimizing over
+a, given ﬁxed b. Since the activation a(i)for each ex-
+ample x(i)is now independent of the activations for
+other examples, it suﬃces to consider the following
+canonical L1-regularized least squares problem for a
+single input example x:
+minimize a1
+2/bardblx−/summationtext
+jajbj/bardbl2+β/summationtext
+j|aj| (6)
+The objective function is not diﬀerentiable because of
+the second term. This problem has recently received
+wide attention because of its robust feature selection
+properties (Tibshirani, 1996; Ng, 2004), and custom
+algorithms have been designed to solve it (Efron et al.,
+2004; Lee et al., 2006; Andrew & Gao, 2007). Some of
+these algorithms use sparse linear algebra operations
+to achieve eﬃciency. We instead present a very diﬀer-
+ent algorithm that is inherently parallel and thus uses
+the GPU hardware more eﬃciently.
+6.1. Parallel L1-regularized least squares
+Our algorithm is based on the observation that in the
+optimization problem in Equation (6), if we vary only
+one of the activations aj, while keeping the other acti-
+vations ﬁxed, the optimal value a∗
+jcan be easily com-
+puted (Friedman et al., 2007). Letting Bbe a matrix
+with bjas its j-th column, and rj=bT
+jbj:
+a∗
+j=
+
+0 if |gj−rjaj| ≤β
+(−gj+rjaj+β)/rjifgj−rjaj> β
+(−gj+rjaj−β)/rjifgj−rjaj<−β
+where g=∇a1
+2/bardblx−/summationtext
+jajbj/bardbl2=BTBa−BTx.
+The updates can be eﬃciently performed in parallel by
+having thread jcompute just one coordinate a∗
+j. Fur-
+ther, since we usually batch several examples together,
+we can precompute the matrix BTB, the vector BTx
+and the vector ronce in parallel, store the result in
+global memory, and perform only eﬃcient accesses to
+compute all a∗
+jvalues.4
+3The projection operation is particularly simple: for
+each basis vector bj, if/bardblbj/bardbl>1 then rescale bjto have
+norm 1, otherwise keep bjunchanged.
+4To see why, note that to compute a∗
+j, thread jneeds toLarge-scale Deep Unsupervised Learning using Graphics Processors
+Thus, we propose the following iterative algorithm: at
+each iteration, starting at the current activation values
+a= ˆa, we compute all the optimal coordinate values
+a∗
+jin parallel as outlined above. Then, we perform
+a line search in the direction of vector d=a∗−ˆa.
+The line search consists of ﬁnding a step size t >0
+such that the value of the objective function at the
+point a= ˆa+tdis lower than the value at a= ˆa.
+This line search, including the function evaluations,
+can be run in parallel.5We then move to the new
+point a= ˆa+td, and iterate. We declare convergence
+when the objective value decreases by less than a 10−6
+fraction of the previous objective value.
+Since the direction dis a nonnegative linear combina-
+tion of descent directions along the coordinate axes:
+dj=a∗
+j−ˆaj,dmust itself be a descent direction for
+the objective function. Thus, at each iteration, a step
+sizet >0 can always be found that reduces the value
+of the objective function, and the overall algorithm is
+guaranteed to converge to the optimal solution.
+This algorithm uses ﬁne-grained parallelism by having
+each thread compute just one coordinate of the solu-
+tion. Such highly multithreaded execution is especially
+well-suited for graphics processors, as the hardware is
+able to hide memory latency (for threads blocked on
+memory accesses) by scheduling other threads that are
+not blocked on memory accesses, and leads to high uti-
+lization of the available cores.
+Experimental Results: We again compare our
+method against a multicore CPU baseline (Lee et al.,
+2006). We used optimized Matlab code provided by
+Lee et al. For the CPU multicore results, we executed
+the same Matlab code with multithreading enabled.
+Table 4 shows the running time for applying sparse
+coding basis updates (including both basis and activa-
+tion optimization) for m= 5000 examples, with mini-
+batches of 1000 examples. Each example x∈R1024
+compute gj−rjaj=P
+t(BTB)tjat−(BTx)j−rjaj. Con-
+sider the elements thread jaccesses: (i) ( BTB)tj: Accesses
+can be coalesced if BTBis stored in row-major order. (ii)
+By maintaining ain shared memory, all threads can access
+the same element atsimultaneously, as well as access the
+elements ajthat are diﬀerent for each thread. (For the in-
+terested reader, we add that this avoids “bank conﬂicts” in
+shared memory. See CUDA reference manual for details.)
+(iii) ( BTx)jandrj: Can be coalesced as thread jaccesses
+thej-th location.
+5Details: By substituting a= ˆa+tdin the original
+objective function, the line search reduces to minimizing a
+1-D function of the form f(t) =α2t2+α1t+α0+β/bardblˆa+td/bardbl1,
+where the values α2, α1, α0can be computed in parallel.
+For the 1-D line search over f(t), we simply try a ﬁxed set
+of positive step sizes, and pick the largest step size that
+reduces the value of the objective function.Table 4. Average running time for updating sparse coding
+parameters on 5000 input examples. The GPU speedup is
+computed w.r.t. the fastest CPU-based result. The spar-
+sity value refers to the average percentage of the 1024 acti-
+vations that were nonzero at the optimal solution; diﬀerent
+sparsity was obtained by using diﬀerent βvalues. Note that
+3-10% is a reasonable range as it corresponds to around 30
+to 100 nonzero activations per input example.
+Method Sparsity ≈3% 6% 10%
+Single CPU 215s 403s 908s
+Dual-core 191s 375s 854s
+GPU 37.0s 41.5s 55.8s
+Speedup 5.2x 9.0x 15.3x
+was obtained via a randomly sampled 32x32 pixel nat-
+ural image patch. We used n= 1024 basis vectors,
+initialized randomly. The majority of sparse coding
+time in Lee et al.’s method is taken by the activa-
+tion learning step, especially when many activations
+are nonzero at the optimum. By eﬀectively paralleliz-
+ing this step, our GPU method is up to 15 times faster
+than a dual-core implementation.
+7. Discussion
+Graphics processors are able to exploit ﬁner-grained
+parallelism than current multicore architectures or dis-
+tributed clusters. They are designed to maintain thou-
+sands of active threads at any time, and to schedule the
+threads on hundreds of cores with very low scheduling
+overhead. The map-reduce framework (Dean & Ghe-
+mawat, 2004) has been successfully applied to par-
+allelize a class of machine learning algorithms (Chu
+et al., 2006). However, that method relies exclusively
+on data parallelism—each core might work indepen-
+dently on a diﬀerent set of input examples—with no
+further subdivision of work. In contrast, the two-level
+parallelism oﬀered by GPUs is much more powerful:
+the top-level GPU blocks can already exploit data par-
+allelism, and GPU threads can further subdivide the
+work in each block, often working with just a single
+element of an input example.
+GPUs have been applied to certain problems in ma-
+chine learning, including SVMs (Catanzaro et al.,
+2008), and supervised learning in convolutional net-
+works (Chellapilla et al., 2006). To continue this line
+of work, and to encourage further applications of deep
+belief networks and sparse coding, we will make our
+source code publicly available.
+Acknowledgments: We give warm thanks to Roger
+Grosse, Honglak Lee and the anonymous reviewers for
+helpful comments, and to Ethan Dreyfuss, Ian Good-
+fellow and Quoc Le for help with assembling the hard-
+ware. This work was supported by the DARPA trans-
+fer learning program under contract number FA8750-Large-scale Deep Unsupervised Learning using Graphics Processors
+05-2-0249, and by the Oﬃce of Naval Research under
+MURI N000140710747.
+References
+Andrew, G., & Gao, J. (2007). Scalable training of L1-
+regularized log-linear models. International Confer-
+ence on Machine Learning (pp. 33–40).
+Banko, M., & Brill, E. (2001). Scaling to very very
+large corpora for natural language disambiguation.
+Annual Meeting of the Association for Computa-
+tional Linguistics (pp. 26–33).
+Bengio, Y. (2007). Speeding up stochastic gradient
+descent. Neural Information Processing Systems
+Workshop on Eﬃcient Machine Learning .
+Bengio, Y., Lamblin, P., Popovici, D., & Larochelle,
+H. (2006). Greedy layer-wise training of deep net-
+works. Neural Information Processing Systems (pp.
+153–160).
+Bradley, D., & Bagnell, J. A. (2008). Diﬀerentiable
+sparse coding. Neural Information Processing Sys-
+tems (pp. 113–120).
+Brants, T., Popat, A. C., Xu, P., Och, F. J., & Dean,
+J. (2007). Large language models in machine trans-
+lation. Conference on Empirical Methods in Natural
+Language Processing (EMNLP-CoNLL) .
+Catanzaro, B. C., Sundaram, N., & Keutzer, K.
+(2008). Fast support vector machine training and
+classiﬁcation on graphics processors. International
+Conference on Machine Learning (pp. 104–111).
+Chellapilla, K., Puri, S., & Simard, P. (2006). High
+performance convolutional neural networks for doc-
+ument processing. International Workshop on Fron-
+tiers in Handwriting Recognition .
+Chu, C. T., Kim, S. K., Lin, Y. A., Yu, Y., Bradski,
+G. R., Ng, A. Y., & Olukotun, K. (2006). Map-
+reduce for machine learning on multicore. Neural
+Information Processing Systems (pp. 281–288).
+Dean, J., & Ghemawat, S. (2004). Mapreduce: Sim-
+pliﬁed data processing on large clusters. Operating
+System Design and Implementation (pp. 137–150).
+Desjardins, G., & Bengio, Y. (2008). Empirical evalua-
+tion of convolutional RBMs for vision. Tech Report .
+Efron, B., Hastie, T., Johnstone, I., & Tibshirani, R.
+(2004). Least angle regression. Ann. Stat. ,32, 407.
+Frank, D. (2002). Power-constrained CMOS scaling
+limits. IBM Jour. of Res. and Devel. ,46, 235–244.
+Friedman, J., Hastie, T., Hﬂing, H., & Tibshirani, R.
+(2007). Pathwise coordinate optimization. Ann.
+App. Stat. ,2, 302–332.
+Gelsinger, P. (2001). Microprocessors for the new mil-
+lennium: Challenges, opportunities and new fron-
+tiers. ISSCC Tech. Digest , 22–25.
+Goto, K., & Van De Geijn, R. (2008). High-
+performance implementation of the level-3 BLAS.
+ACM Trans. Math. Softw. ,35, 1–14.Harris, M. (2008). Many-core GPU computing with
+NVIDIA CUDA. Int. Conf. Supercomputing (p. 1).
+Hinton, G. E. (2002). Training products of experts by
+minimizing contrastive divergence. Neural Compu-
+tation ,14, 1771–1800.
+Hinton, G. E., Osindero, S., & Teh, Y.-W. (2006). A
+fast learning algorithm for deep belief nets. Neural
+Computation ,18, 1527–1554.
+Hinton, G. E., & Salakhutdinov, R. R. (2006). Reduc-
+ing the dimensionality of data with neural networks.
+Science ,313, 504–507.
+Kavukcuoglu, K., Ranzato, M., & LeCun, Y. (2008).
+Fast inference in sparse coding algorithms with ap-
+plications to object recognition. NYU Tech Report .
+Lee, H., Battle, A., Raina, R., & Ng, A. Y. (2006). Ef-
+ﬁcient sparse coding algorithms. Neural Information
+Processing Systems (pp. 801–808).
+Lee, H., Chaitanya, E., & Ng, A. Y. (2007). Sparse
+deep belief net model for visual area V2. Neural
+Information Processing Systems (pp. 873–880).
+Lee, H., Grosse, R., Ranganath, R., & Ng, A. Y.
+(2009). Convolutional deep belief networks for scal-
+able unsupervised learning of hierarchical repre-
+sentations. International Conference on Machine
+Learning (to appear) .
+Murray, J. F., & Kreutz-Delgado, K. (2006). Learn-
+ing sparse overcomplete codes for images. J. VLSI
+Signal Processing Systems ,45, 97–110.
+Ng, A. Y. (2004). Feature selection, L1vs.L2regu-
+larization, and rotational invariance. International
+Conference on Machine Learning (pp. 78–85).
+Olshausen, B. A., & Field, D. J. (1996). Emergence
+of simple-cell receptive ﬁeld properties by learning a
+sparse code for natural images. Nature ,381, 607–609.
+Raina, R., Battle, A., Lee, H., Packer, B., & Ng, A. Y.
+(2007). Self-taught learning: Transfer learning from
+unlabeled data. International Conference on Ma-
+chine Learning (pp. 759–766).
+Ranzato, M. A., & Szummer, M. (2008). Semi-
+supervised learning of compact document represen-
+tations with deep networks. International Confer-
+ence on Machine Learning (pp. 792–799).
+Salakhutdinov, R., & Hinton, G. (2007). Semantic
+Hashing. SIGIR Workshop on Information Retrieval
+and Applications of Graphical Models .
+Tibshirani, R. (1996). Regression shrinkage and selec-
+tion via the lasso. J. R. Stat. Soc. B. ,58, 267–288.
+van Hateren, J. H., & van der Schaaﬀ, A. (1997). In-
+dependent component ﬁlters of natural images com-
+pared with simple cells in primary visual cortex.
+Royal Soc. Lond. B ,265, 359–366.
+Whaley, R. C., Petitet, A., & Dongarra, J. J. (2001).
+Automated empirical optimization of software and
+the ATLAS project. Parallel Computing ,27, 3–35.

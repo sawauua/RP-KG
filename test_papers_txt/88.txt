@@ -1,0 +1,806 @@
+Learning with Structured Sparsity
+
+Junzhou Huang JZHUANG @CS.RUTGERS .EDU
+Department of Computer Science, Rutgers University, 110 Fr elinghuysen Road, Piscataway, NJ08854, USA
+Tong Zhang TZHANG@STAT.RUTGERS .EDU
+Department of Statistics,Rutgers University, 110 Freling huysen Road, Piscataway, NJ08854, USA
+DimitrisMetaxas DNM@CS.RUTGERS .EDU
+Department of Computer Science, Rutgers University, 110 Fr elinghuysen Road, Piscataway, NJ08854, USA
+Abstract
+This paper investigates a new learning formula-
+tion called structured sparsity , which is a natu-
+ral extension of the standard sparsity concept in
+statistical learning and compressive sensing. By
+allowing arbitrary structures on the feature set,
+this concept generalizes the group sparsity idea.
+A general theory is developed for learning with
+structuredsparsity,basedonthenotionofcoding
+complexity associated with the structure. More-
+over, a structured greedy algorithm is proposed
+to efﬁciently solve the structured sparsity prob-
+lem. Experiments demonstrate the advantage of
+structuredsparsityover standard sparsity.
+1.Introduction
+We are interested in the sparse learning problem under the
+ﬁxed design condition. Consider a ﬁxed set of pbasis vec-
+tors{x1,... ,xp}wherexj∈Rnfor each j. Here, n
+is the sample size. Denote by Xthen×pdata matrix,
+withcolumn jofXbeingxj. Givenarandomobservation
+y= [y1,... ,yn]∈Rnthat depends on an underlying co-
+efﬁcient vector ¯β∈Rp, we are interested in the problem
+of estimating ¯βunder theassumption that thetarget coefﬁ-
+cient¯βis sparse. Throughout the paper, we consider ﬁxed
+design only. That is, we assume Xis ﬁxed, and random-
+ization iswithrespect tothe noiseinthe observation y.
+Weconsiderthesituationthat Eycanbeapproximatedbya
+sparse linear combination of the basis vectors: Ey≈X¯β,
+where we assume that ¯βis sparse. Deﬁne the support
+of a vector β∈Rpassupp(β) ={j:¯βj/negationslash= 0}and
+Appearing in Proceedings of the 26thInternational Conference
+on Machine Learning , Montreal, Canada, 2009. Copyright 2009
+bythe author(s)/owner(s)./bardblβ/bardbl0=|supp(β)|. Anaturalmethodforsparselearningis
+L0regularization fordesired sparsity s:
+ˆβL0= arg min
+β∈RpˆQ(β)subject to /bardblβ/bardbl0≤s,
+For simplicity, we only consider the least squares loss
+ˆQ(β) =/bardblXβ−y/bardbl2
+2in this paper. Since this optimiza-
+tion problem is generally NP-hard, in practice, one often
+considers approximate solutions. A standard approach is
+convexrelaxationof L0regularizationto L1regularization,
+oftenreferredtoasLasso(Tibshirani,1996). Anothercom-
+monly used approach is greedy algorithms, such as the or-
+thogonalmatchingpursuit(OMP)(Tropp&Gilbert,2007).
+In practical applications, one often knows a structure on
+the coefﬁcient vector ¯βin addition to sparsity. For ex-
+ample, in group sparsity (Yuan & Lin, 2006; Bach, 2008;
+Stojnic et al., 2008; Huang & Zhang, 2009), one assumes
+that variables in the same group tend to be zero or nonzero
+simultaneously. However, the groups are assumed to be
+static and ﬁxed a priori. Moreover, algorithms such as
+group Lasso do not correctly handle overlapping groups
+(in that overlapping components are over-counted); that is ,
+a given coefﬁcient should not belong to different groups.
+This requirement is too rigid for many practical applica-
+tions. To address this issue, a method called composite ab-
+solute penalty (CAP) is proposed in (Zhao et al., ) which
+can handle overlapping groups. Unfortunately, no theory
+is established to demonstrate the effectiveness of the ap-
+proach. Other structures have also been explored in the
+literature. For example, so-called tonal and transient str uc-
+tures were considered for sparse decomposition of audio
+signals in (Daudet, 2004), but again without any theory.
+Grimm et al. (Grimm et al., 2007) investigated positive
+polynomials with structured sparsity from an optimization
+perspective. The theoretical result there did not address
+the effectiveness of such methods in comparison to stan-
+dard sparsity. The closest work to ours is a recent pa-
+per (Baraniuk et al., 2008) which was pointed out to usLearning with Structured Sparsity
+by an anonymous reviewer. In that paper, a speciﬁc case
+of structured sparsity, referred to as model based sparsity ,
+was considered. It is important to note that some theoreti-
+cal resultswereobtained theretoshow the effectiveness of
+their method in compressive sensing. However, their set-
+ting is more restrictive than the structured sparsity frame -
+work which weshall establishhere.
+The purpose of this paper is to present a framework for
+structured sparsity, and to study the more general estima-
+tion problem under this framework. If meaningful struc-
+tures exist, we show that one can take advantage of such
+structures toimprove thestandard sparselearning.
+2.StructuredSparsity
+In structured sparsity, not all sparse patterns are equally
+likely. For example, in group sparsity, coefﬁcients within
+the same group are more likely to be zeros or nonzeros si-
+multaneously. Thismeansthatifasparsecoefﬁcient’ssup-
+port set is consistent with the underlying group structure,
+then it is more likely to occur, and hence incurs a smaller
+penaltyinlearning. Onecontributionofthisworkistofor-
+mulate how to deﬁne structure on top of sparsity, and how
+topenalize each sparsitypattern.
+Inordertoformalizetheidea,wedenoteby I={1,... ,p }
+the index set of the coefﬁcients. We assign a cost cl(F)to
+any sparse subset F⊂ {1,... ,p }. In structured sparsity,
+cl(F)isanupperboundofthecodinglengthof F(number
+of bits needed to represent Fby a computer program) in a
+pre-chosen preﬁx coding scheme. It is a well-known fact
+in information theory that mathematically, the existence o f
+such a coding scheme is equivalent to/summationtext
+F⊂I2−cl(F)≤1.
+From the Bayesian statistics point of view, 2−cl(F)can be
+regarded as a lower bound of the probability of F. The
+probabilitymodelofstructuredsparselearningisthus: ﬁr st
+generate the sparsity pattern Faccording to probability
+2−cl(F); then generate thecoefﬁcients in F.
+Deﬁnition 2.1 A cost function cl(F)deﬁned on subsets of
+Iiscalled a coding length (inbase-2) if
+/summationdisplay
+F⊂I,F/negationslash=∅2−cl(F)≤1.
+Wegive ∅acodinglength0. Thecorrespondingstructured
+sparsecoding complexity of Fisdeﬁned as
+c(F) =|F|+ cl(F).
+A coding length cl(F)is sub-additive if cl(F∪F/prime)≤
+cl(F) + cl( F/prime), and a coding complexity c(F)is sub-
+additive if c(F∪F/prime)≤c(F) +c(F/prime).
+Clearly if cl(F)is sub-additive, then the corresponding
+coding complexity c(F)is also sub-additive. Based on thestructured coding complexity of subsets of I, we can now
+deﬁne the structured coding complexity of a sparse coefﬁ-
+cient vector ¯β∈Rp.
+Deﬁnition 2.2 Givingacodingcomplexity c(F),thestruc-
+tured sparse coding complexity of a coefﬁcient vector ¯β∈
+Rpis
+c(¯β) = min {c(F) : supp( ¯β)⊂F}.
+Later in the paper, we will show that if a coefﬁcient vec-
+tor¯βhas a small coding complexity c(¯β), then ¯βcan be
+effectively learned, with good in-sample prediction perfo r-
+mance (in statistical learning) and reconstruction perfor -
+mance (in compressive sensing). In order to see why the
+deﬁnition requires adding |F|tocl(F), we consider the
+generative model for structured sparsity mentioned earlie r.
+In this model, the number of bits to encode a sparse coef-
+ﬁcient vector is the sum of the number of bits to encode F
+(which is cl(F)) and the number of bits to encode nonzero
+coefﬁcients in F(this requires O(|F|)bits up to a ﬁxed
+precision). Therefore the total number of bits required is
+cl(F) +O(|F|). This information theoretical result trans-
+lates into a statistical estimation result: without additi onal
+regularization,thelearningcomplexityforleastsquares re-
+gression within any ﬁxed support set FisO(|F|). By
+adding the model selection complexity cl(F)for each sup-
+port set F, we obtain an overall statistical estimation com-
+plexity of O(cl(F) +|F|). While the idea of using coding
+based penalization resembles minimum description length
+(MDL), the actual penalty we obtain for structured spar-
+sity problems is different from the standard MDL penalty
+for model selection. This difference is important, and thus
+in order to prevent confusion, we avoid using MDL in our
+terminology.
+3.GeneralCodingScheme
+Weintroduceageneralcodingschemecalled blockcoding .
+Thebasicideaofblockcodingistodeﬁneacodingscheme
+onasmallnumberofbaseblocks(ablockisasubsetof I),
+and then deﬁne a coding scheme on all subsets of Iusing
+these baseblocks.
+Consider a subset B ⊂2I. That is, each element (a block)
+ofBis a subset of I. We call Ba block set if I=∪B∈BB
+and all single element sets {j}belong to B(j∈ I). Note
+thatBmay contain additional non single-element blocks.
+The requirement of Bcontaining all single element sets is
+for convenience, as it implies that every subset F⊂ Ican
+be expressed asthe union of blocks in B.
+Letcl0be acode length on B:
+/summationdisplay
+B∈B2−cl0(B)≤1,Learning with Structured Sparsity
+we deﬁne cl(B) = cl 0(B) + 1forB∈ B. It not difﬁcult
+to show that the following cost function on F⊂ Iis a
+code-length
+cl(F) = min
+
+b/summationdisplay
+j=1cl(Bj) :F=b/uniondisplay
+j=1Bj(Bj∈ B)
+
+.
+This isacoding length because
+/summationdisplay
+F⊂I,F/negationslash=∅2−cl(F)≤/summationdisplay
+b≥1/summationdisplay
+{B/lscript}∈Bb2−/summationtextk
+/lscript=1cl(B/lscript)
+≤/summationdisplay
+b≥1b/productdisplay
+/lscript=1/summationdisplay
+B/lscript∈B2−cl(B/lscript)≤/summationdisplay
+b≥12−b= 1.
+Itisobvious that block coding issub-additive.
+The main purpose of introducing block coding is to de-
+sign computational efﬁcient algorithms based on the block
+structure. In particular, we consider a structured greedy a l-
+gorithm that can take advantage of block structures. In the
+structured greedy algorithm, instead of searching over all
+subsets of Iup to a ﬁxed coding complexity s(exponen-
+tial in snumber of such subsets), we greedily add blocks
+fromBone at a time. Each search problem over Bcan
+be efﬁciently performed because Bis supposed to contain
+onlyacomputationallymanageablenumberofbaseblocks.
+Therefore the algorithm is computationally efﬁcient. Con-
+crete structured sparse coding examples described below
+can be efﬁciently approximated byblock coding.
+Standard sparsity
+A simple coding scheme is to code each subset F⊂ Iof
+cardinality kusing klog2(2p)bits, which corresponds to
+block coding with Bconsisted only of single element sets,
+andeachbaseblockhasacodinglength log2p. Thiscorre-
+sponds tothecomplexity forthe standard sparselearning.
+Group sparsity
+The concept of group sparsity has been appeared in vari-
+ous recent work, such as the group Lasso in (Yuan & Lin,
+2006). Consider a partition of I=∪m
+j=1Gjtomdis-
+joint groups. Let BGcontain the mgroups Gj, and B1
+contain psingle element blocks. The strong group spar-
+sity coding scheme is to give each element in B1a code-
+length cl0of∞, and each element in BGa code-length
+cl0oflog2m. Then the block coding scheme with blocks
+B=BG∪ B1leads to group sparsity, which only looks
+for signals consisted of the groups. The resulting coding
+length is: cl(B) =glog2(2m)ifBcan be represented as
+the union of gdisjoint groups Gj; and cl(B) =∞oth-
+erwise. Note that if the signal can be expressed as the
+unionof ggroups,andeachgroupsizeis k0,thenthegroupcoding length glog2(2m)can be signiﬁcantly smallerthan
+the standard sparsity coding length of gk0log2(p). As we
+shall see later, the smaller coding complexity implies bet-
+ter learning behavior, which is essentially the advantage o f
+using group sparsestructure.
+Graph sparsity
+Weconsiderageneralizationofthegroupsparsityideathat
+employs a directed graph structure GonI. Each element
+ofIis a node of GbutGmay contain additional nodes.
+Forsimplicity,weassume Gcontainsastartingnodenotin
+I. At each node v∈G, we deﬁne coding length clv(S)on
+the neighborhood Nvofv(that contains the empty set), as
+well as any other single node u∈Gwithclv(u), such that/summationtext
+S⊂Nv2−clv(S)+/summationtext
+u∈G2−clv(u)≤1. To encode F⊂
+G, we start with the active set containing only the starting
+node,andﬁnishwhenthesetbecomesempty. Ateachnode
+vbeforetermination,wemayeitherpickasubset S⊂Nv,
+withcodinglength clv(S),oranodein u∈G,withcoding
+length clv(u),andthenputtheselectionintotheactiveset.
+We then remove vfrom the active set (once vis removed,
+it does not return to the active set anymore). This process
+iscontinued until theactive setbecomes empty.
+Thewaveletcoefﬁcientsofasignalarewellknowntohave
+atree-graphstructure,whichhasbeenwidelyusedforcom-
+pressingnaturalimagesandisaspecialcaseofgraphspar-
+sity. Each wavelet coefﬁcient of the signal is connected to
+itsparentcoefﬁcientanditschildcoefﬁcients. Thewavele t
+coefﬁcients of 1D signals have a binary tree connected
+graphstructurewhilethewaveletcoefﬁcientsof2Dimages
+have aquad-tree connected graph structure.
+As a concrete example, we consider image processing
+problem,whereeachimageisarectangleofpixels(nodes);
+eachpixeliscorrectedtofouradjacentpixels,whichforms
+the underlying graph structure. At each pixel, the number
+of subsets in its neighborhood is 24= 16(including the
+empty set), with a coding length clv(S) = 5each; we also
+encode all other pixels in the image with random jumping,
+each with a coding length 1 + log2p. Using this scheme,
+we can encode each connected region Fby no more than
+log2p+5|F|bitsbygrowingtheregionfromasinglepoint
+in the region. Therefore if Fis composed of gconnected
+regions,thenthecodinglengthis glog2p+5|F|,whichcan
+besigniﬁcantlybetterthanstandardsparsecodinglengtho f
+|F|log2p. Thisexampleshowsthatthegeneralgraphcod-
+ing scheme presented here favors connected regions (that
+is,nodesthataregroupedtogetherwithrespecttothegraph
+structure). This scheme can be efﬁciently approximated
+with block coding as follows: we consider relatively small
+sizedbaseblocksconsistedofnodesthatareclosetogether
+withrespecttothegraphstructure,andthenusetheinduced
+block coding scheme toapproximate the graph coding.Learning with Structured Sparsity
+4.Algorithms for StructuredSparsity
+The following algorithm is a natural extension of L0regu-
+larization to structured sparsity problems. It penalizes t he
+coding complexity instead of the cardinality (sparsity) of
+thefeature set.
+ˆβconstr = arg min
+β∈RpˆQ(β)subject to c(β)≤s.(1)
+The optimization of (1) is generally hard. There are two
+common approaches to alleviate this problem. One is con-
+vex relaxation ( L1regularization to replace L0regulariza-
+tionforstandardsparsity);theotherisforwardgreedyalg o-
+rithm. Wedonotknowanyextensionsof L1regularization
+like convex relaxation that can handle general structured
+sparsity formulations. However, one can extend greedy al-
+gorithm by using a block structure. We call the resulting
+procedure structured greedy algorithm (see Algorithm 1),
+which approximately solves (1).
+Algorithm 1 Structured Greedy Algorithm (StructOMP)
+1:Input: (X,y),B ⊂2I,s >0
+2:Output: F(k)andβ(k)
+3:letF(0)=∅andβ(0)= 0
+4:for all K= 1,...do
+5:select B(k)∈ Btomaximize progress (∗)
+6:letF(k)=B(k)∪F(k−1)
+7:letβ(k)= arg min β∈RpˆQ(β)
+subject to supp(β)⊂F(k)
+8:if(c(β(k))> s)break
+9:end for
+In Algorithm 1, we are given a set of blocks Bthat con-
+tains subsets of I. Instead of searching all subsets F⊂ I
+up to a certain complexity |F|+c(F), which is computa-
+tionally infeasible, we search only the blocks restricted t o
+B. It is assumed that searching over Bis computationally
+manageable. Ateachstep (∗),wetrytoﬁndablockfrom B
+tomaximizeprogress. Itisthusnecessarytodeﬁneaquan-
+tity that measures progress. Our idea is to approximately
+maximize thegain ratio:
+λ(k)=ˆQ(β(k−1))−ˆQ(β(k))
+c(β(k))−c(βk−1),
+whichmeasuresthereductionofobjectivefunctionperunit
+increase of coding complexity. This greedy criterion is
+a natural generalization of the standard greedy algorithm,
+and essential in our analysis. For least squares regression ,
+wecan approximate λ(k)using thefollowing deﬁnition
+φ(B) =/bardblPB−F(k−1)(Xβ(k−1)−y)/bardbl2
+2
+c(B∪F(k−1))−c(F(k−1)),(2)
+where PF=XF(X/latticetop
+FXF)−1X/latticetop
+Fis the projection matrix
+to the subspaces generated by columns of XF. We thenselect B(k)sothat
+φ(B(k))≥γmax
+B∈Bφ(B),
+where γ∈(0,1]is a ﬁxed approximation ratio that speci-
+ﬁes the quality ofapproximate optimization.
+5.Theoryof StructuredSparsity
+Due to the space limitation, the proofs of the theorems are
+detailed in(Huang et al.,2009).
+5.1. Assumptions
+We assumesub-Gaussian noise as follows.
+Assumption5.1 Assume that {yi}i=1,...,nare indepen-
+dent (but not necessarily identically distributed) sub-
+Gaussians: there exists a constant σ≥0such that ∀iand
+∀t∈R,Eyiet(yi−Eyi)≤eσ2t2/2.
+We also need to generalize sparse eigenvalue condition,
+used in the modern sparsity analysis. It is related to (and
+weaker than) the RIP (restricted isometry property) as-
+sumption(Candes&Tao,2005)inthecompressivesensing
+literature. This deﬁnition takes advantage of coding com-
+plexity,andcanbealsoconsideredas(aweakerversionof)
+structuredRIP. We introduce adeﬁnition.
+Deﬁnition 5.1 For all F⊂ {1,... ,p }, deﬁne
+ρ−(F) =inf/braceleftbigg1
+n/bardblXβ/bardbl2
+2//bardblβ/bardbl2
+2: supp( β)⊂F/bracerightbigg
+,
+ρ+(F) =sup/braceleftbigg1
+n/bardblXβ/bardbl2
+2//bardblβ/bardbl2
+2: supp( β)⊂F/bracerightbigg
+.
+Moreover, for all s >0, deﬁne
+ρ−(s) =inf {ρ−(F) :F⊂ I,c(F)≤s},
+ρ+(s) =sup {ρ+(F) :F⊂ I,c(F)≤s}.
+In the theoretical analysis, we need to assume that ρ−(s)
+is not too small for some sthat is larger than the sig-
+nal complexity. Since we only consider eigenvalues for
+submatrices with small cost c(¯β), the sparse eigenvalue
+ρ−(s)can be signiﬁcantly larger than the corresponding
+ratio for standard sparsity (which will consider all sub-
+sets of {1,... ,p }up to size s). For example, for random
+projections used in compressive sensing applications, the
+coding length c(supp( ¯β))isO(klnp)in standard spar-
+sity, but can be as low as c(supp( ¯β)) = O(k)in struc-
+turedsparsity(ifwecanguess supp( ¯β)approximatelycor-
+rectly. Therefore instead of requiring n=O(klnp)sam-
+ples,werequiresonly O(k+cl(supp( ¯β))). Thedifference
+can be signiﬁcant when pis large and the coding length
+cl(supp( ¯β))/lessmuchklnp.Learning with Structured Sparsity
+The theorem implies that the structured RIP condition is
+satisﬁed with sample size n=O((k/k0)ln(p/k0))in
+groupsparsityratherthan n=O(kln(p))instandardspar-
+sity.
+Theorem 5.1(Structured-RIP) Suppose that elements in
+Xare iid standard Gaussian random variables N(0,1).
+For any t >0andδ∈(0,1), let
+n≥8
+δ2[ln 3 + t+sln(1 + 8 /δ)].
+Then with probability at least 1−e−t, the random matrix
+X∈Rn×psatisﬁes the following structured-RIP inequal-
+ity for all vector ¯β∈Rpwith coding complexity no more
+thans:
+(1−δ)/bardbl¯β/bardbl2≤1√n/bardblX¯β/bardbl2≤(1 +δ)/bardbl¯β/bardbl2.
+5.2. Coding complexity regularization
+Theorem 5.2 Suppose that Assumption 5.1 is valid. Con-
+sider any ﬁxed target ¯β∈Rp. Then with probability ex-
+ceeding 1−η, for all λ≥0,/epsilon1≥0,ˆβ∈Rpsuch that:
+ˆQ(ˆβ)≤ˆQ(¯β) +/epsilon1, we have
+/bardblXˆβ−Ey/bardbl2≤ /bardblX¯β−Ey/bardbl2+σ/radicalbig
+2ln(6/η) + 2Γ ,
+Γ = (7 .4σ2c(ˆβ) + 2.4σ2ln(6/η) +/epsilon1)1/2.
+Moreover, ifthe coding scheme c(·)issub-additive, then
+nρ−(c(ˆβ) +c(¯β))/bardblˆβ−¯β/bardbl2
+2≤10/bardblX¯β−Ey/bardbl2
+2+ ∆,
+∆ = 37 σ2c(ˆβ) + 29 σ2ln(6/η) + 2.5/epsilon1.
+This theorem immediately implies the following result for
+(1):∀¯βsuch that c(¯β)≤s,
+1√n/bardblXˆβconstr −Ey/bardbl2≤1√n/bardblX¯β−Ey/bardbl2+ Λ,
+Λ =σ√n/radicalbig
+2ln(6/η) +2σ√n(7.4s+ 4.7ln(6/η))1/2,
+/bardblˆβconstr −¯β/bardbl2
+2≤1
+ρ−(s+c(¯β))n/bracketleftbig
+10/bardblX¯β−Ey/bardbl2
+2+ Π/bracketrightbig
+,
+Π = 37 σ2s+ 29σ2ln(6/η).
+In compressive sensing applications, we take σ= 0, and
+weareinterestedinrecovering ¯βfromrandomprojections.
+For simplicity, we let X¯β=Ey=y, and our result
+shows that the constrained coding complexity penalization
+method achieves exact reconstruction ˆβconstr =¯βas long
+asρ−(2c(¯β))>0(by setting s=c(¯β)). According to
+Theorem 5.1, this is possible when the number of random
+projections (sample size) reaches n=O(2c(¯β)). This isa generalization of corresponding results in compressive
+sensing (Candes & Tao, 2005). As we have pointed out
+earlier, this number can be signiﬁcantly smaller than the
+standard sparsity requirement of n=O(/bardbl¯β/bardbl0lnp), when
+thestructureimposed ismeaningful.
+5.3. Structured greedy algorithm
+Deﬁnition 5.2 Given B ⊂2I, deﬁne
+ρ0(B) = max
+B∈Bρ+(B), c0(B) = max
+B∈Bc(B)
+and
+c(¯β,B) = minb/summationdisplay
+j=1c(¯Bj),supp( ¯β)⊂b/uniondisplay
+j=1¯Bj(¯Bj∈ B).
+The following theorem shows that if c(¯β,B)is small, then
+one can use the structured greedy algorithm to ﬁnd a coef-
+ﬁcient vector β(k)that is competitive to ¯β, and the coding
+complexity c(β(k))isnot much worsethan that of c(¯β,B).
+Thisimpliesthatiftheoriginalcodingcomplexity c(¯β)can
+beapproximatedbyblockcomplexity c(¯β,B),thenwecan
+approximately solve (1).
+Theorem 5.3 Suppose the coding scheme is sub-additive.
+Consider ¯βand/epsilon1suchthat /epsilon1∈(0,/bardbly/bardbl2
+2−/bardblX¯β−y/bardbl2
+2]and
+s≥ρ0(B)c(¯β,B)
+γρ−(s+c(¯β))ln/bardbly/bardbl2
+2− /bardblX¯β−y/bardbl2
+2
+/epsilon1.
+Then at thestopping time k, wehave
+ˆQ(β(k))≤ˆQ(¯β) +/epsilon1.
+By Theorem 5.2, theresultinTheorem 5.3 impliesthat
+/bardblXβ(k)−Ey/bardbl2≤ /bardblX¯β−Ey/bardbl2+σ/radicalbig
+2ln(6/η) + Λ,
+Λ = 2 σ(7.4(s+c0(B)) + 4 .7ln(6/η) +/epsilon1/σ2)1/2,
+/bardblβ(k)−¯β/bardbl2
+2≤/bracketleftbig
+10/bardblX¯β−Ey/bardbl2
+2+ Π/bracketrightbig
+ρ−(s+c0(B) +c(¯β))n,
+Π = 37 σ2(s+c0(B)) + 29 σ2ln(6/η) + 2.5/epsilon1.
+The result shows that in order to approximate a sig-
+nal¯βup to /epsilon1, one needs to use coding complexity
+O(ln(1//epsilon1))c(¯β,B). IfBcontains small blocks and their
+sub-blocks with equal coding length, and the coding
+scheme is block coding generated by B, then c(¯β,B) =
+c(¯β). In this case we need O(sln(1//epsilon1))to approximate a
+signal withcoding complexity s.
+In order to get rid of the O(ln(1//epsilon1))factor, backward
+greedy strategies can be employed, as shown in various re-
+cent work such as (Zhang, 2008). For simplicity, we willLearning with Structured Sparsity
+not analyze such strategies in this paper. However, in the
+following, we present an additional convergence result for
+structured greedy algorithm that can be applied to weakly
+sparse p-compressible signals common in practice. It is
+shown that the ln(1//epsilon1)can be removed for such weakly
+sparse signals. More precisely, we introduce the following
+concept of weakly sparse compressible target that gener-
+alizes the corresponding concept of compressible signal in
+standard sparsity from the compressive sensing literature
+(Donoho, 2006).
+Deﬁnition 5.3 The target Eyis(a,q)-compressible with
+respect to block Bif there exist constants a,q > 0such
+that for each s >0,∃¯β(s)such that c(¯β(s),B)≤sand
+1
+n/bardblX¯β(s)−Ey/bardbl2
+2≤as−q.
+Theorem 5.4 Suppose that the target is (a,q)-
+compressible with respect to B. Then with probability
+1−η,at the stopping time k,we have
+ˆQ(β(k))≤ˆQ(¯β(s/prime)) + 2 na/s/primeq+ 2σ2[ln(2/η) + 1],
+where
+s/prime≤s γ
+(10 + 3 q)ρ0(B)min
+u≤s/primeρ−(s+c(¯β(u))).
+This result shows that we can approximate a compressible
+signal of complexity s/primewith complexity s=O(qs/prime)us-
+ing greedy algorithm. This means the greedy algorithm
+obtains optimal rate for weakly-sparse compressible sig-
+nals. The sample complexity suffers only a constant fac-
+torO(q). Combine this result with Theorem 5.2, and take
+union bound, we have with probability 1−2η, at stopping
+timek:
+1√n/bardblXβ(k)−Ey/bardbl2≤/radicalbigga
+s/primeq+σ/radicalbigg
+2ln(6/η)
+n+ 2σ√
+Λ,
+Λ =7.4(s+c0(B)) + 6 .7ln(6/η)
+n+2a
+σ2s/primeq,
+/bardblβ(k)−¯β/bardbl2
+2≤1
+ρ−(s+s/prime+c0(B))/bracketleftbigg15a
+s/primeq+Π
+n/bracketrightbigg
+,
+Π = 37 σ2(s+c0(B)) + 34 σ2ln(6/η).
+Given a ﬁxed n, we can obtain a convergence result by
+choosing s(and thus s/prime) to optimize the right hand side.
+The resulting rate is optimal for the special case of stan-
+dardsparsity,whichimpliesthattheboundhastheoptimal
+formforstructured q-compressibletargets. Inparticular,in
+compressive sensing applications where σ= 0, we obtain
+when samples size reaches n=O(qs/prime), the reconstruction
+performance is
+/bardbl¯β(k)−¯β/bardbl2
+2=O(a/s/primeq),
+which matches that of the constrained coding complexity
+regularization method in(1)up toaconstant O(q).6.Experiments
+Thepurposeoftheseexperimentsistodemonstratethead-
+vantage of structured sparsity over standard sparsity. We
+compare the proposed StructOMP to OMP and Lasso,
+whicharestandardalgorithmstoachievesparsitybutwith-
+out considering structure. In our experiments, we use
+Lasso-modiﬁed least angle regression (LAS/Lasso) as the
+solver of Lasso (Bradley Efron & Tibshirani, 2004). In
+order to quantitatively compare performance of different
+algorithms, we use recovery error, deﬁned as the relative
+difference in 2-norm between the estimated sparse coef-
+ﬁcient vector ˆβestand the ground-truth sparse coefﬁcient
+¯β:/bardblˆβest−¯β/bardbl2//bardbl¯β/bardbl2. Our experiments focus on graph
+sparsity that is more general than group sparsity. In fact,
+connectedregionsmayberegardedasdynamicgroupsthat
+are not pre-deﬁned. For this reason, we do not compare to
+group-Lasso which requires pre-deﬁned groups.
+100
+ 200
+ 300
+ 400
+ 500
+-2
+0
+2
+(a) Original Signal
+100
+ 200
+ 300
+ 400
+ 500
+-2
+0
+2
+(c) Lasso
+100
+ 200
+ 300
+ 400
+ 500
+-2
+0
+2
+(b) OMP
+100
+ 200
+ 300
+ 400
+ 500
+-2
+0
+2
+(d) StructOMP
+Figure1. Recovery results of 1D signal with graph-structured
+sparsity. (a) original data; (b) recovered results with OMP (er-
+ror is 0.9921); (c) recovered results with Lasso (error is 0.6660);
+(d) recovered resultswith StructOMP (erroris 0.0993).
+6.1. 1D Signals withLine-Structured Sparsity
+In the ﬁrst experiment, we randomly generate a 1Dstruc-
+turedsparsesignalwithvalues ±1,where p= 512,k= 32
+andg= 2. The support set of thesesignals iscomposed of
+gconnectedregions. Here,eachelementofthesparsecoef-
+ﬁcient is connected to two of its adjacent elements, which
+forms the underlying graph structure. The graph sparsity
+concept introduced earlier is used to compute the coding
+length of sparsity patterns in StructOMP. The projection
+matrix Xis generated by creating an n×pmatrix with
+i.i.d. draws from a standard Gaussian distribution N(0,1).
+For simplicity, the rows of Xare normalized to unit mag-
+nitude. Zero-mean Gaussian noise with standard deviation
+σ= 0.01is added to the measurements. Figure 1 shows
+one generated signal and its recovered results by different
+algorithms when n= 4k= 128. To study how the sam-
+ple size neffects the recovery performance, we change the
+sample size and record the recovery results by different al-
+gorithms. Figure 2(a) shows the recovery performance of
+the three algorithms, averaged over 100 random runs for
+each sample size. As expected, StructOMP is better than
+the OMP and Lasso and can achieve better recovery per-
+formance forstructuredsparsitysignals withlesssamples .Learning with Structured Sparsity
+234567800.20.40.60.811.21.41.6Recovery Error
+Sample Size Ratio ( n / k )  
+OMP
+Lasso
+StructOMP
+(a)234567800.20.40.60.811.21.41.6Recovery Error
+Sample Size Ratio (n/k)  
+OMP
+Lasso
+StructOMP
+(b)
+Figure2. Recovery error vs. Sample size ratio (n/k): a) 1D sig-
+nals;(b) 2Dgray images
+6.2. 2D Images withGraph-structured Sparsity
+To demonstrate the structure sparsity concept on 2D im-
+ages, we randomly generate a 2Dstructured sparsity im-
+age by putting four letters in random locations, where
+p=H∗W= 48 ∗48,k= 160andg= 4. The sup-
+port set of these signals is thus composed of gconnected
+regions. Here, each pixel of the 2D gray image is con-
+nected to four of its adjacent pixels, which forms the un-
+derlyinggraphstructure. Thegraphsparsitycodingscheme
+discussed earlier is applied to calculate coding length of a
+sparsity pattern. Figure 3 shows one example of 2D gray
+images and the recovered results by different algorithms
+when m= 4k= 640. We also record the recovery re-
+sults by different algorithms with increasing sample sizes .
+Figure2(b)showstherecoveryperformanceofthethreeal-
+gorithms, averaged over 100 random runs for each sample
+size. The recovery results of StructOMP are always better
+than those of OMP. Comparing to Lasso, however, the dif-
+ference is not always clear cut. This result is reasonable,
+considering that this artiﬁcial signal is strongly sparse, and
+our theory says that OMP works best for weakly sparse
+signals. For strongly sparse signals, recovery bounds for
+Lasso are known to be better than that of OMP. However,
+as shown in the next two examples, real data are often not
+strongly sparse, and StructOMP can signiﬁcantly outper-
+formLasso. Weshallmentionthatafewrecentworkshave
+shown that the backward greedy strategies can be added
+to further improve the forward greedy methods and obtain
+similarly results as those of L1regularization based meth-
+ods (Needell & Tropp, 2008)(Zhang, 2008). It will be a
+future work to include such modiﬁcations into StructOMP.
+(a)
+ (b)
+ (c)
+ (d)
+Figure3. Recovery results of a 2D gray image: (a) original gray
+image,(b)recoveredimagewithOMP(erroris0.9012),(c)recov-
+ered image with Lasso (error is 0.4556) and (d) recovered image
+withStructOMP (error is 0.1528)6.3. 2D Images withTree-structured Sparsity
+It is well known that the 2D natural images are sparse in
+a wavelet basis. Their wavelet coefﬁcients have a hierar-
+chical tree structure (Mallat, ). Figure 4(a) shows a widely
+used example image with size 64×64:cameraman . Each
+2Dwaveletcoefﬁcientofthisimageisconnectedtoitspar-
+ent coefﬁcient and child coefﬁcients, which forms the un-
+derlying hierarchical tree structure (which is a special ca se
+of graph sparsity). In our experiment, we choose Haar-
+wavelet to obtain its tree-structured sparsity wavelet coe f-
+ﬁcients. The projection matrix Xand noises are generated
+withthesamemethodasthatfor1Dstructuredsparsitysig-
+nals. OMP, Lasso and StructOMP are used to recover the
+wavelet coefﬁcients from the random projection samples
+respectively. Then,theinversewavelettransformisusedt o
+reconstruct the images with these recovered wavelet coef-
+ﬁcients. Our task is to compare the recovery performance
+of the StructOMP to those of OMP and Lasso. Figure 4
+showsoneexampleoftherecoveredresultsbydifferental-
+gorithms. It shows that StructOMP obtains the best recov-
+ered result. Figure 5(a) shows the recovery performance
+ofthethreealgorithms,averagedover100randomrunsfor
+each sample size. The StructOMP algorithm is better than
+both Lasso and OMP in this case. The difference of this
+example from the previous example is that real image data
+are only weakly sparse, for which even the standard OMP
+(without structured sparsity) bound obtained in this paper
+matches that of Lasso. It is thus consistent with our theory
+that StructOMP should outperform unstructured Lasso in
+thiscase.
+(a)
+ (b)
+ (c)
+ (d)
+Figure4. Recovery results with sample size n= 2048: (a) the
+backgroundsubtractedimage,(b)recoveredimagewithOMP(er-
+ror is 0.21986), (c) recovered image with Lasso (error is 0.1670)
+and (d)recovered image withStructOMP (error is0.0375)
+12001400160018002000220024002600280000.050.10.150.20.250.30.35Recovery Error
+Sample Size  
+OMP
+Lasso
+StructOMP
+(a)500 1000 1500 2000 250000.20.40.60.811.21.41.6Recovery Error
+Sample Size  
+OMP
+Lasso
+StructOMP
+(b)
+Figure5. Recovery error vs. Sample size: a) 2D image with tree-
+structured sparsity in wavelet basis; (b) background subtracted
+images with structuredsparsityLearning with Structured Sparsity
+6.4. Background Subtracted Images
+Background subtracted images are typical structure spar-
+sity data in static video surveillance applications. They
+generally correspond to the foreground objects of in-
+terest. These images are not only spatially sparse
+but also inclined to cluster into groups, which cor-
+respond to different foreground objects. In this
+experiment, the testing video is downloaded from
+http://homepages.inf.ed.ac.uk/rbf/CAVIARDATA1/. One
+sample image frameisshown inFigure 6(a). Each pixel of
+the2Dbackgroundsubtractedimageisconnectedtofourof
+its adjacent pixels, forming the underlying graph structur e.
+Werandomlychoose100backgroundsubtractedimagesas
+test images. The recovery performance is recorded as a
+function of increasing sample sizes. Figure 6 and Figure
+5(b)demonstratethatStructOMPsigniﬁcantlyoutperforms
+OMP and Lassoinrecovery performance onvideo data.
+(a)
+ (b)
+ (c)
+ (d)
+Figure6. Recovery results with sample size n= 900: (a) the
+backgroundsubtractedimage,(b)recoveredimagewithOMP(er-
+ror is 1.1833), (c) recovered image with Lasso (error is 0.7075)
+and (d)recovered image withStructOMP (error is0.1203)
+7.Conclusion
+This paper develops a theory for structured sparsity where
+priorknowledgeallowsustoprefercertainsparsitypatter ns
+to others. A general framework is established based on a
+coding scheme, which includes the group sparsity idea as
+a special case. The proposed structured greedy algorithm
+is the ﬁrst efﬁcient algorithm to handle the general struc-
+tured sparsity learning. Experimental results demonstrat e
+thatsigniﬁcantimprovementscanbeobtainedonsomereal
+problems that have natural structures, and the results are
+consistent with our theory. Future work include additional
+computationally efﬁcient methods such as convex relax-
+ation methods and backward greedy strategies.
+References
+Bach, F. R. (2008). Consistency of the group lasso and
+multiple kernel learning. Journal of Machine Learning
+Research,9, 1179–1225.
+Baraniuk, R., Cevher, V., Duarte, M., & Hegde, C. (2008).
+Model based compressive sensing. preprint.
+BradleyEfron,TrevorHastie,I.J.,&Tibshirani,R.(2004) .
+Least angle regression. Annals of Statistics ,32, 407–
+499.Candes, E. J., & Tao, T. (2005). Decoding by linear pro-
+gramming. IEEE Trans. on Information Theory ,51,
+4203–4215.
+Daudet, L. (2004). Sparse and structured decomposition
+of audio signals in overcomplete spaces. International
+Conference on DigitalAudio Effects (pp. 1–5).
+Donoho, D. (2006). Compressed sensing. IEEE Transac-
+tions onInformation Theory ,52, 1289–1306.
+Grimm,D.,Netzer,T.,&Schweighofer,M.(2007). Anote
+ontherepresentationofpositivepolynomialswithstruc-
+tured sparsity. Arch. Math. ,89, 399–403.
+Huang, J., & Zhang, T. (2009). The beneﬁt of group spar-
+sity(Technical Report). Rutgers University.
+Huang,J.,Zhang,T.,&Metaxas,D.(2009). Learningwith
+structured sparsity (Technical Report). Rutgers Univer-
+sity. available fromhttp://arxiv.org/abs/0903.3002.
+Mallat,S. AWaveletTourofSignalProcessing . Academic
+Press.
+Needell, D., & Tropp, J. (2008). Cosamp: Iterative signal
+recovery from incomplete and inaccurate samples. Ap-
+pliedandComputationalHarmonicAnalysis . Accepted.
+Stojnic, M., Parvaresh, F., & Hassibi, B. (2008). On the
+reconstruction of block-sparse signals with an optimal
+number of measurements. Preprint.
+Tibshirani, R. (1996). Regression shrinkage and selection
+viathelasso. JournaloftheRoyalStatisticalSociety ,58,
+267–288.
+Tropp, J., & Gilbert, A. (2007). Signal recovery from
+random measurements via orthogonal matching pursuit.
+IEEE Transactions on Information Theory ,53, 4655–
+4666.
+Yuan, M., & Lin, Y. (2006). Model selection and estima-
+tioninregressionwithgroupedvariables. JournalofThe
+Royal Statistical Society Series B ,68, 49–67.
+Zhang, T. (2008). Adaptive forward-backward greedy al-
+gorithmforlearningsparserepresentations. Proceedings
+of Neural Information Processing Systems (pp. 1–8).
+Zhao, P., Rocha, G., & Yu, B. Grouped and hierarchical
+model selection through composite absolute penalties.
+The Annals of Statistics . toappear.

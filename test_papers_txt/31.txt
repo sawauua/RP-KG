@@ -1,0 +1,462 @@
+Replicated Softmax: an Undirected Topic Model
+
+Ruslan Salakhutdinov
+Brain andCognitiveSciencesandCSAIL
+MassachusettsInstituteofTechnology
+rsalakhu@mit.eduGeoffreyHinton
+DepartmentofComputerScience
+UniversityofToronto
+hinton@cs.toronto.edu
+Abstract
+We introduce a two-layer undirected graphical model, calle d a “Replicated Soft-
+max”,thatcanbeusedtomodelandautomaticallyextractlow -dimensionallatent
+semantic representations from a large unstructured collec tion of documents. We
+presentefﬁcientlearningandinferencealgorithmsforthi smodel,andshowhowa
+Monte-Carlo based method, Annealed ImportanceSampling, c an be used to pro-
+duce an accurate estimate of the log-probability the model a ssigns to test data.
+Thisallowsusto demonstratethatthe proposedmodelisable togeneralizemuch
+bettercomparedtoLatentDirichletAllocationintermsofb oththelog-probability
+ofheld-outdocumentsandthe retrievalaccuracy.
+1 Introduction
+Probabilistictopic models[2, 9, 6] are oftenused to analyz eandextract semantictopicsfrom large
+textcollections. Manyoftheexistingtopicmodelsarebase dontheassumptionthateachdocument
+isrepresentedasamixtureoftopics,whereeachtopicdeﬁne saprobabilitydistributionoverwords.
+The mixing proportions of the topics are document speciﬁc, b ut the probability distribution over
+words,deﬁnedbyeachtopic,isthesame acrossall documents .
+All these models can be viewed as graphical models in which la tent topic variables have directed
+connectionsto observedvariables that represent words in a document. One major drawbackis that
+exactinferencein these modelsis intractable,so onehas to resortto slow or inaccurateapproxima-
+tions to computethe posteriordistribution overtopics. A s econdmajor drawback,that is shared by
+all mixturemodels, is that these modelscan nevermake predi ctionsfor wordsthat are sharperthan
+the distributions predicted by any of the individual topics . They are unable to capture the essential
+idea of distributedrepresentationswhich is that the distr ibutionspredictedby individualactive fea-
+turesget multipliedtogether(and renormalized)to give th e distribution predictedby a whole set of
+activefeatures. Thisallowsindividualfeaturesto be fair lygeneralbut their intersectionto be much
+more precise. For example, distributed representationsal low the topics“government”,”maﬁa” and
+”playboy” to combine to give very high probability to a word “ Berlusconi” that is not predicted
+nearlyasstronglybyeachtopicalone.
+Todate,therehasbeenverylittleworkondevelopingtopicm odelsusingundirectedgraphicalmod-
+els. Severalauthors[4,17]usedtwo-layerundirectedgrap hicalmodels,calledRestrictedBoltzmann
+Machines(RBMs),inwhichword-countvectorsaremodeledas aPoissondistribution. Whilethese
+modelsare able to producedistributedrepresentationsof t he input and performwell in terms of re-
+trievalaccuracy,theyare unableto properlydeal with docu mentsofdifferentlengths,which makes
+learning very unstable and hard. This is perhaps the main rea son why these potentially powerful
+models have not found their application in practice. Direct ed models, on the other hand, can eas-
+ily handle unobserved words (by simply ignoring them), whic h allows them to easily deal with
+different-sized documents. For undirected models margina lizing over unobservedvariables is gen-
+erally a non-trivial operation, which makes learning far mo re difﬁcult. Recently, [13] attempted to
+ﬁxthisproblembyproposingaConstrainedPoissonmodeltha twouldensurethatthemeanPoisson
+1ratesacrossall wordssumupto thelengthofthedocument. Wh ilethe parameterlearninghasbeen
+showntobestable,theintroducedmodelnolongerdeﬁnesapr operprobabilitydistributionoverthe
+wordcounts.
+Inthenextsectionweintroducea“ReplicatedSoftmax”mode l. Themodelcanbeefﬁcientlytrained
+usingContrastiveDivergence,ithasabetterwayofdealing withdocumentsofdifferentlengths,and
+computing the posterior distribution over the latent topic values is easy. We will also demonstrate
+that the proposedmodel is able to generalize much better com pared to a popularBayesian mixture
+model, Latent Dirichlet Allocation (LDA) [2], in terms of bo th the log-probability on previously
+unseendocumentsandthe retrievalaccuracy.
+2 Replicated Softmax: A GenerativeModel ofWordCounts
+Consider modeling discrete visible units vusing a restricted Boltzmann machine, that has a two-
+layer architecture as shown in Fig. 1. Let v∈{1, ..., K}D, where Kis the dictionary size and D
+is the document size, and let h∈{0,1}Fbe binary stochastic hidden topic features. Let Vbe a
+K×Dobservedbinarymatrixwith vk
+i= 1ifvisibleunit itakeson kthvalue. Wedeﬁnetheenergy
+ofthestate{V,h}asfollows:
+E(V,h) =−D/summationdisplay
+i=1F/summationdisplay
+j=1K/summationdisplay
+k=1Wk
+ijhjvk
+i−D/summationdisplay
+i=1K/summationdisplay
+k=1vk
+ibk
+i−F/summationdisplay
+j=1hjaj, (1)
+where{W, a, b}are the model parameters: Wk
+ijis a symmetric interaction term between visible
+unitithattakesonvalue k,andhiddenfeature j,bk
+iisthebiasofunit ithattakesonvalue k,andaj
+isthebiasofhiddenfeature j(seeFig.1). Theprobabilitythatthemodelassignstoavisi blebinary
+matrixVis:
+P(V) =1
+Z/summationdisplay
+hexp(−E(V,h)),Z=/summationdisplay
+V/summationdisplay
+hexp (−E(V,h)), (2)
+whereZis known as the partition function or normalizing constant. The conditional distributions
+aregivenbysoftmaxandlogisticfunctions:
+p(vk
+i= 1|h) =exp(bk
+i+/summationtextF
+j=1hjWk
+ij)
+/summationtextK
+q=1exp/parenleftbig
+bq
+i+/summationtextF
+j=1hjWq
+ij/parenrightbig (3)
+p(hj= 1|V) = σ/parenleftBigg
+aj+D/summationdisplay
+i=1K/summationdisplay
+k=1vk
+iWk
+ij/parenrightBigg
+, (4)
+where σ(x) = 1/(1 + exp(−x))is thelogisticfunction.
+NowsupposethatforeachdocumentwecreateaseparateRBMwi thasmanysoftmaxunitsasthere
+arewordsinthedocument. Assumingwecanignoretheorderof thewords,allofthesesoftmaxunits
+can share the same set of weights, connecting them to binary h idden units. Consider a document
+thatcontains Dwords. Inthiscase,we deﬁnethe energyofthestate {V,h}tobe:
+E(V,h) =−F/summationdisplay
+j=1K/summationdisplay
+k=1Wk
+jhjˆvk−K/summationdisplay
+k=1ˆvkbk−DF/summationdisplay
+j=1hjaj, (5)
+where ˆvk=/summationtextD
+i=1vk
+idenotesthecountforthe kthword. Observethat thebiastermsofthe hidden
+units are scaled up by the length of the document. This scalin g is crucial and allows hidden topic
+unitsto behavesensiblywhendealingwith documentsofdiff erentlengths.
+Given a collection of Ndocuments{Vn}N
+n=1, the derivative of the log-likelihood with respect to
+parameters Wtakestheform:
+1
+NN/summationdisplay
+n=1∂logP(Vn)
+∂Wk
+j=EPdata/bracketleftbig
+ˆvkhj/bracketrightbig
+−EPModel/bracketleftbig
+ˆvkhj/bracketrightbig
+,
+where E Pdata[·]denotes an expectation with respect to the data distributio nPdata(h,V) =
+p(h|V)Pdata(V), with Pdata(V) =1
+N/summationtext
+nδ(V−Vn)representing the empirical distribution,
+2W1W1W2
+W2h
+vW1W1W1W2W2W2
+W1 W2LatentTopics
+ObservedSoftmaxVisiblesLatentTopics
+MultinomialVisible
+Figure 1: Replicated Softmax model. The top layer represents a vector hof stochastic, binary topic features
+and and the bottom layer represents softmax visible units v. All visible units share the same set of weights,
+connecting them to binary hidden units. Left:The model for a document containing two and three words.
+Right:A different interpretation of the Replicated Softmax model , in which Dsoftmax units with identical
+weights are replaced bya single multinomial unit which issa mpled Dtimes.
+and E PModel[·]is an expectation with respect to the distribution deﬁned by the model. Exact maxi-
+mum likelihood learning in this model is intractable becaus e exact computation of the expectation
+EPModel[·]takestimethatisexponentialin min{D, F},i.ethenumberofvisibleorhiddenunits. To
+avoidcomputingthisexpectation,learningisdonebyfollo winganapproximationtothegradientof
+a differentobjectivefunction,calledthe“ContrastiveDi vergence”(CD)([7]):
+∆Wk
+j=α/parenleftbigg
+EPdata/bracketleftbig
+ˆvkhj/bracketrightbig
+−EPT/bracketleftbig
+ˆvkhj/bracketrightbig/parenrightbigg
+, (6)
+where αis the learning rate and PTrepresents a distribution deﬁned by running the Gibbs chain ,
+initialized at the data, for Tfull steps. The special bipartite structure of RBM’s allows for quite an
+efﬁcientGibbssamplerthatalternatesbetweensamplingth estatesofthehiddenunitsindependently
+giventhestatesofthevisibleunits,andviseversa(seeEqs .3,4). Setting T=∞recoversmaximum
+likelihoodlearning.
+The weights can now be shared by the whole family of different -sized RBM’s that are created for
+documentsofdifferentlengths(seeFig.1). Wecallthisthe “ReplicatedSoftmax”model. Apleasing
+propertyofthismodelisthatcomputingtheapproximategra dientsoftheCD objective(Eq.6)fora
+documentthatcontains100wordsiscomputationallynotmuc hmoreexpensivethancomputingthe
+gradients for a document that contains only one word. A key ob servation is that using Dsoftmax
+units with identical weights is equivalent to having a singl e multinomial unit which is sampled D
+times, as shown in Fig. 1, right panel. If instead of sampling , we use real-valued softmax proba-
+bilities multipliedby D, we exactlyrecoverthe learningalgorithmof a Constrained Poisson model
+[13],exceptforthescalingofthehiddenbiaseswith D.
+3 Evaluating Replicated Softmax as aGenerative Model
+Assessing the generalization performance of probabilisti c topic models plays an important role in
+model selection. Much of the existing literature, particul arly for undirected topic models [4, 17],
+usesextremelyindirectperformancemeasures,suchasinfo rmationretrievalordocumentclassiﬁca-
+tion. More broadly, however, the ability of the model to gene ralize can be evaluated by computing
+the probabilitythat the modelassigns to the previouslyuns eendocuments,which isindependentof
+anyspeciﬁc application.
+Forundirectedmodels,computingtheprobabilityofheld-o utdocumentsexactlyisintractable,since
+computing the global normalization constant requires enum eration over an exponential number of
+terms. Evaluating the same probabilityfor directed topic m odelsis also difﬁcult, because there are
+anexponentialnumberofpossibletopicassignmentsforthe words.
+Recently,[14]showedthataMonteCarlobasedmethod,Annea ledImportanceSampling(AIS)[12],
+can be used to efﬁciently estimate the partition function of an RBM. We also ﬁnd AIS attractive
+because it not only provides a good estimate of the partition function in a reasonable amount of
+computertime,butitcanalsojustaseasilybeusedtoestima tetheprobabilityofheld-outdocuments
+for directed topic models, including Latent Dirichlet Allo cation (for details see [16]). This will
+allow us to properly measure and compare generalization cap abilities of Replicated Softmax and
+3Algorithm1 AnnealedImportanceSampling(AIS)run.
+1: Initialize 0 =β0< β1< ... < β S= 1.
+2: Sample V1fromp0.
+3:fors= 1 :S−1do
+4: Sample Vs+1givenVsusingTs(Vs+1←Vs).
+5:endfor
+6: Set wAIS=QS
+s=1p∗
+s(Vs)/p∗
+s−1(Vs).
+LDA models. We nowshow howAIS canbe usedto estimate the part itionfunctionof a Replicated
+Softmaxmodel.
+3.1 AnnealedImportanceSampling
+Suppose we have two distributions: pA(x) =p∗
+A(x)/ZAandpB(x) =p∗
+B(x)/ZB. Typically
+pA(x)is deﬁned to be some simple proposal distribution with known ZA, whereas pBrepresents
+ourcomplextargetdistributionofinterest. Onewayofesti matingtheratioofnormalizingconstants
+istouse a simpleimportancesamplingmethod:
+ZB
+ZA=/summationdisplay
+xp∗
+B(x)
+p∗
+A(x)pA(x) =EpA/bracketleftbiggp∗
+B(x)
+p∗
+A(x)/bracketrightbigg
+≈1
+NN/summationdisplay
+i=1p∗
+B(x(i))
+p∗
+A(x(i)), (7)
+wherex(i)∼pA. However,if the pAandpBare not close enough,the estimator will be verypoor.
+Inhigh-dimensionalspaces,thevarianceoftheimportance samplingestimatorwillbeverylarge,or
+possiblyinﬁnite,unless pAisa near-perfectapproximationto pB.
+Annealed Importance Sampling can be viewed as simple import ance sampling deﬁned on a much
+higherdimensionalstatespace. Itusesmanyauxiliaryvari ablesinordertomaketheproposaldistri-
+bution pAbe closer to the target distribution pB. AIS starts by deﬁninga sequence of intermediate
+probability distributions: p0, ..., p S, with p0=pAandpS=pB. One general way to deﬁne this
+sequenceisto set:
+pk(x)∝p∗
+A(x)1−βkp∗
+B(x)βk, (8)
+with“inversetemperatures” 0 =β0< β1< ... < β K= 1chosenbytheuser. Foreachintermediate
+distribution, a Markov chain transition operator Tk(x′;x)that leaves pk(x)invariant must also be
+deﬁned.
+UsingthespecialbipartitestructureofRBM’s,wecandevis eabetterAISscheme[14]forestimating
+the model’s partition function. Let us consider a Replicate d Softmax model with Dwords. Using
+Eq.5,thejointdistributionover {V,h}isdeﬁnedas1:
+p(V,h) =1
+Zexp
+F/summationdisplay
+j=1K/summationdisplay
+k=1Wk
+jhjˆvk
+, (9)
+where ˆvk=/summationtextD
+i=1vk
+idenotesthecountforthe kthword. Byexplicitlysummingoutthelatenttopic
+unitshwe can easily evaluate an unnormalized probability p∗(V). The sequence of intermediate
+distributions,parameterizedby β, cannowbedeﬁnedasfollows:
+ps(V) =1
+Zsp∗(V) =1
+Zs/summationdisplay
+hp∗
+s(V,h) =1
+ZsF/productdisplay
+j=1/parenleftBigg
+1 + exp/parenleftBigg
+βsK/summationdisplay
+k=1Wk
+jˆvk/parenrightBigg/parenrightBigg
+.(10)
+Note that for s= 0, we have βs= 0, and so p0represents a uniform distribution, whose partition
+functionevaluatesto Z0= 2F, where Fis the numberof hiddenunits. Similarly, when s=S, we
+haveβs= 1,andso pSrepresentsthedistributiondeﬁnedbytheReplicatedSoftm axmodel. Forthe
+intermediatevaluesof s, we will havesome interpolationbetweenuniformand target distributions.
+Using Eqs. 3, 4, it is also straightforwardto derive an efﬁci ent Gibbstransitionoperatorthat leaves
+ps(V)invariant.
+1We have omittedthe bias terms for clarityof presentation
+4AsinglerunofAISprocedureissummarizedinAlgorithm1. It startsbyﬁrstsamplingfromasim-
+ple uniform distribution p0(V)and then applying a series of transition operators T1, T2, . . . , T S−1
+that“move”thesamplethroughtheintermediatedistributi onsps(V)towardsthetargetdistribution
+pS(V). Note that there is no need to computethe normalizingconsta ntsof anyintermediate distri-
+butions. After performing Mruns of AIS, the importance weights w(i)
+AIScan be used to obtain an
+unbiasedestimateofourmodel’spartitionfunction ZS:
+ZS
+Z0≈1
+MM/summationdisplay
+i=1w(i)
+AIS, (11)
+whereZ0= 2F. ObservethattheMarkovtransitionoperatorsdonotnecess arilyneedtobeergodic.
+In particular, if we were to choose dumb transition operator s that do nothing, Ts(V′←V) =
+δ(V′−V)forall s, wesimplyrecoverthe simpleimportancesamplingprocedur eofEq.7.
+Whenevaluatingtheprobabilityofacollectionofseverald ocuments,weneedtoperformaseparate
+AIS run per document, if those documents are of different len gths. This is because each different-
+sizeddocumentcanberepresentedasaseparateRBMthathasi tsownglobalnormalizingconstant.
+4 Experimental Results
+In this section we present experimental results on three thr ee text datasets: NIPS proceedings pa-
+pers, 20-newsgroups,andReutersCorpusVolumeI (RCV1-v2) [10], andreportgeneralizationper-
+formanceofReplicatedSoftmaxandLDAmodels.
+4.1 DescriptionofDatasets
+The NIPS proceedings papers2contains 1740 NIPS papers. We used the ﬁrst 1690 documents as
+trainingdata andthe remaining50 documentsas test. The dat aset wasalreadypreprocessed,where
+eachdocumentwasrepresentedasa vectorcontaining13,649 wordcounts.
+The 20-newsgroupscorpus contains 18,845 postings taken fr om the Usenet newsgroup collection.
+The corpusis partitioned fairly evenly into 20 differentne wsgroups, each correspondingto a sepa-
+ratetopic.3Thedatawassplitbydateinto11,314trainingand7,531test articles,sothetrainingand
+test setswereseparatedintime. We furtherpreprocessedth edatabyremovingcommonstopwords,
+stemming,andthen onlyconsideringthe 2000most frequentw ordsin the trainingdataset. As a re-
+sult,eachpostingwasrepresentedasavectorcontaining20 00wordcounts. Nootherpreprocessing
+wasdone.
+The Reuters Corpus Volume I is an archive of 804,414 newswire stories4that have been manually
+categorized into 103 topics. The topic classes form a tree wh ich is typically of depth 3. For this
+dataset,wedeﬁnetherelevanceofonedocumenttoanotherto bethefractionofthetopiclabelsthat
+agreeonthetwopathsfromtheroottothetwodocuments. Thed atawasrandomlysplitinto794,414
+training and 10,000test articles. The available data was al ready in the preprocessed format, where
+commonstopwordswereremovedandall documentswerestemme d. We againonlyconsideredthe
+10,000mostfrequentwordsinthetrainingdataset.
+For all datasets, each word count wiwas replaced by log(1 + wi), rounded to the nearest integer,
+whichslightlyimprovedretrievalperformanceofbothmode ls. Table1showsdescriptionofallthree
+datasets.
+4.2 DetailsofTraining
+For the Replicated Softmax model, to speed-up learning, we s ubdivided datasets into minibatches,
+each containing 100 training cases, and updated the paramet ers after each minibatch. Learning
+was carried out using Contrastive Divergence by starting wi th one full Gibbs step and gradually
+increaing to ﬁve steps duringthe course of training, as desc ribed in [14]. For all three datasets, the
+total number of parameter updates was set to 100,000, which t ook several hours to train. For the
+2Available at http://psiexp.ss.uci.edu/research/progra msdata/toolbox.htm.
+3Available at http://people.csail.mit.edu/jrennie/20Ne wsgroups (20news-bydate.tar.gz).
+4Available at http://trec.nist.gov/data/reuters/reuter s.html
+5Data set Number ofdocs K ¯DSt.Dev. Avg. Testperplexity per word(innats)
+Train Test LDA-50 LDA-200 R. Soft-50 Unigram
+NIPS 1,690 50 13,649 98.0 245.3 3576 3391 3405 4385
+20-news 11,314 7,531 2,000 51.8 70.8 1091 1058 953 1335
+Reuters 794,414 10,000 10,000 94.6 69.3 1437 1142 988 2208
+Table 1: Results for LDA using 50 and 200 topics, and Replaced Softmax model that uses 50 topics. Kis
+the vocabulary size, ¯Dis the mean document length, St. Dev. is the estimated standa rd deviation in document
+length.
+250030003500400045005000250030003500400045005000
+Replicated SoftmaxLDA
+60080010001200140016006008001000120014001600
+Replicated SoftmaxLDA
+05001000 1500 2000 250005001000150020002500
+Replicated SoftmaxLDANIPS Proceedings 20-newsgroups Reuters
+Figure 2: The average test perplexity scores for each of the 50 held-ou t documents under the learned 50-
+dimensional ReplicatedSoftmaxand LDAthat uses 50topics.
+LDA model, we used the Gibbs sampling implementation of the M atlab Topic Modeling Toolbox5
+[5]. The hyperparameters were optimized using stochastic E M as described by [15]. For the 20-
+newsgroups and NIPS datasets, the number of Gibbs updates wa s set to 100,000. For the large
+Reutersdataset,it wasset to 10,000,whichtookseveralday stotrain.
+4.3 Assessing Topic ModelsasGenerativeModels
+Foreachofthethreedatasets,weestimatedthelog-probabi lityfor50held-outdocuments.6Forboth
+theReplicatedSoftmaxandLDAmodelsweused10,000inverse temperatures βs,spaceduniformly
+from 0 to 1. For each held-out document, the estimates were av eraged over 100 AIS runs. The
+average test perplexity per word was then estimated as exp/parenleftBig
+−1/N/summationtextN
+n=11/Dnlogp(vn)/parenrightBig
+, where
+Nis the total number of documents, Dnandvnare the total number of words and the observed
+word-countvectorfora document n.
+Table1showsthatforallthreedatasetsthe50-dimensional ReplicatedSoftmaxconsistentlyoutper-
+formstheLDAwith50-topics. FortheNIPSdataset,theundir ectedmodelachievestheaveragetest
+perplexityof3405,improvinguponLDA’sperplexityof3576 . TheLDAwith200topicsperformed
+much better on this dataset compared to the LDA-50, but its pe rformance only slightly improved
+uponthe50-dimensionalReplicatedSoftmaxmodel. Forthe2 0-newsgroupsdataset,evenwith200
+topics,theLDAcouldnotmatchtheperplexityoftheReplica tedSoftmaxmodelwith50topicunits.
+Thedifferenceinperformanceisparticularlystrikingfor thelargeReutersdataset,whosevocabulary
+size is 10,000. LDA achieves an average test perplexity of 14 37, substantially reducing it from
+2208, achieved by a simple smoothed unigrammodel. The Repli cated Softmax furtherreduces the
+perplexitydownto986,whichiscomparableinmagnitudetot heimprovementproducedbytheLDA
+over the unigrammodel. LDA with 200 topics does improveupon LDA-50, achievinga perplexity
+of 1142. However, its performance is still considerably wor se than that of the Replicated Softmax
+model.
+5The code is available athttp://psiexp.ss.uci.edu/resear ch/programs data/toolbox.htm
+6For the 20-newsgroups and Reuters datasets, the 50 held-out documents were randomly sampled from the
+testsets.
+60.02    0.1     0.4     1.6     6.4     25.6    100 102030405060
+Recall (%) Precision (%)Replicated 
+Softmax 50−D
+LDA 50−D
+0.001     0.006     0.051     0.4        1.6       6.4       25.6      100 1020304050
+Recall (%) Precision (%)Replicated 
+Softmax 50−D
+LDA 50−D20-newsgroups Reuters
+Figure 3: Precision-Recall curves for the 20-newsgroups and Reuters datasets, when a query document from
+the test set is used to retrieve similar documents from the tr aining corpus. Results are averaged over all 7,531
+(for 20-newsgroups) and10,000 (forReuters) possible quer ies.
+Figure 2 furthershowsthree scatter plotsof the averagetes t perplexityper document. Observethat
+for almost all test documents, the Replicated Softmax achie vesa better perplexity compared to the
+correspondingLDAmodel. FortheReutersdataset,asexpect ed,therearemanydocumentsthatare
+modeledmuchbetterbytheundirectedmodelthananLDA.Clea rly,theReplicatedSoftmaxisable
+togeneralizemuchbetter.
+4.4 DocumentRetrieval
+Weused20-newsgroupandReutersdatasetstoevaluatemodel performanceonadocumentretrieval
+task. Todecidewhetheraretrieveddocumentisrelevanttot hequerydocument,wesimplycheckif
+theyhavethesameclasslabel. Thisistheonlytimethatthec lasslabelsareused. FortheReplicated
+Softmax, the mapping from a word-count vector to the values o f the latent topic features is fast,
+requiring only a single matrix multiplication followed by a componentwise sigmoid non-linearity.
+FortheLDA,weused1000Gibbssweepspertestdocumentinord ertogetanapproximateposterior
+overthetopics. Figure3showsthatwhenweusethecosineoft heanglebetweentwotopicvectorsto
+measure their similarity, the Replicated Softmax signiﬁca ntly outperformsLDA, particularly when
+retrievingthe topfewdocuments.
+5 Conclusions and Extensions
+We have presented a simple two-layer undirected topic model that be used to model and automati-
+cally extractdistributed semantic representationsfrom l argecollectionsof text corpora. The model
+canbeviewedasafamilyofdifferent-sizedRBM’sthatshare parameters. Theproposedmodelhave
+severalkeyadvantages: thelearningiseasyandstable,itc anmodeldocumentsofdifferentlengths,
+and computing the posterior distribution over the latent to pic values is easy. Furthermore, using
+stochastic gradient descent, scaling up learning to billio ns of documents would not be particularly
+difﬁcult. Thisisincontrasttodirectedtopicmodels,wher emostoftheexistinginferencealgorithms
+are designedto be runin a batch mode. Thereforeone wouldhav eto makefurtherapproximations,
+for example by using particle ﬁltering [3]. We have also demo nstrated that the proposed model is
+abletogeneralizemuchbetterthanLDAintermsofboththelo g-probabilityonheld-outdocuments
+andtheretrievalaccuracy.
+Inthispaperwehaveonlyconsideredthesimplestpossiblet opicmodel,buttheproposedmodelcan
+be extendedin several ways. For example, similar to supervi sed LDA [1], the proposedReplicated
+Softmax can be easily extended to modeling the joint the dist ribution over words and a document
+label, as shown in Fig. 4, left panel. Recently, [11] introdu ced a Dirichlet-multinomial regression
+model, where a prior on the document-speciﬁc topic distribu tions was modeled as a function of
+observed metadata of the document. Similarly, we can deﬁne a conditional Replicated Softmax
+model,wheretheobserveddocument-speciﬁcmetadata,such asauthor,references,etc.,canbeused
+7LatentTopics
+Multinomial VisibleLabelLatentTopics
+Multinomial VisibleMetadata
+Figure 4: Left:A Replicated Softmax model that models the joint distributi on of words and document label.
+Right:Conditional Replicated Softmax model where the observed do cument-speciﬁc metadata affects binary
+states of the hidden topic units.
+to inﬂuencethe states ofthe latent topic units, asshownin F ig.4, right panel. Finally,as arguedby
+[13], a single layer of binary features may not the best way to capture the complex structure in the
+countdata. OncetheReplicatedSoftmaxhasbeentrained,we canaddmorelayerstocreateaDeep
+Belief Network[8], which couldpotentiallyproducea bette r generativemodeland furtherimprove
+retrievalaccuracy.
+Acknowledgments
+ThisresearchwassupportedbyNSERC, CFI,andCIFAR.
+References
+[1] D.Blei andJ. McAuliffe. Supervisedtopic models. In NIPS,2007.
+[2] D. Blei, A. Ng, and M. Jordan. Latent dirichlet allocatio n.Journal of Machine Learning Research ,
+3:993–1022, 2003.
+[3] K.Canini,L.Shi,andT.Grifﬁths. Onlineinference ofto picswithlatentDirichletallocation. In Proceed-
+ings of the International Conference on ArtiﬁcialIntellig ence and Statistics ,volume 5, 2009.
+[4] P. Gehler, A. Holub, and M. Welling. The Rate Adapting Poi sson (RAP) model for information retrieval
+andobjectrecognition. In Proceedingsofthe23rdInternational Conference onMachin e Learning ,2006.
+[5] T. Grifﬁths and M. Steyvers. Finding scientiﬁc topics. I nProceedings of the National Academy of
+Sciences, volume 101, pages 5228–5235, 2004.
+[6] Thomas Grifﬁthsand Mark Steyvers. Findingscientiﬁc to pics.PNAS,101(suppl. 1), 2004.
+[7] G. Hinton. Training products of experts by minimizing co ntrastive divergence. Neural Computation ,
+14(8):1711–1800, 2002.
+[8] G.Hinton,S.Osindero,andY.W.Teh.Afastlearningalgo rithmfordeepbeliefnets. NeuralComputation ,
+18(7):1527–1554, 2006.
+[9] T.Hofmann. Probabilisticlatentsemanticanalysis. In Proceedingsofthe15thConferenceonUncertainty
+inAI,pages 289–296, SanFransisco, California,1999. Morgan Ka ufmann.
+[10] D. Lewis, Y. Yang, T. Rose, and F. Li. RCV1: A new benchmar k collection for text categorization
+research. Journal of Machine LearningResearch , 5:361–397, 2004.
+[11] D. Mimno and A. McCallum. Topic models conditioned on ar bitrary features with dirichlet-multinomial
+regression. In UAI,pages 411–418, 2008.
+[12] R.Neal. Annealed importance sampling. Statistics and Computing , 11:125–139, 2001.
+[13] R. Salakhutdinov and G. Hinton. Semantic Hashing. In SIGIR workshop on Information Retrieval and
+applications of Graphical Models , 2007.
+[14] R. Salakhutdinov and I. Murray. On the quantitative ana lysis of deep belief networks. In Proceedings of
+the International Conference on Machine Learning , volume 25, pages 872 –879, 2008.
+[15] H.Wallach. Topic modeling: beyond bag-of-words. In ICML,volume 148, pages 977–984, 2006.
+[16] H. Wallach, I. Murray, R. Salakhutdinov, and D. Mimno. E valuation methods for topic models. In
+Proceedings of the 26thInternational Conference onMachin e Learning (ICML2009) , 2009.
+[17] E.Xing, R. Yan,and A. Hauptmann. Mining associated tex t and images withdual-wing harmoniums. In
+Proceedings of the 21st Conference on Uncertainty inArtiﬁc ialIntelligence (UAI-2005) , 2005.
+8

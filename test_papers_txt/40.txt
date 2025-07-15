@@ -1,0 +1,669 @@
+Efficient Large-Scale Distributed Training of
+Conditional Maximum Entropy Models
+Gideon Mann
+Google
+gmann@google.comRyan McDonald
+Google
+ryanmcd@google.comMehryar Mohri
+Courant Institute and Google
+mohri@cims.nyu.edu
+Nathan Silberman
+Google
+nsilberman@google.comDaniel D. Walker∗
+NLP Lab, Brigham Young University
+danl4@cs.byu.edu
+Abstract
+Training conditional maximum entropy models on massive data sets requires sig-
+niﬁcant computational resources. We examine three common distributed training
+methods for conditional maxent: a distributed gradient computation method, a
+majority vote method, and a mixture weight method. We analyze and compare the
+CPU and network time complexity of each of these methods and present a theoret-
+ical analysis of conditional maxent models, including a study of the convergence
+of the mixture weight method, the most resource-efﬁcient technique. We also re-
+port the results of large-scale experiments comparing these three methods which
+demonstrate the beneﬁts of the mixture weight method: this method consumesless resources, while achieving a performance comparable to that of standard ap-
+proaches.
+1 Introduction
+Conditional maximum entropy models [1, 3], conditional maxent models for short, also known as
+multinomial logistic regression models, are widely used in applications, most prominently for multi-
+class classiﬁcation problems with a large number of classes in natural language processing [1, 3] and
+computer vision [12] over the last decade or more.
+These models are based on the maximum entropy principle of Jaynes [11], which consists of se-
+lecting among the models approximately consistent with the constraints, the one with the greatest
+entropy. They beneﬁt from a theoretical foundation similar to that of standard maxent probabilisticmodels used for density estimation [8]. In particular, a duality theorem for conditional maxent model
+shows that these models belong to the exponential family. As shown by Lebanon and Lafferty [13],
+in the case of two classes, these models are also closely related to AdaBoost, which can be viewed as
+solving precisely the same optimization problem with the same constraints, modulo a normalization
+constraint needed in the conditional maxent case to derive probability distributions.
+While the theoretical foundation of conditional maxent models makes them attractive, the computa-
+tional cost of their optimization problem is often prohibitive for data sets of several million points.
+A number of algorithms have been described for batch training of conditional maxent models using
+a single processor. These include generalized iterative scaling [7], improved iterative scaling [8],
+gradient descent, conjugate gradient methods, and second-order methods [15, 18].
+This paper examines distributed methods for training conditional maxent models that can scale to
+very large samples of up to 1B instances. Both batch algorithms and on-line training algorithms such
+∗This work was conducted while at Google Research, New York.
+1as that of [5] or stochastic gradient descent [21] can beneﬁt from parallelization, but we concentrate
+here on batch distributed methods.
+We examine three common distributed training methods: a distributed gradient computation method
+[4], a majority vote method, and a mixture weight method. We analyze and compare the CPU and
+network time complexity of each of these methods (Section 2) and present a theoretical analysis of
+conditional maxent models (Section 3), including a study of the convergence of the mixture weight
+method, the most resource-efﬁcient technique. We also report the results of large-scale experiments
+comparing these three methods which demonstrate the beneﬁts of the mixture weight method (Sec-
+tion 4): this method consumes less resources, while achieving a performance comparable to that of
+standard approaches such as the distributed gradient computation method.1
+2 Distributed Training of Conditional Maxent Models
+In this section, we ﬁrst brieﬂy describe the optimization problem for conditional maximum entropy
+models, then discuss three common methods for distributed training of these models and compare
+their CPU and network time complexity.
+2.1 Conditional Maxent Optimization problem
+LetXbe the input space, Ythe output space, and Φ:X×Y→Ha (feature) mapping to a Hilbert
+space H, which in many practical settings coincides with RN,N= dim( H)<∞. We denote by
+/bardbl·/bardblthe norm induced by the inner product associated to H.
+LetS=((x1,y1),..., (xm,ym))be a training sample of mpairs in X×Y. A conditional maximum
+entropy model is a conditional probability of the form pw[y|x]=1
+Z(x)exp(w·Φ(x, y))withZ(x)=/summationtext
+y∈Yexp(w·Φ(x, y)), where the weight or parameter vector w∈His the solution of the following
+optimization problem:
+w= argmin
+w∈HFS(w) = argmin
+w∈Hλ/bardblw/bardbl2−1
+mm/summationdisplay
+i=1logpw[yi|xi]. (1)
+Here, λ≥0is a regularization parameter typically selected via cross-validation. The optimization
+problem just described corresponds to an L2regularization. Many other types of regularization have
+been considered for the same problem in the literature, in particular L1regularization or regulariza-
+tions based on other norms. This paper will focus on conditional maximum entropy models with L2
+regularization.
+These models have been extensively used and studied in natural language processing [1, 3] and
+other areas where they are typically used for classiﬁcation. Given the weight vector w, the output y
+predicted by the model for an input xis:
+y= argmax
+y∈Ypw[y|x] = argmax
+y∈Yw·Φ(x, y). (2)
+Since the function FSis convex and differentiable, gradient-based methods can be used to ﬁnd a
+global minimizer wofFS. Standard training methods such as iterative scaling, gradient descent,
+conjugate gradient, and limited-memory quasi-Newton all have the general form of Figure 1, where
+the update function Γ:H→Hfor the gradient ∇FS(w)depends on the optimization method
+selected. Tis the number of iterations needed for the algorithm to converge to a global minimum.
+In practice, convergence occurs when FS(w)differs by less than a constant /epsilon1in successive iterations
+of the loop.
+2.2 Distributed Gradient Computation Method
+Since the points are sampled i.i.d., the gradient computation in step 3 of Figure 1 can be distributed
+across pmachines. Consider a sample S=(S1, . . ., S p)ofpmpoints formed by psubsamples of
+1A batch parallel estimation technique for maxent models based on their connection with AdaBoost is also
+described by [5]. This algorithm is quite different from the distributed gradient computation method, but, as for
+that method, it requires a substantial amount of network resources, since updates need to be transferred to the
+master at every iteration.
+21w←0
+2fort←1toTdo
+3 ∇FS(w)←GRADIENT (FS(w))
+4 w←w+Γ(∇FS(w))
+5return w
+Figure 1: Standard Training1w←0
+2fort←1toTdo
+3 ∇FS(w)←DISTGRADIENT (FSk(w)/bardblpmachines )
+4 w←w+Γ(∇FS(w))
+5U PDATE (w/bardblpmachines )
+6return w
+Figure 2: Distributed Gradient Training
+mpoints drawn i.i.d., S1,...,S p. At each iteration, the gradients ∇FSk(w)are computed by these
+pmachines in parallel. These separate gradients are then summed up to compute the exact global
+gradient on a single machine, which also performs the optimization step and updates the weight
+vector received by all other machines (Figure 2). Chu et al. [4] describe a map-reduce formulation
+for this computation, where each training epoch consists of one map (compute each ∇FSk(w))
+and one reduce (update w). However, the update method they present is that of Newton-Raphson,
+which requires the computation of the Hessian. We do not consider such strategies, since Hessian
+computations are often infeasible for large data sets.
+2.3 Majority Vote Method
+The ensemble methods described in the next two paragraphs are based on mixture weights µ∈Rp.
+Let∆p={µ∈Rp:µ≥0∧/summationtextp
+k=1µk=1}denote the simplex of Rpand let µ∈∆p. In the absence
+of any prior knowledge, µis chosen to be the uniform mixture µ0= (1/p, . . ., 1/p)as in all of our
+experiments.
+Instead of computing the gradient of the global function in parallel, a (weighted) majority vote
+method can be used. Each machine receives one subsample Sk,k∈[1,p], and computes wk=
+argminw∈HFSk(w)by applying the standard training of Figure 1 to Sk. The output ypredicted by
+the majority vote method for an input xis
+y= argmax
+y∈Yp/summationdisplay
+k=1µkI(argmax
+y/prime∈Ypwk[y/prime|x]=y), (3)
+where Iis an indicator function of the predicate it takes as argument. Alternatively, the con-
+ditional class probabilities could be used to take into account the uncertainty of each classiﬁer:y=argmax
+y/summationtextp
+k=1µkpwk[y|x].
+2.4 Mixture Weight Method
+The cost of storing pweight vectors can make the majority vote method unappealing. Instead, a
+single mixture weight wµcan be deﬁned form the weight vectors wk,k∈[1,p]:
+wµ=p/summationdisplay
+k=1µkwk. (4)
+The mixture weight wµcan be used directly for classiﬁcation.
+2.5 Comparison of CPU and Network Times
+This section compares the CPU and network time complexity of the three training methods just
+described. Table 1 summarizes these results. Here, we denote by Nthe dimension of H.User CPU
+represents the CPU time experienced by the user, cumulative CPU the total amount of CPU time for
+the machines participating in the computation, and latency the experienced runtime effects due to
+network activity. The cumulative network usage is the amount of data transferred across the network
+during a distributed computation.
+For a training sample of pmpoints, both the user and cumulative CPU times are in Ocpu(TpmN )
+when training on a single machine (Figure 1) since at each of t heTiterations, the gradient compu-
+tation must iterate over all pmtraining points and update all the components of w.
+3Training
+ Training
+ Training
+ Prediction
+User CPU + Latency
+ Cum. CPU
+ Cum. Network
+ User CPU
+Single Machine
+ Ocpu(pmNT )
+ Ocpu(pmNT )
+ N/A
+ Ocpu(N)
+Distributed Gradient
+ Ocpu(mNT )+Olat(NT)
+Ocpu(pmNT )
+ Onet(pNT )
+ Ocpu(N)
+Majority V ote
+ Ocpu(mNT max)+Olat(N)
+Pp
+k=1Ocpu(mNT k)
+Onet(pN)
+ Ocpu(pN)
+Mixture Weight
+ Ocpu(mNT max)+Olat(N)
+Pp
+k=1Ocpu(mNT k)
+Onet(pN)
+ Ocpu(N)
+Table 1: Comparison of CPU and network times.
+For the distributed gradient method (Section 2.2), the worst-case user CPU of the gradient and
+parameter update computations (lines 3-4 of Figure 2) is Ocpu(mN +pN+N)since each parallel
+gradient calculation takes mN to compute the gradient for minstances, pgradients of size Nneed
+to be summed, and the parameters updated. We assume here that the time to compute Γis negligible.
+If we assume that p/lessmuchm, then, the user CPU is in Ocpu(mNT ). Note that the number of iterations
+it takes to converge, T, is the same as when training on a single machine since the computations are
+identical.
+In terms of network usage, a distributed gradient strategy will incur a cost of Onet(pNT )and a
+latency proportional to Olat(NT), since at each iteration wmust be transmitted to each of the
+pmachines (in parallel) and each ∇FSk(w)returned back to the master. Network time can be
+improved through better data partitioning of SwhenΦ(x, y)is sparse. The exact runtime cost of
+latency is complicated as it depends on factors such as the physical distance between the master and
+each machine, connectivity, the switch fabric in the network, and CPU costs required to manage
+messages. For parallelization on massively multi-core machines [4], communication latency might
+be negligible. However, in large data centers running commodity machines, a more common case,
+network latency cost can be signiﬁcant.
+The training times are identical for the majority vote and mixture weight techniques. Let Tkbe the
+number of iterations for training the kth mixture component wkand let Tmax= max {T1,...,T p}.
+Then, the user CPU usage of training is in Ocpu(mNT max), similar to that of the distributed gradient
+method. However, in practice, Tmaxis typically less than Tsince convergence is often faster with
+smaller data sets. A crucial advantage of these methods over the distributed gradient method is that
+their network usage is signiﬁcantly less than that of the distributed gradient computation. While
+parameters and gradients are exchanged at each iteration for this method, majority vote and mixture
+weight techniques only require the ﬁnal weight vectors to be transferred at the conclusion of training.
+Thus, the overall network usage is Onet(pN)with a latency in Olat(NT). The main difference
+between the majority vote and mixture weight methods is the user CPU (and memory usage) for
+prediction which is in Ocpu(pN)versus Ocpu(N)for the mixture weight method. Prediction could
+be distributed over pmachines for the majority vote method, but that would incur additional machine
+and network bandwidth costs.
+3 Theoretical Analysis
+This section presents a theoretical analysis of conditional maxent models, including a study of the
+convergence of the mixture weight method, the most resource-efﬁcient technique, as suggested in
+the previous section.
+The results we obtain are quite general and include the proof of several fundamental properties of
+the weight vector wobtained when training a conditional maxent model. We ﬁrst prove the stability
+ofwin response to a change in one of the training points. We then give a convergence bound for
+was a function of the sample size in terms of the norm of the feature space and also show a similar
+result for the mixture weight wµ. These results are used to compare the weight vector wpmobtained
+by training on a sample of size pmwith the mixture weight vector wµ.
+Consider two training samples of size m,S=(z1,...,z m−1,zm)andS/prime=(z1,...,z m−1,z/prime
+m),
+with elements in X×Y, that differ by a single training point, which we arbitrarily set as the last one
+of each sample: zm=(xm,ym)andz/prime
+m=(x/prime
+m,y/prime
+m). Let wdenote the parameter vector returned
+by conditional maximum entropy when trained on sample S,w/primethe vector returned when trained
+onS/prime, and let ∆wdenote w/prime−w. We shall assume that the feature vectors are bounded, that is
+there exists R> 0such that for all (x, y)inX×Y,/bardblΦ(x, y)/bardbl≤R. Our bounds are derived using
+4techniques similar to those used by Bousquet and Elisseeff [2], or other authors, e.g., [6], in the
+analysis of stability. In what follows, for any w∈Handz=(x, y)∈X×Y, we denote by Lz(w)
+the negative log-likelihood - logpw[y|x].
+Theorem 1. LetS/primeandSbe two arbitrary samples of size mdiffering only by one point. Then, the
+following stability bound holds for the weight vector returned by a conditional maxent model:
+/bardbl∆w/bardbl≤2R
+λm. (5)
+Proof. We denote by BFthe Bregman divergence associated to a convex and differentiable function
+Fdeﬁned for all u,u/primeby:BF(u/prime/bardblu)=F(u/prime)−F(u)−∇F(u)·(u/prime−u). LetGSdenote the function
+u/mapsto→1
+m/summationtextm
+i=1Lzi(u)andWthe function u/mapsto→λ/bardblu/bardbl2.GSandWare convex and differentiable
+functions. Since the Bregman divergence is non-negative, BGS≥0andBFS=BW+BGS≥BW.
+Similarly, BFS/prime≥BW. Thus, the following inequality holds:
+BW(w/prime/bardblw)+BW(w/bardblw/prime)≤BFS(w/prime/bardblw)+BFS/prime(w/bardblw/prime). (6)
+By the deﬁnition of wandw/primeas the minimizers of FSandFS/prime,∇FS(w)=∇FS/prime(w/prime)=0and
+BFS(w/prime/bardblw)+BFS/prime(w/bardblw/prime)=FS(w/prime)−FS(w)+FS/prime(w)−FS/prime(w/prime)
+=1
+m/bracketleftBig/bracketleftbig
+Lzm(w/prime)−Lzm(w)/bracketrightbig
++/bracketleftbig
+Lz/primem(w)−Lz/primem(w/prime)/bracketrightbig/bracketrightBig
+≤−1
+m/bracketleftBig
+∇Lzm(w/prime)·(w−w/prime)+∇Lz/prime
+m(w)·(w/prime−w)/bracketrightBig
+=−1
+m/bracketleftbig
+∇Lz/primem(w)−∇Lzm(w/prime)/bracketrightbig
+·(w/prime−w),
+where we used the convexity of Lz/primemandLzm. It is not hard to see that BW(w/prime/bardblw)+BW(w/bardblw/prime)=
+2λ/bardbl∆w/bardbl2. Thus, the application of the Cauchy-Schwarz inequality to the inequality just established
+yields
+2λ/bardbl∆w/bardbl≤1
+m/bardbl∇Lzm(w/prime)−∇Lz/primem(w)/bardbl≤1
+m/bracketleftBig
+/bardbl∇Lzm(w/prime)/bardbl+/bardbl∇Lz/primem(w)/bardbl/bracketrightBig
+. (7)
+The gradient of w/mapsto→Lzm(w) = log/summationtext
+y∈Yew·Φ(xm,y)−w·Φ(xm,ym)is given by
+∇Lzm(w)=/summationtext
+y∈Yew·Φ(xm,y)Φ(xm,y)
+/summationtext
+y/prime∈Yew·Φ(xm,y/prime)−Φ(xm,ym) = E
+y∼pw[·|xm]/bracketleftbig
+Φ(xm,y)−Φ(xm,ym)/bracketrightbig
+.
+Thus, we obtain /bardbl∇Lzm(w/prime)/bardbl≤ Ey∼pw/prime[·|xm]/bracketleftbig
+/bardblΦ(xm,y)−Φ(xm,ym)/bardbl/bracketrightbig
+≤2Rand similarly
+/bardbl∇Lz/primem(w)/bardbl≤2R, which leads to the statement of the theorem.
+LetDdenote the distribution according to which training and test points are drawn and let F⋆be
+the objective function associated to the optimization deﬁned with respect to the true log loss:
+F⋆(w) = argmin
+w∈Hλ/bardblw/bardbl2+E
+z∼D/bracketleftbig
+Lz(w)/bracketrightbig
+. (8)
+F⋆is a convex function since ED[Lz]is convex. Let the solution of this optimization be denoted by
+w⋆= argminw∈HF⋆(w).
+Theorem 2. Letw∈Hbe the weight vector returned by conditional maximum entropy when
+trained on a sample Sof size m. Then, for any δ>0, with probability at least 1−δ, the following
+inequality holds:
+/bardblw−w⋆/bardbl≤R
+λ/radicalbig
+m/2/parenleftbig
+1+/radicalbig
+log 1/δ/parenrightbig
+. (9)
+Proof. LetSandS/primebe as before samples of size mdiffering by a single point. To derive this
+bound, we apply McDiarmid’s inequality [17] to Ψ(S)=/bardblw−w⋆/bardbl. By the triangle inequality and
+Theorem 1, the following Lipschitz property holds:
+|Ψ(S/prime)−Ψ(S)|=/vextendsingle/vextendsingle/bardblw/prime−w⋆/bardbl − /bardblw−w⋆/bardbl/vextendsingle/vextendsingle≤/bardblw/prime−w/bardbl≤2R
+λm. (10)
+5Thus, by McDiarmid’s inequality, Pr[Ψ−E[Ψ]≥/epsilon1]≤exp/parenleftbig−2/epsilon12m
+4R2/λ2/parenrightbig
+. The following bound can be
+shown for the expectation of Ψ(see longer version of this paper): E[Ψ]≤2R
+λ√
+2m. Using this bound
+and setting the right-hand side of McDiarmid’s inequality to δshow that the following holds
+Ψ≤E[Ψ] +2R
+λ/radicalBigg
+log1
+δ
+2m≤2R
+λ√
+2m/parenleftbig
+1+/radicalbig
+log 1/δ/parenrightbig
+, (11)
+with probability at least 1−δ.
+Note that, remarkably, the bound of Theorem 2 does not depend on the dimension of the feature
+space but only on the radius Rof the sphere containing the feature vectors.
+Consider now a sample S=(S1,...,S p)ofpmpoints formed by psubsamples of mpoints drawn
+i.i.d. and let wµdenote the µ-mixture weight as deﬁned in Section 2.4. The following theorem gives
+a learning bound for wµ.
+Theorem 3. For any µ∈∆p, letwµ∈Hdenote the mixture weight vector obtained from a sample
+of size pmby combining the pweight vectors wk,k∈[1,p], each returned by conditional maximum
+entropy when trained on the sample Skof size m. Then, for any δ>0, with probability at least 1−δ,
+the following inequality holds:
+/bardblwµ−w⋆/bardbl≤E/bracketleftbig
+/bardblwµ−w⋆/bardbl/bracketrightbig
++R/bardblµ/bardbl
+λ/radicalbig
+m/2/radicalbig
+log 1/δ. (12)
+For the uniform mixture µ0=(1/p, . . ., 1/p), the bound becomes
+/bardblwµ−w⋆/bardbl≤E/bracketleftbig
+/bardblwµ−w⋆/bardbl/bracketrightbig
++R
+λ/radicalbig
+pm/ 2/radicalbig
+log 1/δ. (13)
+Proof. The result follows by application of McDiarmid’s inequality to Υ(S)=/bardblwµ−w⋆/bardbl. Let
+S/prime=(S/prime
+1, . . ., S/prime
+p)denote a sample differing from Sby one point, say in subsample Sk. Let w/prime
+k
+denote the weight vector obtained by training on subsample S/prime
+kandw/prime
+µthe mixture weight vector
+associated to S/prime. Then, by the triangle inequality and the stability bound of Theorem 1, the following
+holds:
+|Υ(S/prime)−Υ(S)|=/vextendsingle/vextendsingle/bardblw/prime
+µ−w⋆/bardbl − /bardblwµ−w⋆/bardbl/vextendsingle/vextendsingle≤/bardblw/prime
+µ−wµ/bardbl=µk/bardblw/prime
+k−wk/bardbl≤2µkR
+λm.
+Thus, by McDiarmid’s inequality,
+Pr[Υ( S)−E[Υ(S)]≥/epsilon1]≤exp/parenleftbigg−2/epsilon12
+/summationtextp
+k=1m/parenleftbig2µkR
+λm/parenrightbig2/parenrightbigg
+= exp/parenleftbigg−2λ2m/epsilon12
+4R2/bardblµ/bardbl2/parenrightbigg
+, (14)
+which proves the ﬁrst statement and the uniform mixture case since /bardblµ0/bardbl=1/√
+p.
+Theorems 2 and 3 help us compare the mixture weight wpmobtained by training on a sample of
+sizepmversus the mixture weight vector wµ0. The regularization parameter λis a function of
+the sample size. To simplify the analysis, we shall assume th atλ=O(1/m1/4)for a sample of
+sizem. A similar discussion holds for other comparable asymptotic behaviors. By Theorem 2,
+/bardblwpm−w⋆/bardblconverges to zero in O(1/(λ√
+pm)) =O(1/(pm)1/4), since λ=O(1/(pm)1/4)in
+that case. But, by Theorem 3, the slack term bounding /bardblwµ0−w⋆/bardblconverges to zero at the faster
+rateO(1/(λ√
+pm))=O(1/p1/2m1/4), since here λ=O(1/m1/4). The expectation term appearing
+in the bound on /bardblwµ0−w⋆/bardbl,E[/bardblwµ0−w⋆/bardbl], does not beneﬁt from the same convergence rate
+however. E[/bardblwµ0−w⋆/bardbl]converges always as fast as the expectation E[/bardblwm−w⋆/bardbl]for a weight
+vector wmobtained by training on a sample of size msince, by the triangle inequality, the following
+holds:
+E[/bardblwµ−w⋆/bardbl] = E[/bardbl1
+pp/summationdisplay
+k=1(wk−w⋆)/bardbl]≤1
+pp/summationdisplay
+k=1E[/bardblwk−w⋆/bardbl] = E[/bardblw1−w⋆/bardbl]. (15)
+By the proof of Theorem 2, E[/bardblw1−w⋆/bardbl]≤R/(λ/radicalbig
+m/2) =O(1/(λ√
+m)), thus E[/bardblwµ−w⋆/bardbl]≤
+O(1/m1/4). In summary, wµ0always converges signiﬁcantly faster than wm. The convergence
+bound for wµ0contains two terms, one somewhat more favorable, one somewhat less than its coun-
+terpart term in the bound for wpm.
+6pm
+ |Y|
+ |X |
+ sparsity
+ p
+English POS [16]
+ 1M
+ 24
+ 500 K
+ 0.001
+ 10
+Sentiment
+ 9M
+ 3
+500 K
+ 0.001
+ 10
+RCV1-v2 [14]
+ 26 M
+ 103
+ 10 K
+ 0.08
+ 10
+Speech
+ 50 M
+ 129
+ 39
+ 1.0
+ 499
+Deja News Archive
+ 306 M
+ 8
+ 50 K
+ 0.002
+ 200
+Deja News Archive 250K
+ 306 M
+ 8
+250 K
+ 0.0004
+ 200
+Gigaword [10]
+ 1,000 M
+ 96
+ 10 K
+ 0.001
+ 1000
+Table 2: Description of data sets. The column named sparsity reports the frequency of non-zero
+feature values for each data set.
+4 Experiments
+We ran a number of experiments on data sets ranging in size from 1M to 1B labeled instances (see
+Table 2) to compare the three distributed training methods described in Section 2. Our experiments
+were carried out using a large cluster of commodity machines with a local shared disk space and a
+high rate of connectivity between each machine and between machines and disk. Thus, while the
+processes did not run on one multi-core supercomputer, the network latency between machines was
+minimized.
+We report accuracy, wall clock, cumulative CPU usage, and cumulative network usage for all of our
+experiments. Wall clock measures the combined effects of the user CPU and latency costs (column
+1 of Table 1), and includes the total time for training, including all summations. Network usage
+measures the amount of data transferred across the network. Due to the set-up of our cluster, this
+includes both machine-to-machine trafﬁc and machine-to-disk trafﬁc. The resource estimates were
+calculated by point-sampling and integrating over the sampling time. For all three methods, we used
+the same base implementation of conditional maximum entropy, modiﬁed only in whether or not the
+gradient was computed in a distributed fashion.
+Our ﬁrst set of experiments were carried out with “medium” scale data sets containing 1M-300M in-
+stances. These included: English part-of-speech tagging, generated from the Penn Treebank
+[16] using the ﬁrst character of each part-of-speech tag as output, sections 2-21 for training, section
+23 for testing and a feature representation based on the identity, afﬁxes, and orthography of the in-
+put word and the words in a window of size two; Sentiment analysis , generated from a set of
+online product, service, and merchant reviews with a three-label output (positive, negative, neutral),
+with a bag of words feature representation; RCV1-v2 as described by [14], where documents having
+multiple labels were included multiple times, once for each label; Acoustic Speech Data , a 39-
+dimensional input consisting of 13 PLP coefﬁcients, plus their ﬁrst and second derivatives, and 129
+outputs (43 phones ×3 acoustic states); and the Deja News Archive , a text topic classiﬁcation
+problem generated from a collection of Usenet discussion forums from the years 1995-2000. For alltext experiments, we used random feature mixing [9, 20] to control the size of the feature space.
+The results reported in Table 3 show that the accuracy of the mixture weight method consistently
+matches or exceeds that of the majority vote method. As expected, the resource costs here are
+similar, with slight differences due to the point-sampling methods and the overhead associated with
+storing pmodels in memory and writing them to disk. For some data sets, we could not report
+majority vote results as all models could not ﬁt into memory on a single machine.
+The comparison shows that in some cases the mixture weight method takes longer and achieves
+somewhat better performance than the distributed gradient method while for other data sets it ter-
+minates faster, at a slight loss in accuracy. These differences may be due to the performance of the
+optimization with respect to the regularization parameter λ. However, the results clearly demon-
+strate that the mixture weight method achieves comparable accuracies at a much decreased cost in
+network bandwidth – upwards of 1000x. Depending on the cost model assessed for the underlying
+network and CPU resources, this may make mixture weight a signiﬁcantly more appealing strategy.
+In particular, if network usage leads to signiﬁcant increases in latency, unlike our current experi-
+mental set-up of high rates of connectivity, then the mixture weight method could be substantially
+faster to train. The outlier appears to be the acoustic speech data, where both mixture weight and
+distributed gradient have comparable network usage, 158GB and 200GB, respectively. However, the
+bulk of this comes from the fact that the data set itself is 157GB in size, which makes the network
+7Training Method
+ Accuracy
+ Wall Clock
+ Cumulative CPU
+ Network Usage
+English POS
+ Distributed Gradient
+ 97.60%
+ 17.5 m
+ 11.0 h
+ 652 GB
+(m=100k,p=10)
+ Majority V ote
+ 96.80%
+ 12.5 m
+ 18.5 h
+ 0.686 GB
+Mixture Weight
+ 96.80%
+ 5m
+ 11.5 h
+ 0.015 GB
+Sentiment
+ Distributed Gradient
+ 81.18%
+ 104 m
+ 123 h
+ 367 GB
+(m=900k,p=10)
+ Majority V ote
+ 81.25%
+ 131 m
+ 168 h
+ 3 GB
+Mixture Weight
+ 81.30%
+ 110 m
+ 163 h
+ 9 GB
+RCV1-v2
+ Distributed Gradient
+ 27.03%
+ 48 m
+ 407 h
+ 479 GB
+(m=2.6M,p=10)
+ Majority V ote
+ 26.89%
+ 54 m
+ 474 h
+ 3 GB
+Mixture Weight
+ 27.15%
+ 56 m
+ 473 h
+ 0.108 GB
+Speech
+ Distributed Gradient
+ 34.95%
+ 160 m
+ 511 h
+ 200 GB
+(m=100k,p=499)
+ Mixture Weight
+ 34.99%
+ 130 m
+ 534 h
+ 158 GB
+Deja
+ Distributed Gradient
+ 64.74%
+ 327 m
+ 733 h
+ 5,283 GB
+(m=1.5M,p=200)
+ Mixture Weight
+ 65.46%
+ 316 m
+ 707 h
+ 48 GB
+Deja 250K
+ Distributed Gradient
+ 67.03%
+ 340 m
+ 698 h
+ 17,428 GB
+(m=1.5M,p=200)
+ Mixture Weight
+ 66.86%
+ 300 m
+ 710 h
+ 65 GB
+Gigaword
+ Distributed Gradient
+ 51.16%
+ 240 m
+ 18,598 h
+ 13,000 GB
+(m=1M,p=1k)
+ Mixture Weight
+ 50.12%
+ 215 m
+ 17,998 h
+ 21 GB
+Table 3: Accuracy and resource costs for distributed training strategies.
+usage closer to 1GB for the mixture weight and 40GB for distributed gradient method when we
+discard machine-to-disk trafﬁc.
+For the largest experiment, we examined the task of predicting the next character in a sequence
+of text [19], which has implications for many natural language processing tasks. As a training
+and evaluation corpus we used the English Gigaword corpus [10] and used the full ASCII output
+space of that corpus of around 100 output classes (uppercase and lowercase alphabet characters
+variants, digits, punctuation, and whitespace). For each character s, we designed a set of observed
+features based on substrings from s−1, the previous character, to s−10, 9 previous characters, and
+hashed each into a 10k-dimensional space in an effort to improve speed. Since there were around
+100 output classes, this led to roughly 1M parameters. We then sub-sampled 1B characters from
+the corpus as well as 10k testing characters and established a training set of 1000 subsets, of 1M
+instances each. For the experiments described above, the regularization parameter λwas kept ﬁxed
+across the different methods. Here, we decreased the parameter λfor the distributed gradient method
+since less regularization was needed when more data was available, and since there were three orders
+of magnitude difference between the training size for each independent model and the distributed
+gradient. We compared only the distributed gradient and mixture weight methods since the majority
+vote method exceeded memory capacity. On this data set, the network usage is on a different scale
+than most of the previous experiments, though comparable to Deja 250, with the distributed gradient
+method transferring 13TB across the network. Overall, the mixture weight method consumes less
+resources: less bandwidth and less time (both wall clock and CPU). With respect to accuracy, the
+mixture weight method does only slightly worse than the distributed gradient method. The individual
+models in the mixture weight method ranged between 49.73% to 50.26%, with a mean accuracy
+of 50.07%, so a mixture weight model improves slightly over a random subsample models and
+decreases the overall variance.
+5 Conclusion
+Our analysis and experiments give signiﬁcant support for the mixture weight method for training
+very large-scale conditional maximum entropy models with L2regularization. Empirical results
+suggest that this method achieves similar or better accuracies while reducing network usage by
+about three orders of magnitude and modestly reducing the wall clock time, typically by about 15%
+or more. In distributed environments without a high rate of connectivity, the decreased network
+usage of the mixture weight method should lead to substantial gains in wall clock as well.
+Acknowledgments
+We thank Yishay Mansour for his comments on an earlier version of this paper.
+8References
+[1] A. Berger, V . Della Pietra, and S. Della Pietra. A maximum entropy approach to natural
+language processing. Computational Linguistics , 22(1):39–71, 1996.
+[2] O. Bousquet and A. Elisseeff. Stability and generalization. Journal of Machine Learning
+Research , 2:499–526, 2002.
+[3] S. F. Chen and R. Rosenfeld. A survey of smoothing techniques for ME models. IEEE Trans-
+actions on Speech and Audio Processing , 8(1):37–50, 2000.
+[4] C. Chu, S. Kim, Y . Lin, Y . Yu, G. Bradski, A. Ng, and K. Olukotun. Map-Reduce for machine
+learning on multicore. In Advances in Neural Information Processing Systems , 2007.
+[5] M. Collins, R. Schapire, and Y . Singer. Logistic regression, AdaBoost and Bregman distances.
+Machine Learning , 48, 2002.
+[6] C. Cortes, M. Mohri, M. Riley, and A. Rostamizadeh. Sample selection bias correction theory.
+InProceedings of ALT 2008 , volume 5254 of LNCS , pages 38–53. Springer, 2008.
+[7] J. Darroch and D. Ratcliff. Generalized iterative scaling for log-linear models. The Annals of
+Mathematical Statistics , pages 1470–1480, 1972.
+[8] S. Della Pietra, V . Della Pietra, J. Lafferty, R. Technol, and S. Brook. Inducing features of
+random ﬁelds. IEEE transactions on pattern analysis and machine intelligence , 19(4):380–
+393, 1997.
+[9] K. Ganchev and M. Dredze. Small statistical models by random feature mixing. In Workshop
+on Mobile Language Processing, ACL , 2008.
+[10] D. Graff, J. Kong, K. Chen, and K. Maeda. English gigaword third edition, linguistic data
+consortium, philadelphia, 2007.
+[11] E. T. Jaynes. Information theory and statistical mechanics. Physical Review , 106(4):620630,
+1957.
+[12] J. Jeon and R. Manmatha. Using maximum entropy for automatic image annotation. In Inter-
+national Conference on Image and Video Retrieval , 2004.
+[13] G. Lebanon and J. Lafferty. Boosting and maximum likelihood for exponential models. In
+Advances in Neural Information Processing Systems , pages 447–454, 2001.
+[14] D. Lewis, Y . Yang, T. Rose, and F. Li. RCV1: A new benchmark collection for text catego-
+rization research. Journal of Machine Learning Research , 5:361–397, 2004.
+[15] R. Malouf. A comparison of algorithms for maximum entropy parameter estimation. In Inter-
+national Conference on Computational Linguistics (COLING) , 2002.
+[16] M. Marcus, M. Marcinkiewicz, and B. Santorini. Building a large annotated corpus of English:
+The Penn Treebank. Computational linguistics , 19(2):313–330, 1993.
+[17] C. McDiarmid. On the method of bounded differences. In Surveys in Combinatorics , pages
+148–188. Cambridge University Press, Cambridge, 1989.
+[18] J. Nocedal and S. Wright. Numerical optimization . Springer, 1999.
+[19] C. E. Shannon. Prediction and entropy of printed Englis h.Bell Systems Technical Journal ,
+30:50–64, 1951.
+[20] K. Weinberger, A. Dasgupta, J. Langford, A. Smola, and J. Attenberg. Feature hashing for
+large scale multitask learning. In International Conference on Machine Learning , 2009.
+[21] T. Zhang. Solving large scale linear prediction problems using stochastic gradient descent
+algorithms. In International Conference on Machine Learning , 2004.
+9

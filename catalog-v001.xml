@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<catalog prefer="public" xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+    <uri id="Imports Wizard Entry" name="http://www.semanticweb.org/ftsdemo/ontologies/2025/5/rpo#" uri="research-power-ontology.rdf"/>
+    <uri id="Imports Wizard Entry" name="http://www.semanticweb.org/ftsdemo/ontologies/2025/5/rpo/1" uri="papers.ttl"/>
+    <uri id="Imports Wizard Entry" name="http://www.semanticweb.org/ftsdemo/ontologies/2025/5/rpo/2" uri="cskg-full-subgraphs.ttl"/>
+    <uri id="Imports Wizard Entry" name="http://www.semanticweb.org/ftsdemo/ontologies/2025/5/rpo/3" uri="all_papers_entities.ttl"/>
+    <uri id="Imports Wizard Entry" name="http://www.semanticweb.org/ftsdemo/ontologies/2025/5/rpo" uri="all_papers_entities.ttl"/>
+    <uri id="Imports Wizard Entry" name="http://www.semanticweb.org/ftsdemo/ontologies/2025/5/rpo" uri="cskg-full-subgraphs.ttl"/>
+    <uri id="Imports Wizard Entry" name="http://www.semanticweb.org/ftsdemo/ontologies/2025/5/rpo" uri="papers.ttl"/>
+    <uri id="User Entered Import Resolution" name="http://www.semanticweb.org/ftsdemo/ontologies/2025/5/rpo" uri="rpo_spacy.ttl"/>
+    <group id="Folder Repository, directory=, recursive=true, Auto-Update=true, version=2" prefer="public" xml:base="">
+        <uri id="Automatically generated entry, Timestamp=1752521430908" name="http://www.semanticweb.org/ftsdemo/ontologies/2025/5/rpo" uri="research-power-ontology.rdf"/>
+    </group>
+</catalog>

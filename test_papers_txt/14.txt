@@ -1,0 +1,594 @@
+Adversarial Training and Robustness for
+Multiple Perturbations
+Florian Tramèr
+Stanford UniversityDan Boneh
+Stanford University
+Abstract
+Defenses against adversarial examples, such as adversarial training, are typically
+tailored to a single perturbation type (e.g., small `1-noise). For other perturbations,
+these defenses offer no guarantees and, at times, even increase the model’s vulnera-
+bility. Our aim is to understand the reasons underlying this robustness trade-off,
+and to train models that are simultaneously robust to multiple perturbation types.
+We prove that a trade-off in robustness to different types of `p-bounded and spatial
+perturbations must exist in a natural and simple statistical setting. We corroborate
+our formal analysis by demonstrating similar robustness trade-offs on MNIST
+and CIFAR10. We propose new multi-perturbation adversarial training schemes,
+as well as an efﬁcient attack for the `1-norm, and use these to show that models
+trained against multiple attacks fail to achieve robustness competitive with that of
+models trained on each attack individually. In particular, we ﬁnd that adversarial
+training with ﬁrst-order `1;`1and`2attacks on MNIST achieves merely 50%
+robust accuracy, partly because of gradient-masking. Finally, we propose afﬁne
+attacks that linearly interpolate between perturbation types and further degrade the
+accuracy of adversarially trained models.
+1 Introduction
+Adversarial examples [ 37,15] are proving to be an inherent blind-spot in machine learning (ML)
+models. Adversarial examples highlight the tendency of ML models to learn superﬁcial and brittle
+data statistics [ 19,13,18], and present a security risk for models deployed in cyber-physical systems
+(e.g., virtual assistants [5], malware detectors [16] or ad-blockers [39]).
+Known successful defenses are tailored to a speciﬁc perturbation type (e.g., a small `p-ball [ 25,28,42]
+or small spatial transforms [ 11]). These defenses provide empirical (or certiﬁable) robustness
+guarantees for one perturbation type, but typically offer no guarantees against other attacks [ 35,
+31]. Worse, increasing robustness to one perturbation type has sometimes been found to increase
+vulnerability to others [11, 31]. This leads us to the central problem considered in this paper:
+Can we achieve adversarial robustness to different types of perturbations simultaneously?
+Note that even though prior work has attained robustness to different perturbation types [ 25,31,11],
+these results may not compose. For instance, an ensemble of two classiﬁers—each of which is robust
+to a single type of perturbation—may be robust to neither perturbation. Our aim is to study the extent
+to which it is possible to learn models that are simultaneously robust to multiple types of perturbation.
+To gain intuition about this problem, we ﬁrst study a simple and natural classiﬁcation task, that has
+been used to analyze trade-offs between standard and adversarial accuracy [ 41], and the sample-
+complexity of adversarial generalization [ 30]. We deﬁne Mutually Exclusive Perturbations (MEPs) as
+pairs of perturbation types for which robustness to one type implies vulnerability to the other. For this
+task, we prove that `1and`1-perturbations are MEPs and that `1-perturbations and input rotations
+33rd Conference on Neural Information Processing Systems (NeurIPS 2019), Vancouver, Canada.0 2 4 6 8 10
+Epochs0.000.250.500.751.00AccuracyAdv∞
+Adv1
+Adv2
+Advmax tested on ℓ∞
+Advmax tested on ℓ1
+Advmax tested on ℓ2
+Advmax tested on all(a) MNIST models trained on `1;`2&`1attacks.
+0 2 4 6 8 10
+Epochs0.000.250.500.751.00AccuracyAdv∞AdvRT
+Advmaxtested on ℓ∞
+Advmaxtested on RT
+Advmaxtested on both (b) MNIST models trained on `1and RT attacks.
+0 20000 40000 60000 80000
+Steps0.40.50.60.70.8AccuracyAdv∞
+Adv1
+Advmax tested on ℓ∞
+Advmax tested on ℓ1
+Advmax tested on both
+(c) CIFAR10 models trained on `1and`1attacks.
+0 20000 40000 60000 80000
+Steps0.40.50.60.70.8AccuracyAdv∞AdvRT
+Advmaxtested on ℓ∞
+Advmaxtested on RT
+Advmaxtested on both (d) CIFAR10 models trained on `1and RT attacks.
+Figure 1: Robustness trade-off on MNIST (top) and CIFAR10 (bottom). For a union of `p-balls
+(left), or of`1-noise and rotation-translations (RT) (right), we train models Adv maxon the strongest
+perturbation-type for each input. We report the test accuracy of Adv maxagainst each individual
+perturbation type (solid line) and against their union (dotted brown line). The vertical lines show the
+adversarial accuracy of models trained and evaluated on a single perturbation type.
+and translations [ 11] are also MEPs. Moreover, for these MEP pairs, we ﬁnd that robustness to either
+perturbation type requires fundamentally different features. The existence of such a trade-off for this
+simple classiﬁcation task suggests that it may be prevalent in more complex statistical settings.
+To complement our formal analysis, we introduce new adversarial training schemes for multiple
+perturbations. For each training point, these schemes build adversarial examples for all perturbation
+types and then train either on all examples (the “avg” strategy) or only the worst example (the “max”
+strategy). These two strategies respectively minimize the average error rate across perturbation types,
+or the error rate against an adversary that picks the worst perturbation type for each input.
+For adversarial training to be practical, we also need efﬁcient and strong attacks [ 25]. We show that
+Projected Gradient Descent [ 22,25] is inefﬁcient in the `1-case, and design a new attack, Sparse`1
+Descent (SLIDE), that is both efﬁcient and competitive with strong optimization attacks [8],
+We experiment with MNIST and CIFAR10. MNIST is an interesting case-study, as distinct models
+from prior work attain strong robustness to all perturbations we consider [ 25,31,11], yet no single
+classiﬁer is robust to all attacks [ 31,32,11]. For models trained on multiple `p-attacks (`1;`2;`1
+for MNIST, and `1;`1for CIFAR10), or on both `1and spatial transforms [ 11], we conﬁrm a
+noticeable robustness trade-off. Figure 1 plots the test accuracy of models Adv maxtrained using our
+“max” strategy. In all cases, robustness to multiple perturbations comes at a cost—usually of 5-10%
+additional error—compared to models trained against each attack individually (the horizontal lines).
+Robustness to `1;`2and`1-noise on MNIST is a striking failure case, where the robustness trade-off
+is compounded by gradient-masking [27,40,1]. Extending prior observations [ 25,31,23], we show
+that models trained against an `1-adversary learn representations that mask gradients for attacks in
+other`p-norms. When trained against ﬁrst-order `1;`2and`1-attacks, the model learns to resist
+`1-attacks while giving the illusion of robustness to `1and`2attacks. This model only achieves
+52% accuracy when evaluated on gradient-free attacks [ 3,31]. This shows that, unlike previously
+thought [ 41], adversarial training with strong ﬁrst-order attacks can suffer from gradient-masking.
+We thus argue that attaining robustness to `p-noise on MNIST requires new techniques (e.g., training
+on expensive gradient-free attacks, or scaling certiﬁed defenses to multiple perturbations).
+MNIST has sometimes been said to be a poor dataset for evaluating adversarial examples defenses,
+as some attacks are easy to defend against (e.g., input-thresholding or binarization works well for
+`1-attacks [ 41,31]). Our results paint a more nuanced view: the simplicity of these `1-defenses
+2becomes a disadvantage when training against multiple `p-norms. We thus believe that MNIST
+should not be abandoned as a benchmark just yet. Our inability to achieve multi- `probustness for this
+simple dataset raises questions about the viability of scaling current defenses to more complex tasks.
+Looking beyond adversaries that choose from a union of perturbation types, we introduce a new afﬁne
+adversary that may linearly interpolate between perturbations (e.g., by compounding `1-noise with
+a small rotation). We prove that for locally-linear models, robustness to a union of `p-perturbations
+implies robustness to afﬁne attacks. In contrast, afﬁne combinations of `1and spatial perturbations
+are provably stronger than either perturbation individually. We show that this discrepancy translates
+to neural networks trained on real data. Thus, in some cases, attaining robustness to a union of
+perturbation types remains insufﬁcient against a more creative adversary that composes perturbations.
+Our results show that despite recent successes in achieving robustness to single perturbation types,
+many obstacles remain towards attaining truly robust models. Beyond the robustness trade-off,
+efﬁcient computational scaling of current defenses to multiple perturbations remains an open problem.
+The code used for all of our experiments can be found here: https://github.com/ftramer/
+MultiRobustness
+Proofs of all theorems, experimental setups, and additional experiments are in the full version of this
+extended abstract [38].
+2 Theoretical Limits to Multi-perturbation Robustness
+We study statistical properties of adversarial robustness in a natural statistical model introduced in [ 41],
+and which exhibits many phenomena observed on real data, such as trade-offs between robustness and
+accuracy [ 41] or a higher sample complexity for robust generalization [ 31]. This model also proves
+useful in analyzing and understanding adversarial robustness for multiple perturbations. Indeed,
+we prove a number of results that correspond to phenomena we observe on real data, in particular
+trade-offs in robustness to different `por rotation-translation attacks [11].
+We follow a line of works that study distributions for which adversarial examples exist uncondition-
+ally[41,21,33,12,14,26]. These distributions, including ours, are much simpler than real-world
+data, and thus need not be evidence that adversarial examples are inevitable in practice. Rather, we
+hypothesize that current ML models are highly vulnerable to adversarial examples because they learn
+superﬁcial data statistics [19, 13, 18] that share some properties of these simple distributions.
+In prior work, a robustness trade-off for `1and`2-noise is shown in [ 21] for data distributed over
+two concentric spheres. Our conceptually simpler model has the advantage of yielding results beyond
+`p-norms (e.g., for spatial attacks) and which apply symmetrically to both classes. Building on
+work by Xu et al. [ 43], Demontis et al. [ 9] show a robustness trade-off for dual norms (e.g., `1and
+`1-noise) in linear classiﬁers.
+2.1 Adversarial Risk for Multiple Perturbation Models
+Consider a classiﬁcation task for a distribution Dover examples x2Rdand labelsy2[C]. Let
+f:Rd![C]denote a classiﬁer and let l(f(x);y)be the zero-one loss (i.e., 1f(x)6=y).
+We assumenperturbation types , each characterized by a set Sof allowed perturbations for an input
+x. The setScan be an`p-ball [ 37,15] or capture other perceptually small transforms such as image
+rotations and translations [11]. For a perturbation r2S, an adversarial example is ^x=x+r(this
+is pixel-wise addition for `pperturbations, but can be a more complex operation, e.g., for rotations).
+For a perturbation set Sand modelf, we deﬁneRadv(f;S):=E(x;y)D[max r2Sl(f(x+r);y)]
+as the adversarial error rate. To extend Radvto multiple perturbation sets S1;:::;S n, we can consider
+theaverage error rate for each Si, denotedRavg
+adv. This metric most clearly captures the trade-off in
+robustness across independent perturbation types, but is not the most appropriate from a security
+perspective on adversarial examples. A more natural metric, denoted Rmax
+adv, is the error rate against an
+adversary that picks, for each input, the worst perturbation from the union of theSi. More formally,
+Rmax
+adv(f;S1;:::;S n):=Radv(f;[iSi);Ravg
+adv(f;S1;:::;S n):=1
+nP
+iRadv(f;Si):(1)
+Most results in this section are lower bounds onRavg
+adv, which also hold for Ravg
+maxsinceRmax
+advRavg
+adv.
+3Two perturbation types S1;S2areMutually Exclusive Perturbations (MEPs) , ifRavg
+adv(f;S1;S2)
+1=jCjfor all models f(i.e., no model has non-trivial average risk against both perturbations).
+2.2 A binary classiﬁcation task
+We analyze the adversarial robustness trade-off for different perturbation types in a natural statistical
+model introduced by Tsipras et al. [ 41]. Their binary classiﬁcation task consists of input-label pairs
+(x;y)sampled from a distribution Das follows (note that Dis(d+ 1) -dimensional):
+yu.a.r f  1;+1g; x 0=+y;w.p.p0;
+ y;w.p.1 p0; x 1;:::;x di.i.dN (y;1); (2)
+wherep00:5,N(;2)is the normal distribution and ==p
+dfor some positive constant .
+For this distribution, Tsipras et al. [ 41] show a trade-off between standard and adversarial accuracy
+(for`1attacks), by drawing a distinction between the “robust” feature x0that small`1-noise cannot
+manipulate, and the “non-robust” features x1;:::;x dthat can be fully overridden by small `1-noise.
+2.3 Small `1and`1Perturbations are Mutually Exclusive
+The starting point of our analysis is the observation that the robustness of a feature depends on the
+considered perturbation type. To illustrate, we recall two classiﬁers from [ 41] that operate on disjoint
+feature sets. The ﬁrst, f(x) =sign(x0), achieves accuracy p0for all`1-perturbations with <1but
+is highly vulnerable to `1-perturbations of size 1. The second classiﬁer, h(x) =sign(Pd
+i=1xi)
+is robust to`1-perturbations of average norm below E[Pd
+i=1xi] =(p
+d), yet it is fully subverted
+by a`1-perturbation that shifts the features x1;:::;x dby2=(1=p
+d). We prove that this
+tension between `1and`1robustness, and of the choice of “robust” features, is inherent for this task:
+Theorem 1. Letfbe a classiﬁer forD. LetS1be the set of `1-bounded perturbations with = 2,
+andS1the set of`1-bounded perturbations with = 2. Then,Ravg
+adv(f;S1;S1)1=2:
+The proof is in Appendix F. The bound shows that no classiﬁer can attain better Ravg
+adv(and thusRmax
+adv)
+than a trivial constant classiﬁer f(x) = 1 , which satisﬁesRadv(f;S1) =Radv(f;S1) = 1=2.
+Similar to [ 9], our analysis extends to arbitrary dual norms `pand`qwith1=p+ 1=q= 1andp<2.
+The perturbation required to ﬂip the features x1;:::;x nhas an`pnorm of(d1
+p 1
+2) =!(1)and an
+`qnorm of(d1
+q 1
+2) =(d1
+2 1
+p) =o(1). Thus, feature x0is more robust than features x1;:::;x n
+with respect to the `q-norm, whereas for the dual `p-norm the situation is reversed.
+2.4 Small `1and Spatial Perturbations are (nearly) Mutually Exclusive
+We now analyze two other orthogonal perturbation types, `1-noise and rotation-translations [ 11]. In
+some cases, increasing robustness to `1-noise has been shown to decrease robustness to rotation-
+translations [11]. We prove that such a trade-off is inherent for our binary classiﬁcation task.
+To reason about rotation-translations, we assume that the features xiform a 2D grid. We also let x0
+be distributed asN(y; 2), a technicality that does not qualitatively change our prior results. Note
+that the distribution of the features x1;:::;x dis permutation-invariant. Thus, the only power of a
+rotation-translation adversary is to “move” feature x0. Without loss of generality, we identify a small
+rotation-translation of an input xwith a permutation of its features that sends x0to one ofNﬁxed
+positions (e.g., with translations of 3px as in [ 11],x0can be moved to N= 49 different positions).
+A model can be robust to these permutations by ignoring the Npositions that feature x0can be moved
+to, and focusing on the remaining permutation-invariant features. Yet, this model is vulnerable to
+`1-noise, as it ignores x0. In turn, a model that relies on feature x0can be robust to `1-perturbations,
+but is vulnerable to a spatial perturbation that “hides” x0among other features. Formally, we show:
+Theorem 2. Letfbe a classiﬁer forD(withx0N(y; 2)). LetS1be the set of `1-bounded
+perturbations with = 2, andSRTbe the set of perturbations for an RT adversary with budget N.
+Then,Ravg
+adv(f;S1;SRT)1=2 O(1=p
+N):
+The proof, given in Appendix G, is non-trivial and yields an asymptotic lower-bound on Ravg
+adv. We
+can also provide tight numerical estimates for concrete parameter settings (see Appendix G.1).
+42.5 Afﬁne Combinations of Perturbations
+We deﬁnedRmax
+advas the error rate against an adversary that may choose a different perturbation type
+for each input. If a model were robust to this adversary, what can we say about the robustness to
+a more creative adversary that combines different perturbation types? To answer this question, we
+introduce a new adversary that mixes different attacks by linearly interpolating between perturbations.
+For a perturbation set Sand2[0;1], we denote Sthe set of perturbations scaled down by .
+For an`p-ball with radius , this is the ball with radius . For rotation-translations, the attack
+budgetNis scaled toN. For two sets S1;S2, we deﬁneSafﬁne(S1;S2)as the set of perturbations
+that compound a perturbation r12S1with a perturbation r22(1 )S2, for any2[0;1].
+Consider one adversary that chooses, for each input, `por`q-noise from balls SpandSq, forp;q> 0.
+The afﬁne adversary picks perturbations from the set Safﬁne deﬁned as above. We show:
+Claim 3. For a linear classiﬁer f(x) =sign(wTx+b), we haveRmax
+adv(f;Sp;Sq) =Radv(f;Safﬁne).
+Thus, for linear classiﬁers, robustness to a union of `p-perturbations implies robustness to afﬁne
+adversaries (this holds for any distribution). The proof, in Appendix H extends to models that are
+locally linear within ballsSpandSqaround the data points. For the distribution Dof Section 2.2, we
+can further show that there are settings (distinct from the one in Theorem 1) where: (1) robustness
+against a union of `1and`1-perturbations is possible; (2) this requires the model to be non-linear;
+(3) yet, robustness to afﬁne adversaries is impossible (see Appendix I for details). Our experiments
+in Section 4 show that neural networks trained on CIFAR10 have a behavior that is consistent with
+locally-linear models, in that they are as robust to afﬁne adversaries as against a union of `p-attacks.
+In contrast, compounding `1and spatial perturbations yields a stronger attack, even for linear models:
+Theorem 4. Letf(x) =sign(wTx+b)be a linear classiﬁer for D(withx0N (y; 2)). Let
+S1be some`1-ball andSRTbe rotation-translations with budget N > 2. DeﬁneSafﬁneas above.
+Assumew0>wi>0;8i2[1;d]. ThenRadv(f;Safﬁne)>Rmax
+adv(f;S1;SRT).
+This result (the proof is in Appendix J) draws a distinction between the strength of afﬁne combinations
+of`p-noise, and combinations of `1and spatial perturbations. It also shows that robustness to a
+union of perturbations can be insufﬁcient against a more creative afﬁne adversary. These results are
+consistent with behavior we observe in models trained on real data (see Section 4).
+3 New Attacks and Adversarial Training Schemes
+We complement our theoretical results with empirical evaluations of the robustness trade-off on
+MNIST and CIFAR10. To this end, we ﬁrst introduce new adversarial training schemes tailored to
+the multi-perturbation risks deﬁned in Equation (1), as well as a novel attack for the `1-norm.
+Multi-perturbation adversarial training. Let
+^Radv(f;S) =mX
+i=1max
+r2SL(f(x(i)+r);y(i));
+bet the empirical adversarial risk, where Lis the training loss and Dis the training set. For a
+single perturbation type, ^Radvcan be minimized with adversarial training [25]: the maximal loss is
+approximated by an attack procedure A(x), such that max r2SL(f(x+r);y)L(f(A(x));y).
+Fori2[1;d], letAibe an attack for the perturbation set Si. The two multi-attack robustness metrics
+introduced in Equation (1) immediately yield the following natural adversarial training strategies:
+1.“Max” strategy: For each input x, we train on the strongest adversarial example from all attacks,
+i.e., the max in^Radvis replaced by L(f(Ak(x));y), fork= arg maxkL(f(Ak(x));y).
+2.“Avg” strategy: This strategy simultaneously trains on adversarial examples from all attacks.
+That is, the max in^Radvis replaced by1
+nPn
+i=1L(f(Ai(x);y)).
+The sparse`1-descent attack (SLIDE). Adversarial training is contingent on a strong andefﬁcient
+attack. Training on weak attacks gives no robustness [ 40], while strong optimization attacks (e.g., [ 6,
+5Input : Input x2[0;1]d, stepsk, step-size, percentileq,`1-bound
+Output :^x=x+rs.t.krk1
+r 0d
+for1ikdo
+g r rL(;x+r;y)
+ei=sign(gi)ifjgijPq(jgj);else0
+r r+e=kek1
+r S
+1(r)
+end
+Algorithm 1: The Sparse `1Descent Attack (SLIDE). Pq(jgj)denotes theqthpercentile ofjgjand
+S
+1is the projection onto the `1-ball (see [10]).
+8]) are prohibitively expensive. Projected Gradient Descent (PGD) [ 22,25] is a popular choice of
+attack that is both efﬁcient and produces strong perturbations. To complement our formal results,
+we want to train models on `1-perturbations. Yet, we show that the `1-version of PGD is highly
+inefﬁcient, and propose a better approach suitable for adversarial training.
+PGD is a steepest descent algorithm [ 24]. In each iteration, the perturbation is updated in the steepest
+descent direction arg maxkvk1vTg, where gis the gradient of the loss. For the `1-norm, the
+steepest descent direction is sign (g)[15], and for`2, it is g=kgk2. For the`1-norm, the steepest
+descent direction is the unit vector ewithei=sign(gi), fori= arg maxijgij.
+This yields an inefﬁcient attack, as each iteration updates a single index of the perturbation r. We
+thus design a new attack with ﬁner control over the sparsity of an update step. For q2[0;1], let
+Pq(jgj)be theqthpercentile ofjgj. We setei=sign(gi)ifjgijPq(jgj)and0otherwise, and
+normalize eto unit`1-norm. Forq1=d, we thus update many indices of rat once. We introduce
+another optimization to handle clipping, by ignoring gradient components where the update step
+cannot make progress (i.e., where xi+ri2f0;1gandgipoints outside the domain). To project
+ronto an`1-ball, we use an algorithm of Duchi et al. [ 10]. Algorithm 1 describes our attack. It
+outperforms the steepest descent attack as well as a recently proposed Frank-Wolfe algorithm for
+`1-attacks [ 20] (see Appendix B). Our attack is competitive with the more expensive EAD attack [ 8]
+(see Appendix C).
+4 Experiments
+We use our new adversarial training schemes to measure the robustness trade-off on MNIST and
+CIFAR10.1MNIST is an interesting case-study as distinct models achieve strong robustness to
+different`pand spatial attacks[ 31,11]. Despite the dataset’s simplicity, we show that no single
+model achieves strong `1;`1and`2robustness, and that new techniques are required to close this
+gap. The code used for all of our experiments can be found here: https://github.com/ftramer/
+MultiRobustness
+Training and evaluation setup. We ﬁrst use adversarial training to train models on a single
+perturbation type. For MNIST, we use `1(= 10) ,`2(= 2) and`1(= 0:3). For CIFAR10 we use
+`1(=4
+255)and`1(=2000
+255). We also train on rotation-translation attacks with 3px translations
+and30rotations as in [ 11]. We denote these models Adv 1, Adv 2, Adv1, and Adv RT. We then use
+the “max” and “avg” strategies from Section 3 to train models Adv maxand Adv avgagainst multiple
+perturbations. We train once on all `p-perturbations, and once on both `1and RT perturbations.
+We use the same CNN (for MNIST) and wide ResNet model (for CIFAR10) as Madry et al. [ 25].
+Appendix A has more details on the training setup, and attack and training hyper-parameters.
+We evaluate robustness of all models using multiple attacks: (1) we use gradient-based attacks
+for all`p-norms, i.e., PGD [ 25] and our SLIDE attack with 100steps and 40restarts ( 20restarts
+on CIFAR10), as well as Carlini and Wagner’s `2-attack [ 6] (C&W), and an `1-variant—EAD [ 8];
+1Kang et al. [ 20] recently studied the transfer between `1;`1and`2-attacks for adversarially trained models
+on ImageNet. They show that models trained on one type of perturbation are not robust to others, but they do not
+attempt to train models against multiple attacks simultaneously.
+6Table 1: Evaluation of MNIST models trained on `1;`1and`2attacks (left) or `1and rotation-
+translation (RT) attacks (right). Models Adv1, Adv 1, Adv 2and Adv RTare trained on a single
+attack, while Adv avgand Adv maxare trained on multiple attacks using the “avg” and “max” strategies.
+The columns show a model’s accuracy on individual perturbation types, on the union of them
+(1 Rmax
+adv), and the average accuracy across them ( 1 Ravg
+adv). The best results are in bold (at 95%
+conﬁdence). Results in red indicate gradient-masking, see Appendix C for a breakdown of all attacks.
+Model Acc. `1`1`21 Rmax
+adv1 Ravg
+adv
+Nat 99.4 0.0 12.4 8.5 0.0 7.0
+Adv199.1 91.1 12.1 11.3 6.8 38.2
+Adv 198.9 0.0 78.5 50.6 0.0 43.0
+Adv 298.5 0.4 68.0 71.8 0.4 46.7
+Adv avg97.3 76.7 53.9 58.3 49.9 63.0
+Adv max97.2 71.7 62.6 56.0 52.4 63.4Model Acc. `1 RT1 Rmax
+adv1 Ravg
+adv
+Nat 99.4 0.0 0.0 0.0 0.0
+Adv199.1 91.4 0.2 0.2 45.8
+Adv RT99.3 0.0 94.6 0.0 47.3
+Adv avg99.2 88.2 86.4 82.9 87.3
+Adv max98.9 89.6 85.6 83.8 87.6
+(2) to detect gradient-masking, we use decision-based attacks : the Boundary Attack [ 3] for`2, the
+Pointwise Attack [ 31] for`1, and the Boundary Attack++ [ 7] for`1; (3) for spatial attacks, we use
+the optimal attack of [ 11] that enumerates all small rotations and translations. For unbounded attacks
+(C&W, EAD and decision-based attacks), we discard perturbations outside the `p-ball.
+For each model, we report accuracy on 1000 test points for: (1) individual perturbation types; (2) the
+union of these types, i.e., 1 Rmax
+adv; and (3) the average of all perturbation types, 1 Ravg
+adv. We brieﬂy
+discuss the optimal error that can be achieved if there is no robustness trade-off. For perturbation sets
+S1;:::S n, letR1;:::;Rnbe the optimal risks achieved by distinct models. Then, a single model can
+at best achieve risk Rifor eachSi, i.e., OPT(Ravg
+adv) =1
+nPn
+i=1Ri. If the errors are fully correlated,
+so that a maximal number of inputs admit noattack, we have OPT(Rmax
+adv) = maxfR1;:::;Rng.
+Our experiments show that these optimal error rates are not achieved.
+Results on MNIST. Results are in Table 1. The left table is for the union of `p-attacks, and the
+right table is for the union of `1and RT attacks. In both cases, the multi-perturbation training
+strategies “succeed”, in that models Adv avgand Adv maxachieve higher multi-perturbation accuracy
+than any of the models trained against a single perturbation type.
+The results for `1and RT attacks are promising, although the best model Adv maxonly achieves 1 
+Rmax
+adv= 83:8%and1 Ravg
+adv= 87:6%, which is far less than the optimal values, 1 OPT(Rmax
+adv) =
+minf91:4%;94:6%g= 91:4%and1 OPT(Ravg
+adv) = (91:4% + 94:6%)=2 = 93% . Thus, these
+models do exhibit some form of the robustness trade-off analyzed in Section 2.
+The`presults are surprisingly mediocre and re-raise questions about whether MNIST can be consid-
+ered “solved” from a robustness perspective. Indeed, while training separate models to resist `1;`2
+or`1attacks works well, resisting all attacks simultaneously fails. This agrees with the results of
+Schott et al. [ 31], whose models achieve either high `1or`2robustness, but not both simultaneously.
+We show that in our case, this lack of robustness is partly due to gradient masking.
+First-order adversarial training and gradient masking on MNIST. The model Adv 1is not
+robust to`1and`2-attacks. This is unsurprising as the model was only trained on `1-attacks. Yet,
+comparing the model’s accuracy against multiple types of `1and`2attacks (see Appendix C) reveals
+a more curious phenomenon: Adv 1has high accuracy against ﬁrst-order`1and`2-attacks such as
+PGD, but is broken by decision-free attacks. This is an indication of gradient-masking [27, 40, 1].
+This issue had been observed before [ 31,23], but an explanation remained illusive, especially since
+`1-PGD does not appear to suffer from gradient masking (see [ 25]). We explain this phenomenon by
+inspecting the learned features of model Adv 1, as in [ 25]. We ﬁnd that the model’s ﬁrst layer learns
+threshold ﬁlters z=ReLU ((x ))for>0. As most pixels in MNIST are zero, most of the
+zicannot be activated by an -bounded`1-attack. The `1-PGD thus optimizes a smooth (albeit ﬂat)
+loss function. In contrast, `1- and`2-attacks can move a pixel xi= 0to^xi>thus activating zi, but
+have no gradients to rely on (i.e, dzi=dxi= 0for anyxi). Figure 3 in Appendix D shows that
+the model’s loss resembles a step-function, for which ﬁrst-order attacks such as PGD are inadequate.
+Note that training against ﬁrst-order `1or`2-attacks directly (i.e., models Adv 1and Adv 2in Table 1),
+seems to yield genuine robustness to these perturbations. This is surprising in that, because of gradient
+7Table 2: Evaluation of CIFAR10 models trained against `1and`1attacks (left) or `1and
+rotation-translation (RT) attacks (right). Models Adv1, Adv 1and Adv RTare trained against a
+single attack, while Adv avgand Adv maxare trained against two attacks using the “avg” and “max”
+strategies. The columns show a model’s accuracy on individual perturbation types, on the union of
+them ( 1 Rmax
+adv), and the average accuracy across them ( 1 Ravg
+adv). The best results are in bold (at
+95% conﬁdence). A breakdown of all `1attacks is in Appendix C.
+Model Acc. `1`11 Rmax
+adv1 Ravg
+adv
+Nat 95.7 0.0 0.0 0.0 0.0
+Adv1 92.0 71.0 16.4 16.4 44.9
+Adv 1 90.8 53.4 66.2 53.1 60.0
+Adv avg 91.1 64.1 60.8 59.4 62.5
+Adv max 91.2 65.7 62.5 61.1 64.1Model Acc. `1 RT1 Rmax
+adv1 Ravg
+adv
+Nat 95.7 0.0 5.9 0.0 3.0
+Adv1 92.0 71.0 8.9 8.7 40.0
+Adv RT 94.9 0.0 82.5 0.0 41.3
+Adv avg 93.6 67.8 78.2 65.2 73.0
+Adv max 93.1 69.6 75.2 65.7 72.4
+Table 3: Evaluation of afﬁne attacks. For models trained with the “max” strategy, we evaluate
+against attacks from a union SUof perturbation sets, and against an afﬁne adversary that interpolates
+between perturbations. Examples of afﬁne attacks are in Figure 4.
+Dataset Attacks acc. on SUacc. onSafﬁne
+MNIST`1& RT 83.8 62.6
+CIFAR10`1& RT 65.7 56.0
+CIFAR10`1&`1 61.1 58.0
+masking, model Adv 1actually achieves lower training loss against ﬁrst-order `1and`2-attacks than
+models Adv 1and Adv 2. That is, Adv 1and Adv 2converged to sub-optimal local minima of their
+respective training objectives, yet these minima generalize much better to stronger attacks.
+The models Adv avgand Adv maxthat are trained against `1;`1and`2-attacks also learn to use
+thresholding to resist `1-attacks while spuriously masking gradient for `1and`2-attacks. This is
+evidence that, unlike previously thought [ 41], training against a strong ﬁrst-order attack (such as PGD)
+can cause the model to minimize its training loss via gradient masking. To circumvent this issue,
+alternatives to ﬁrst-order adversarial training seem necessary. Potential (costly) approaches include
+training on gradient-free attacks, or extending certiﬁed defenses [ 28,42] to multiple perturbations.
+Certiﬁed defenses provide provable bounds that are much weaker than the robustness attained by
+adversarial training, and certifying multiple perturbation types is likely to exacerbate this gap.
+Results on CIFAR10. The left table in Table 2 considers the union of `1and`1perturbations,
+while the right table considers the union of `1and RT perturbations. As on MNIST, the models
+Adv avgand Adv maxachieve better multi-perturbation robustness than any of the models trained on a
+single perturbation, but fail to match the optimal error rates we could hope for. For `1and`1-attacks,
+we achieve 1 Rmax
+adv= 61:1%and1 Ravg
+adv= 64:1%, again signiﬁcantly below the optimal values,
+1 OPT(Rmax
+adv) = minf71:0%;66:2%g= 66:2%and1 OPT(Ravg
+adv) = (71:0% + 66:2%)=2 =
+68:6%. The results for `1and RT attacks are qualitatively and quantitatively similar.2
+Interestingly, models Adv avgand Adv maxachieve 100% training accuracy . Thus, multi-perturbation
+robustness increases the adversarial generalization gap [30]. These models might be resorting to
+more memorization because they fail to ﬁnd features robust to both attacks.
+Afﬁne Adversaries. Finally, we evaluate the afﬁne attacks introduced in Section 2.5. These attacks
+take afﬁne combinations of two perturbation types, and we apply them on the models Adv max(we
+omit the`p-case on MNIST due to gradient masking). To compound `1and`1-noise, we devise
+an attack that updates both perturbations in alternation. To compound `1and RT attacks, we pick
+random rotation-translations (with 3px translations and 30rotations), apply an `1-attack
+with budget (1 )to each, and retain the worst example.
+2An interesting open question is why the model Adv avgtrained on`1and RT attacks does not attain optimal
+average robustnessRavg
+adv. Indeed, on CIFAR10, detecting the RT attack of [ 11] is easy, due to the black in-painted
+pixels in a transformed image. The following “ensemble” model thus achieves optimal Ravg
+adv(but not necessarily
+optimalRmax
+adv): on input ^x, return Adv RT(^x)if there are black in-painted pixels, otherwise return Adv 1(^x).
+The fact that model Adv avgdid not learn such a function might hint at some limitation of adversarial training.
+8The results in Table 3 match the predictions of our formal analysis: (1) afﬁne combinations of `p
+perturbations are no stronger than their union. This is expected given Claim 3 and prior observations
+that neural networks are close to linear near the data [ 15,29]; (2) combining of `1and RT attacks
+does yield a stronger attack, as shown in Theorem 4. This demonstrates that robustness to a union of
+perturbations can still be insufﬁcient to protect against more complex combinations of perturbations.
+5 Discussion and Open Problems
+Despite recent success in defending ML models against some perturbation types [ 25,11,31], extend-
+ing these defenses to multiple perturbations unveils a clear robustness trade-off. This tension may be
+rooted in its unconditional occurrence in natural and simple distributions, as we proved in Section 2.
+Our new adversarial training strategies fail to achieve competitive robustness to more than one attack
+type, but narrow the gap towards multi-perturbation robustness. We note that the optimal risks Rmax
+adv
+andRavg
+advthat we achieve are very close. Thus, for most data points, the models are either robust to all
+perturbation types or none of them. This hints that some points (sometimes referred to as prototypical
+examples [4, 36]) are inherently easier to classify robustly, regardless of the perturbation type.
+We showed that ﬁrst-order adversarial training for multiple `p-attacks suffers from gradient masking
+on MNIST. Achieving better robustness on this simple dataset is an open problem. Another challenge
+is reducing the cost of our adversarial training strategies, which scale linearly in the number of pertur-
+bation types. Breaking this linear dependency requires efﬁcient techniques for ﬁnding perturbations
+in a union of sets, which might be hard for sets with near-empty intersection (e.g., `1and`1-balls).
+The cost of adversarial training has also be reduced by merging the inner loop of a PGD attack and
+gradient updates of the model parameters [ 34,44], but it is unclear how to extend this approach to a
+union of perturbations (some of which are not optimized using PGD, e.g., rotation-translations).
+Hendrycks and Dietterich [ 17], and Geirhos et al. [ 13] recently measured robustness of classiﬁers
+to multiple common (i.e., non-adversarial) image corruptions (e.g., random image blurring). In that
+setting, they also ﬁnd that different classiﬁers achieve better robustness to some corruptions, and
+that no single classiﬁer achieves the highest accuracy under all forms. The interplay between multi-
+perturbation robustness in the adversarial and common corruption case is worth further exploration.
+References
+[1]A. Athalye, N. Carlini, and D. Wagner. Obfuscated gradients give a false sense of security: Circumventing
+defenses to adversarial examples. In International Conference on Machine Learning (ICML) , 2018.
+[2]A. C. Berry. The accuracy of the gaussian approximation to the sum of independent variates. Transactions
+of the american mathematical society , 49(1):122–136, 1941.
+[3]W. Brendel, J. Rauber, and M. Bethge. Decision-based adversarial attacks: Reliable attacks against
+black-box machine learning models. In International Conference on Learning Representations , 2018.
+[4]N. Carlini, U. Erlingsson, and N. Papernot. Prototypical examples in deep learning: Metrics, characteristics,
+and utility. 2018.
+[5]N. Carlini, P. Mishra, T. Vaidya, Y . Zhang, M. Sherr, C. Shields, D. Wagner, and W. Zhou. Hidden voice
+commands. In USENIX Security Symposium , pages 513–530, 2016.
+[6]N. Carlini and D. Wagner. Towards evaluating the robustness of neural networks. In IEEE Symposium on
+Security and Privacy , 2017.
+[7]J. Chen and M. I. Jordan. Boundary attack++: Query-efﬁcient decision-based adversarial attack. arXiv
+preprint arXiv:1904.02144 , 2019.
+[8]P.-Y . Chen, Y . Sharma, H. Zhang, J. Yi, and C.-J. Hsieh. Ead: elastic-net attacks to deep neural networks
+via adversarial examples. In AAAI Conference on Artiﬁcial Intelligence , 2018.
+[9]A. Demontis, P. Russu, B. Biggio, G. Fumera, and F. Roli. On security and sparsity of linear classiﬁers
+for adversarial settings. In Joint IAPR International Workshops on Statistical Techniques in Pattern
+Recognition (SPR) and Structural and Syntactic Pattern Recognition (SSPR) , pages 322–332. Springer,
+2016.
+9[10] J. Duchi, S. Shalev-Shwartz, Y . Singer, and T. Chandra. Efﬁcient projections onto the l1-ball for learning
+in high dimensions. In International Conference on Machine Learning (ICML) , 2008.
+[11] L. Engstrom, B. Tran, D. Tsipras, L. Schmidt, and A. Madry. A rotation and a translation sufﬁce: Fooling
+CNNs with simple transformations. arXiv preprint arXiv:1712.02779 , 2017.
+[12] A. Fawzi, H. Fawzi, and O. Fawzi. Adversarial vulnerability for any classiﬁer. In Advances in Neural
+Information Processing Systems , pages 1186–1195, 2018.
+[13] R. Geirhos, P. Rubisch, C. Michaelis, M. Bethge, F. A. Wichmann, and W. Brendel. ImageNet-trained
+CNNs are biased towards texture; increasing shape bias improves accuracy and robustness. In International
+Conference on Learning Representations (ICLR) , 2019.
+[14] J. Gilmer, L. Metz, F. Faghri, S. S. Schoenholz, M. Raghu, M. Wattenberg, and I. Goodfellow. Adversarial
+spheres. arXiv preprint arXiv:1801.02774 , 2018.
+[15] I. J. Goodfellow, J. Shlens, and C. Szegedy. Explaining and harnessing adversarial examples. In Interna-
+tional Conference on Learning Representations (ICLR) , 2015.
+[16] K. Grosse, N. Papernot, P. Manoharan, M. Backes, and P. McDaniel. Adversarial examples for malware
+detection. In European Symposium on Research in Computer Security , 2017.
+[17] D. Hendrycks and T. Dietterich. Benchmarking neural network robustness to common corruptions and
+perturbations. In International Conference on Learning Representations (ICLR) , 2019.
+[18] A. Ilyas, S. Santurkar, D. Tsipras, L. Engstrom, B. Tran, and A. Madry. Adversarial examples are not bugs,
+they are features. arXiv preprint arXiv:1905.02175 , 2019.
+[19] J. Jo and Y . Bengio. Measuring the tendency of CNNs to learn surface statistical regularities. arXiv preprint
+arXiv:1711.11561 , 2017.
+[20] D. Kang, Y . Sun, T. Brown, D. Hendrycks, and J. Steinhardt. Transfer of adversarial robustness between
+perturbation types. arXiv preprint arXiv:1905.01034 , 2019.
+[21] M. Khoury and D. Hadﬁeld-Menell. On the geometry of adversarial examples, 2019.
+[22] A. Kurakin, I. Goodfellow, and S. Bengio. Adversarial machine learning at scale. In International
+Conference on Learning Representations (ICLR) , 2017.
+[23] B. Li, C. Chen, W. Wang, and L. Carin. Second-order adversarial attack and certiﬁable robustness. arXiv
+preprint arXiv:1809.03113 , 2018.
+[24] A. Madry and Z. Kolter. Adversarial robustness: Theory and practice. In Tutorial at NeurIPS 2018 , 2018.
+[25] A. Madry, A. Makelov, L. Schmidt, D. Tsipras, and A. Vladu. Towards deep learning models resistant to
+adversarial attacks. In International Conference on Learning Representations (ICLR) , 2018.
+[26] S. Mahloujifar, D. I. Diochnos, and M. Mahmoody. The curse of concentration in robust learning: Evasion
+and poisoning attacks from concentration of measure. arXiv preprint arXiv:1809.03063 , 2018.
+[27] N. Papernot, P. McDaniel, I. Goodfellow, S. Jha, Z. B. Celik, and A. Swami. Practical black-box attacks
+against machine learning. In ASIACCS , pages 506–519. ACM, 2017.
+[28] A. Raghunathan, J. Steinhardt, and P. Liang. Certiﬁed defenses against adversarial examples. In Interna-
+tional Conference on Learning Representations (ICLR) , 2018.
+[29] M. T. Ribeiro, S. Singh, and C. Guestrin. Why should i trust you?: Explaining the predictions of any
+classiﬁer. In KDD . ACM, 2016.
+[30] L. Schmidt, S. Santurkar, D. Tsipras, K. Talwar, and A. Madry. Adversarially robust generalization requires
+more data. In Advances in Neural Information Processing Systems , pages 5019–5031, 2018.
+[31] L. Schott, J. Rauber, M. Bethge, and W. Brendel. Towards the ﬁrst adversarially robust neural network
+model on mnist. In International Conference on Learning Representations (ICLR) , 2019.
+[32] L. Schott, J. Rauber, M. Bethge, and W. Brendel. Towards the ﬁrst adversarially robust neural network
+model on mnist (OpenReview comment on spatial transformations), 2019.
+[33] A. Shafahi, W. R. Huang, C. Studer, S. Feizi, and T. Goldstein. Are adversarial examples inevitable? In
+International Conference on Learning Representations (ICLR) , 2019.
+10[34] A. Shafahi, M. Najibi, A. Ghiasi, Z. Xu, J. Dickerson, C. Studer, L. S. Davis, G. Taylor, and T. Goldstein.
+Adversarial training for free! arXiv preprint arXiv:1904.12843 , 2019.
+[35] Y . Sharma and P.-Y . Chen. Attacking the madry defense model with l1-based adversarial examples. arXiv
+preprint arXiv:1710.10733 , 2017.
+[36] P. Stock and M. Cisse. Convnets and imagenet beyond accuracy: Understanding mistakes and uncovering
+biases. In Proceedings of the European Conference on Computer Vision (ECCV) , pages 498–512, 2018.
+[37] C. Szegedy, W. Zaremba, I. Sutskever, J. Bruna, D. Erhan, I. Goodfellow, and R. Fergus. Intriguing
+properties of neural networks. In International Conference on Learning Representations (ICLR) , 2014.
+[38] F. Tramèr and D. Boneh. Adversarial training and robustness for multiple perturbations. In Neural
+Information Processing Systems (NeurIPS) 2019 , 2019. arXiv preprint arXiv:1904.13000.
+[39] F. Tramèr, P. Dupré, G. Rusak, G. Pellegrino, and D. Boneh. Ad-versarial: Perceptual ad-blocking meets
+adversarial machine learning. arXiv preprint arXiv:1811:03194, Nov 2018.
+[40] F. Tramèr, A. Kurakin, N. Papernot, I. Goodfellow, D. Boneh, and P. McDaniel. Ensemble adversarial
+training: Attacks and defenses. In International Conference on Learning Representations (ICLR) , 2018.
+[41] D. Tsipras, S. Santurkar, L. Engstrom, A. Turner, and A. Madry. Robustness may be at odds with accuracy.
+InInternational Conference on Learning Representations (ICLR) , 2019.
+[42] E. Wong and Z. Kolter. Provable defenses against adversarial examples via the convex outer adversarial
+polytope. In International Conference on Machine Learning , pages 5283–5292, 2018.
+[43] H. Xu, C. Caramanis, and S. Mannor. Robustness and regularization of support vector machines. Journal
+of Machine Learning Research , 10(Jul):1485–1510, 2009.
+[44] D. Zhang, T. Zhang, Y . Lu, Z. Zhu, and B. Dong. You only propagate once: Painless adversarial training
+using maximal principle. arXiv preprint arXiv:1905.00877 , 2019.
+11

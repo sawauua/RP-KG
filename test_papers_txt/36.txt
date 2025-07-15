@@ -1,0 +1,466 @@
+Measuring Invariances in Deep Networks
+
+Ian J. Goodfellow, Quoc V. Le, Andrew M. Saxe, Honglak Lee, Andr ew Y. Ng
+Computer Science Department
+Stanford University
+Stanford, CA 94305
+{ia3n,quocle,asaxe,hllee,ang}@cs.stanford.edu
+Abstract
+For many pattern recognition tasks, the ideal input feature would be invariant to
+multipleconfoundingproperties(suchasilluminationandviewingangle,incom-
+putervisionapplications). Recently,deeparchitecturestrainedinanunsupervised
+mannerhavebeenproposedasanautomaticmethodforextractingusefulfeatures.
+However, it is difﬁcult to evaluate the learned features by any means other than
+using them in a classiﬁer. In this paper, we propose a number of empirical tests
+that directly measure the degree to which these learned features are invariant to
+differentinputtransformations. Weﬁndthatstackedautoencoderslearnmodestly
+increasinglyinvariantfeatureswithdepthwhentrainedonnaturalimages. Weﬁnd
+thatconvolutionaldeepbeliefnetworkslearnsubstantiallymoreinvariantfeatures
+ineachlayer. Theseresultsfurtherjustifytheuseof“deep”vs. “shallower”repre-
+sentations,butsuggestthatmechanisms beyond merelystackingoneautoencoder
+ontopofanothermaybeimportantforachievinginvariance. Ourevaluationmet-
+rics can also be used to evaluate future work in deep learning, and thus help the
+development of future algorithms.
+1 Introduction
+Invariance to abstract input variables is a highly desirable property of features for many detection
+and classiﬁcation tasks, such as object recognition. The concept of invariance implies a selectivity
+forcomplex,highlevelfeaturesoftheinputandyetarobustnesstoirrelevantinputtransformations.
+This tension between selectivity and robustness makes learning invariant features nontrivial. In the
+caseofobjectrecognition, aninvariantfeatureshouldrespondonlytoonestimulusdespitechanges
+in translation, rotation, complex illumination, scale, perspective, and other properties. In this paper,
+we propose to use a suite of “invariance tests” that directly measure the invariance properties of
+features; this gives us a measure of the quality of features learned in an unsupervised manner by a
+deep learning algorithm.
+Our work also seeks to address the question: why are deep learning algorithms useful? Bengio and
+LeCun gave a theoretical answer to this question, in which they showed that a deep architecture is
+necessary to represent many functions compactly [1]. A second answer can also be found in such
+work as [2, 3, 4, 5], which shows that such architectures lead to useful representations for classi-
+ﬁcation. In this paper, we give another, empirical, answer to this question: namely, we show that
+with increasing depth, the representations learned can also enjoy an increased degree of invariance.
+Our observations lend credence to the common view of invariances to minor shifts, rotations and
+deformations being learned in the lower layers, and being combined in the higher layers to form
+progressively more invariant features.
+In computer vision, one can view object recognition performance as a measure of the invariance of
+the underlying features. While such an end-to-end system performance measure has many beneﬁts,
+it can also be expensive to compute and does not give much insight into how to directly improve
+representationsineachlayerofdeeparchitectures. Moreover,itcannotidentifyspeciﬁcinvariances
+1that a feature may possess. The test suite presented in this pa per provides an alternative that can
+identify the robustness of deep architectures to speciﬁc types of variations. For example, using
+videosofnaturalscenes,ourinvariancetestsmeasurethedegreetowhichthelearnedrepresentations
+areinvariantto2-D(in-plane)rotations,3-D(out-of-plane)rotations,andtranslations. Additionally,
+such video tests have the potential to examine changes in other variables such as illumination. We
+demonstrate that using videos gives similar results to the more traditional method of measuring
+responses to sinusoidal gratings; however, the natural video approach enables us to test invariance
+to a wide range of transformations while the grating test only allows changes in stimulus position,
+orientation, and frequency.
+Ourproposedinvariancemeasureisbroadlyapplicabletoevaluatingmanydeeplearningalgorithms
+for many tasks, but the present paper will focus on two different algorithms applied to computer
+vision. First, we examine the invariances of stacked autoencoder networks [2]. These networks
+wereshown byLarochelle etal. [3]tolearnuseful features forarange of visiontasks; thissuggests
+that their learned features are signiﬁcantly invariant to the transformations present in those tasks.
+Unlike the artiﬁcial data used in [3], however, our work uses natural images and natural video
+sequences, and examines more complex variations such as out-of-plane changes in viewing angle.
+We ﬁnd that when trained under these conditions, stacked autoencoders learn increasingly invariant
+featureswithdepth,buttheeffectofdepthissmallcomparedtootherfactorssuchasregularization.
+Next,weshowthatconvolutionaldeepbeliefnetworks(CDBNs)[5],whicharehand-designedtobe
+invarianttocertainlocalimagetranslations,doenjoydramaticallyincreasinginvariancewithdepth.
+This suggests that there is a beneﬁt to using deep architectures, but that mechanisms besides simple
+stacking of autoencoders are important for gaining increasing invariance.
+2 Related work
+Deep architectures have shown signiﬁcant promise as a technique for automatically learning fea-
+turesforrecognitionsystems. Deeparchitecturesconsistofmultiplelayersofsimplecomputational
+elements. By combining the output of lower layers in higher layers, deep networks can represent
+progressively more complex features of the input. Hinton et al. introduced the deep belief network,
+in which each layer consists of a restricted Boltzmann machine [4]. Bengio et al. built a deep net-
+work using an autoencoder neural network in each layer [2, 3, 6]. Ranzato et al. and Lee et al.
+explored the use of sparsity regularization in autoencoding energy-based models [7, 8] and sparse
+convolutional DBNswithprobabilisticmax-pooling [5]respectively. Thesenetworks,whentrained
+subsequently in a discriminative fashion, have achieved excellent performance on handwritten digit
+recognition tasks. Further, Lee et al. and Raina et al. show that deep networks are able to learn
+good features for classiﬁcation tasks even when trained on data that does not include examples of
+the classes to be recognized [5, 9].
+Someworkindeeparchitecturesdrawsinspirationfromthebiologyofsensorysystems. Thehuman
+visualsystemfollowsasimilarhierarchicalstructure,withhigherlevelsrepresentingmorecomplex
+features [10]. Lee et al., for example, compared the response properties of the second layer of a
+sparsedeepbeliefnetworktoV2,thesecondstageofthevisualhierarchy[11]. Oneimportantprop-
+erty of the visual system is a progressive increase in the invariance of neural responses in higher
+layers. For example, in V1, complex cells are invariant to small translations of their inputs. Higher
+inthehierarchyinthemedialtemporallobe,Quirogaetal. haveidentiﬁedneuronsthatrespondwith
+high selectivity to, for instance, images of the actress Halle Berry [12]. These neurons are remark-
+ably invariant to transformations of the image, responding equally well to images from different
+perspectives, at different scales, and even responding to the text “Halle Berry.” While we do not
+knowexactlytheclassofallstimulisuchneuronsrespondto(iftestedonalargersetofimages,they
+may well turn out to respond also to other stimuli than Halle Berry related ones), they nonetheless
+show impressive selectivity and robustness to input transformations.
+Computational models such as the neocognitron [13], HMAX model [14], and Convolutional Net-
+work [15] achieve invariance by alternating layers of feature detectors with local pooling and sub-
+sampling of the feature maps. This approach has been used to endow deep networks with some
+degree of translation invariance [8, 5]. However, it is not clear how to explicitly imbue models with
+more complicated invariances using this ﬁxed architecture. Additionally, while deep architectures
+provide a task-independent method of learning features, convolutional and max-pooling techniques
+are somewhat specialized to visual and audio processing.
+23 Network architectureand optimization
+W
+e train all of our networks on natural images collected separately (and in geographically different
+areas) from the videos used in the invariance tests. Speciﬁcally, the training set comprises a set of
+stillimagestakeninoutdoorenvironmentsfreefromartiﬁcialobjects,andwasnotdesignedtorelate
+in any way to the invariance tests.
+3.1 Stacked autoencoder
+The majority of our tests focus on the stacked autoencoder of Bengio et al. [2], which is a deep
+network consisting of an autoencoding neural network in each layer. In the single-layer case, in
+responsetoaninputpattern x∈Rn,theactivationofeachneuron, hi, i= 1,· · ·,miscomputedas
+h(x) =tanh(W1x+b1),
+where h(x)∈Rmisthevectorofneuronactivations, W1∈Rm×nisaweightmatrix, b1∈Rmisa
+bias vector, and tanh is the hyperbolic tangent applied componentwise. The network output is then
+computed as
+ˆx=tanh(W2h(x) +b2),
+where ˆx∈Rnis a vector of output values, W2∈Rn×mis a weight matrix, and b2∈Rnis a bias
+vector. Givenasetof pinputpatterns x(i),i= 1,· · ·,p,theweightmatrices W1andW2areadapted
+using backpropagation [16, 17, 18] to minimize the reconstruction error/summationtextp
+i=1/vextenddouble/vextenddoublex(i)−ˆx(i)/vextenddouble/vextenddouble2.
+Following [2], we successively train up layers of the network in a greedy layerwise fashion. The
+ﬁrst layer receives a 14×14patch of an image as input. After it achieves acceptable levels of
+reconstruction error, a second layer is added, then a third, and so on.
+Insomeofour experiments, weusethemethod of[11],and constraintheexpected activation ofthe
+hidden units to be sparse. We never constrain W1=WT
+2,although we found this to approximately
+hold in practice.
+3.2 Convolutional Deep Belief Network
+We also test a CDBN [5] that was trained using two hidden layers. Each layer includes a collection
+of “convolution” units as well as a collection of “max-pooling” units. Each convolution unit has
+a receptive ﬁeld size of 10x10 pixels, and each max-pooling unit implements a probabilistic max-
+like operation over four (i.e., 2x2) neighboring convolution units, giving each max-pooling unit an
+overall receptive ﬁeld size of 11x11 pixels in the ﬁrst layer and 31x31 pixels in the second layer.
+The model is regularized in a way that the average hidden unit activation is sparse. We also use a
+small amount of L2weight decay.
+Because the convolution units share weights and because their outputs are combined in the max-
+poolingunits,theCDBNisexplicitlydesignedtobeinvarianttosmallamountsofimagetranslation.
+4 Invariancemeasure
+Anidealfeatureforpatternrecognitionshouldbebothrobustandselective. Weinterpretthehidden
+units as feature detectors that should respond strongly when the feature they represent is present in
+the input, and otherwise respond weakly when it is absent. An invariant neuron, then, is one that
+maintains a high response to its feature despite certain transformations of its input. For example,
+a face selective neuron might respond strongly whenever a face is present in the image; if it is
+invariant, it might continue to respond strongly even as the image rotates.
+Building on this intuition, we consider hidden unit responses above a certain threshold to be ﬁring,
+that is, to indicate the presence of some feature in the input. We adjust this threshold to ensure that
+the neuron is selective, and not simply always active. In particular we choose a separate threshold
+for each hidden unit such that all units ﬁre at the same rate when presented with random stimuli.
+After identifying an input that causes the neuron to ﬁre, we can test the robustness of the unit by
+calculating its ﬁring rate in response to a set of transformed versions of that input.
+More formally, a hidden unit iis said to ﬁre when sihi(x)> ti,where tiis a threshold chosen
+by our test for that hidden unit and si∈ {−1, 1}gives the sign of that hidden unit’s values. The
+sign term siis necessary because, in general, hidden units are as likely to use low values as to
+use high values to indicate the presence of the feature that they detect. We therefore choose sito
+maximize the invariance score. For hidden units that are regularized to be sparse, we assume that
+si= 1, since their mean activity has been regularized to be low. We deﬁne the indicator function
+3fi(x) = 1 {sihi(x)> ti}, i.e., it is equal to one if the neuron ﬁres in response to input x, and zero
+otherwise.
+Atransformation function τ(x,γ)transforms a stimulus xinto a new, related stimulus, where the
+degree of transformation is parametrized by γ∈R. (One could also imagine a more complex
+transformation parametrized by γ∈Rn.) In order for a function τto be useful with our invariance
+measure, |γ|shouldrelatetothesemanticdissimilaritybetween xandτ(x,γ). Forexample, γmight
+be the number of degrees by which xis rotated.
+Alocal trajectory T(x)is a set of stimuli that are semantically similar to some reference stimulus
+x, that is
+T(x) = {τ(x,γ)|γ∈Γ}
+where Γis a set of transformation amounts of limited size, for example, all rotations of less than 15
+degrees.
+Theglobal ﬁring rate is the ﬁring rate of a hidden unit when applied to stimuli drawn randomly
+from a distribution P(x):
+G(i) =E[fi(x)],
+where P(x)is a distribution over the possible inputs xdeﬁned for each implementation of the test.
+Using these deﬁnitions, we can measure the robustness of a hidden unit as follows. We deﬁne the
+setZas a set of inputs that activate hinear maximally. The local ﬁring rate is the ﬁring rate of a
+hiddenunitwhenitisappliedtolocaltrajectoriessurroundinginputs z∈Zthatmaximallyactivate
+the hidden unit,
+L(i) =1
+|Z|/summationdisplay
+z∈Z1
+|T(z)|/summationdisplay
+x∈T(z)fi(x),
+i
+.e.,L(i)is the proportion of transformed inputs that the neuron ﬁres in response to, and hence is a
+measure of the robustness of the neuron’s response to the transformation τ.
+Our invariance score for a hidden unit hiis given by
+S(i) =L(i)
+G(i).
+T
+he numerator is a measure of the hidden unit’s robustness to transformation τnear the unit’s opti-
+mal inputs, and the denominator ensures that the neuron is selective and not simply always active.
+In our tests, we tried to select the threshold tifor each hidden unit so that it ﬁres one percent of the
+time in response to random inputs, that is, G(i) = 0.01. For hidden units that frequently repeat the
+same activation value (up to machine precision), it is sometimes not possible to choose tisuch that
+G(i) = 0.01exactly. Insuch cases, we choose the smallest value of t(i)such that G(i)>0.01.
+Each of the tests presented in the paper is implemented by providing a different deﬁnition of P(x),
+τ(x,γ), andΓ.
+S(i)givestheinvariancescoreforasinglehiddenunit. Theinvariancescore Invp(N)ofanetwork
+Nisgivenbythemeanof S(i)overthetop-scoringproportion pofhiddenunitsinthedeepestlayer
+ofN. We discard the (1−p)worst hidden units because different subpopulations of units may be
+invarianttodifferenttransformations. Reportingthemeanofallunitscoreswouldstronglypenalize
+networks that discover several hidden units that are invariant to transformation τbut do not devote
+more than proportion pof their hidden units to such a task.
+Finally, note that while we use this metric to measure invariances in the visual features learned
+by deep networks, it could be applied to virtually any kind of feature in virtually any application
+domain.
+5 Grating test
+Ourﬁrstinvariancetestisbasedontheresponseofneuronstosyntheticimages. Followingsuchau-
+thorsasBerkesetal.[19],wesystematicallyvarytheparametersusedtogenerateimagesofgratings.
+We use as input an image Iof a grating, with image pixel intensities given by
+I(x,y) =b+asin (ω(xcos(θ) +ysin(θ)−φ)),
+4where ωi s the spatial frequency, θis the orientation of the grating, and φis the phase. To imple-
+ment our invariance measure, we deﬁne P(x)as a distribution over grating images. We measure
+invariancetotranslationbydeﬁning τ(x,γ)tochange φbyγ. Wemeasureinvariancetorotationby
+deﬁning τ(x,γ)to change ωbyγ.1
+6 Natural video test
+While the grating-based invariance test allows us to systematically vary the parameters used to
+generate the images, it shares the difﬁculty faced by a number of other methods for quantifying
+invariancethatarebasedonsynthetic(ornearlysynthetic)data[19,20,21]: itisdifﬁculttogenerate
+data that systematically varies a large variety of image parameters.
+Our second suite of invariance tests uses natural video data. Using this method, we will measure
+the degree to which various learned features are invariant to a wide range of more complex image
+parameters. This will allow us to perform quantitative comparisons of representations at each layer
+of a deep network. We also verify that the results using this technique align closely with those
+obtained with the grating-based invariance tests.
+6.1 Data collection
+Our dataset consists of natural videos containing common image transformations such as transla-
+tions, 2-D (in-plane) rotations, and 3-D (out-of-plane) rotations. In contrast to labeled datasets like
+theNORBdataset[21]wheretheviewpointchangesinlargeincrementsbetweensuccessiveimages,
+our videos are taken at sixty frames per second, and thus are suitable for measuring more modest
+invariances,aswouldbeexpectedinlowerlayersofadeeparchitecture. Aftercollection,theimages
+are reduced in size to 320 by 180 pixels and whitened by applying a band pass ﬁlter. Finally, we
+adjust the constrast of the whitened images with a scaling constant that varies smoothly over time
+andattemptstomakeeachimageuseasmuchofthedynamicrangeoftheimageformataspossible.
+Each video sequence contains at least one hundred frames. Some video sequences contain motion
+that is only represented well near the center of the image; for example, 3-D (out-of-plane) rotation
+about an object in the center of the ﬁeld of view. In these cases we cropped the videos tightly in
+order to focus on the relevant transformation.
+6.2 Invariance calculation
+Toimplementourinvariancemeasureusingnaturalimages,wedeﬁne P(x)asauniformdistribution
+over image patches contained in the test videos, and τ(x,γ)to be the image patch at the same
+image location as xbut occurring γvideo frames later in time. We deﬁne Γ = {−5,... , 5}. To
+measureinvariancetodifferenttypesoftransformation,wesimplyusevideosthatinvolveeachtype
+oftransformation. Thisobviatestheneedtodeﬁneacomplex τcapableofsyntheticallyperforming
+operations such as 3-D rotation.
+7 Results
+7.1 Stacked autoencoders
+7.1.1 Relationship between grating test and natural video test
+Sinusoidal gratings are already used as a common reference stimulus. To validate our approach
+of using natural videos, we show that videos involving translation give similar test results to the
+phasevariationgratingtest. Fig.1plotstheinvariancescoreforeachof378onelayerautoencoders
+regularizedwitharangeofsparsityandweightdecayparameters(showninFig.3). Wewerenotable
+toﬁndascloseofacorrespondencebetweenthegratingorientationtestandnaturalvideosinvolving
+2-D(in-plane)rotation. Our2-Drotationswerecapturedbyhand-rotatingavideocamerainnatural
+environments, which introduces small amounts of other types of transformations. To verify that
+the problem is not that rotation when viewed far from the image center resembles translation, we
+compare the invariance test scores for translation and for rotation in Fig. 2. The lack of any clear
+1Details: We deﬁne P(x)as a uniform distribution over patches produced by varying ω∈ {2, 4,6,8},
+θ∈ {0, · · ·, π}in steps of π/20, and φ∈ {0, · · ·, π}in steps of π/20. After identifying a grating that
+stronglyactivatestheneuron,furtherlocalgratings T(x)aregeneratedbyvaryingoneparameterwhileholding
+all other optimal parameters ﬁxed. For the translation test, local trajectories T(x)are generated by modifying
+φfrom the optimal value φopttoφ=φopt± {0, · · ·, π}in steps of π/20, where φoptis the optimal grating
+phase shift. For the rotation test, local trajectories T(x)are generated by modifying θfrom the optimal value
+θopttoθ=θopt± {0, · · ·, π}in steps of π/40, where θoptisthe optimal grating orientation.
+501020304050607080901000510152025
+Grating phase testNatural translation testGrating and natural video test comparison
+Figure 1: Videos involving translation
+g
+ive similar test results to synthetic
+videos of gratings with varying phase.0 5 10 15 20 2502468101214161820
+Natural translation testNatural 2−D rotation testNatural 2−D rotation and translation test
+Figure 2: We verify that our translation
+a
+nd 2-D rotation videos do indeed cap-
+ture different transformations.
+−4−3.5−3−2.5−2−1.5−1−0.50
+−4−3−2−1012010203040
+log10 Target Mean ActivationLayer 1 Natural Video Test
+log10 Weight DecayInvariance Score
+Figure3: Ourinvariancemeasureselectsnetworksthatlearn edgedetectorsresemblingGaborfunc-
+tions as the maximally invariant single-layer networks. Unregularized networks that learn high-
+frequencyweightsalsoreceivehighscores,butarenotabletomatchthescoresofgoodedgedetec-
+tors. Degenerate networks in which every hidden unit learns essentially the same function tend to
+receive very low scores.
+trendmakesitobviousthatwhileour2-Drotationvideosdonotcorrespondexactlytorotation,they
+are certainly not well-approximated by translation.
+7.1.2 Pronounced effect of sparsity and weight decay
+We trained several single-layer autoencoders using sparsity regularization with various target mean
+activations and amounts of weight decay. For these experiments, we averaged the invariance scores
+of all the hidden units to form the network score, i.e., we used p= 1. Due to the presence of the
+sparsity regularization, we assume si= 1for all hidden units. We found that sparsity and weight
+decay have a large effect on the invariance of a single-layer network. In particular, there is a semi-
+circular ridge trading sparsity and weight decay where invariance scores are high. We interpret this
+to be the region where the problem is constrained enough that the autoencoder must throw away
+some information, but is still able to extract meaningful patterns from its input. These results are
+visualized in Fig. 3. We ﬁnd that a network with no regularization obtains a score of 25.88, and the
+best-scoring network receives a score of 32.41.
+7.1.3 Modest improvements with depth
+Toinvestigatetheeffectofdepthoninvariance,wechosetoextensivelycross-validateseveraldepths
+of autoencoders using only weight decay. The majority of successful image classiﬁcation results in
+6Figure 4: Left to right: weight visualizations from layer 1, l ayer 2, and layer 3 of the autoencoders;
+layer1andlayer2oftheCDBN.Autoencoderweightimagesaretakenfromthebestautoencoderat
+eachdepth. Allweightimagesarecontrastnormalizedindependentlybutplottedonthesamespatial
+scale. Weight images in deeper layers are formed by making linear combinations of weight images
+in shallower layers. This approximates the function computed by each unit as a linear function.
+theliteraturedonotusesparsity,andcross-validatingonlyasingleparameterfreesustosamplethe
+search space more densely. We trained a total of 73networks with weight decay at each layer set to
+avaluefrom {10,1,10−1,10−2,10−3,10−5,0}. Fortheseexperiments,weaveragedtheinvariance
+scoresofthetop 20%ofthehiddenunitstoformthenetworkscore,i.e.,weused p=.2,andchose
+sifor each hidden unit to maximize the invariance score, since there was no sparsity regularization
+to impose a sign on the hidden unit values.
+After performing this grid search, we trained 100 additional copies of the network with the best
+mean invariance score at each depth, holding the weight decay parameters constant and varying
+only the random weights used to initialize training. We found that the improvement with depth was
+highly signiﬁcant statistically (see Fig. 5). However, the magnitude of the increase in invariance is
+limited compared to the increase that can be gained with the correct sparsityand weight decay.
+7.2 Convolutional Deep Belief Networks
+12316.51717.51818.51919.52020.521
+LayerInvariance ScoreMean Invariance
+1233131.53232.53333.53434.53535.5
+LayerInvariance ScoreTranslation
+1231515.51616.51717.51818.51919.5
+LayerInvariance Score2−D Rotation
+1236.577.588.599.51010.511
+LayerInvariance Score3−D Rotation
+Figure5: Toverifythattheimprovementininvari-
+a
+nce score of the best network at each layer is an
+effect of the network architecture rather than the
+random initialization of the weights, we retrained
+thebestnetworkofeachdepth100times. Weﬁnd
+thattheincreaseinthemeanisstatisticallysignif-
+icant with p <10−60. Looking at the scores for
+individualinvariances,weseethatthedeepernet-
+works trade a small amount of translation invari-
+anceforalargeramountof2-D(in-plane)rotation
+and 3-D (out-of-plane) rotation invariance. All
+plotsareonthesamescalebutwithdifferentbase-
+lines so that the worst invariance score appears at
+the same height in each plot.We also ran our invariance tests on a two layer
+CDBN. This provides a measure of the effec-
+tiveness of hard-wired techniques for achiev-
+ing invariance, including convolution and max-
+pooling. The results are summarized in Table
+1. Theseresultscannotbecompareddirectlyto
+theresultsforautoencoders,becauseofthedif-
+ferent receptive ﬁeld sizes. The receptive ﬁeld
+sizesintheCDBNaresmallerthanthoseinthe
+autoencoderforthelowerlayers,butlargerthan
+those in the autoencoder for the higher layers
+due to the pooling effect. Note that the great-
+est relative improvement comes in the natural
+image tests, which presumably require greater
+sophistication than the grating tests. The single
+test with the greatest relative improvement is
+the 3-D (out-of-plane) rotation test. This is the
+most complex transformation included in our
+tests,anditiswheredepthprovidesthegreatest
+percentagewise increase.
+8 Discussionand conclusion
+In this paper, we presented a set of tests for
+measuring invariances in deep networks. We
+deﬁned a general formula for a test metric, and
+demonstrated how to implement it using syn-
+thetic grating images as well as natural videos
+which reveal more types of invariances than
+just2-D(in-plane)rotation,translationandfre-
+quency.
+At the level of a single hidden unit, our ﬁring
+rate invariance measure requires learned fea-
+tures to balance high local ﬁring rates with low global ﬁring rates. This concept resembles the
+trade-off between precision and recall in a detection problem. As learning algorithms become more
+7Test Layer 1 Layer 2 % change
+Grating phase 68.7 95.3 38.2
+Grating orientation 52.3 77.8 48.7
+Natural translation 15.2 23.0 51.0
+Natural 3-D rotation 10.7 19.3 79.5
+Table 1: Results of the CDBN invariance tests.
+a
+dvanced, another appropriate measure of invariance may be a hidden unit’s invariance to object
+identity. As an initial step in this direction, we attempted to score hidden units by their mutual
+information with categories in the Caltech 101 dataset [22]. We found that none of our networks
+gave good results. We suspect that current learning algorithms are not yet sophisticated enough to
+learn,fromonlynaturalimages,individualfeaturesthatarehighlyselectiveforspeciﬁcCaltech101
+categories, but this ability will become measurable in the future.
+At the network level, our measure requires networks to have at least some subpopulation of hidden
+units that are invariant to each type of transformation. This is accomplished by using only the
+top-scoring proportion pof hidden units when calculating the network score. Such a qualiﬁcation
+is necessary to give high scores to networks that decompose the input into separate variables. For
+example,oneveryusefulwayofrepresentingastimuluswouldbetousesomesubsetofhiddenunits
+to represent its orientation, another subset to represent its position, and another subset to represent
+its identity. Even though this would be an extremely powerful feature representation, a value of p
+set too high would result in penalizing some of these subsets for not being invariant.
+Wealsoillustratedextensiveﬁndingsmadebyapplyingtheinvariancetestoncomputervisiontasks.
+However, the deﬁnition of our metric is sufﬁciently general that it could easily be used to test, for
+example,invarianceofauditoryfeaturestorateofspeech,orinvarianceoftextualfeaturestoauthor
+identity.
+A surprising ﬁnding in our experiments with visual data is that stacked autoencoders yield only
+modest improvements in invariance as depth increases. This suggests that while depth is valuable,
+mere stacking of shallow architectures may not be sufﬁcient to exploit the full potential of deep
+architectures to learn invariant features.
+Another interesting ﬁnding is that by incorporating sparsity, networks can become more invariant.
+Thissuggeststhat,inthefuture,avarietyofmechanismsshouldbeexploredinordertolearnbetter
+features. For example, one promising approach that we are currently investigating is the idea of
+learning slow features [19] from temporal data.
+Wealsodocumentthatexplicitapproachestoachievinginvariancesuchasmax-poolingandweight-
+sharing in CDBNs are currently successful strategies for achieving invariance. This is not suprising
+given the fact that invariance is hard-wired into the network, but it validates the fact that our metric
+faithfully measures invariances. It is not obvious how to extend these explicit strategies to become
+invariant to more intricate transformations like large-angle out-of-plane rotations and complex illu-
+minationchanges,andweexpectthatourmetricswillbeusefulinguidingeffortstodeveloplearning
+algorithms that automatically discover much more invariant features without relying on hard-wired
+strategies.
+Acknowledgments This work was supported in part by the National Science Foundation under
+grant EFRI-0835878, and in part by the Ofﬁce of Naval Research under MURI N000140710747.
+AndrewSaxeissupportedbyaScottA.andGeraldineD.MacomberStanfordGraduateFellowship.
+We would also like to thank the anonymous reviewers for their helpful comments.
+References
+[1] Y. Bengio and Y. LeCun. Scaling learning algorithms towards ai. In L. Bottou, O. Chapelle,
+D. DeCoste, and J. Weston, editors, Large-Scale Kernel Machines. MIT Press, 2007.
+8[2] Y. Bengio, P. Lamblin, D. Popovici, and H. Larochelle. Gre edy layer-wise training of deep
+networks. In NIPS, 2007.
+[3] H. Larochelle, D. Erhan, A. Courville, J. Bergstra, and Y. Bengio. An empirical evaluation of
+deep architectures on problems with many factors of variation. ICML, pages 473–480, 2007.
+[4] G.E.Hinton,S.Osindero,andY.-W.Teh. Afastlearningalgorithmfordeepbeliefnets. Neural
+Computation, 18(7):1527–1554, 2006.
+[5] H.Lee,R.Grosse,R.Ranganath,andA.Y.Ng. Convolutionaldeepbeliefnetworksforscalable
+unsupervised learning of hierarchical representations. In ICML, 2009.
+[6] H.Larochelle, Y.Bengio, J.Louradour, andP.Lamblin. Exploringstrategiesfortrainingdeep
+neural networks. The Journal of Machine Learning Research, pages 1–40, 2009.
+[7] M.Ranzato,Y-L.Boureau,andY.LeCun. Sparsefeaturelearningfordeepbeliefnetworks. In
+NIPS, 2007.
+[8] M. Ranzato, F.-J. Huang, Y-L. Boureau, and Y. LeCun. Unsupervised learning of invariant
+feature hierarchies with applications to object recognition. In CVPR. IEEE Press, 2007.
+[9] Rajat Raina, Alexis Battle, Honglak Lee, Benjamin Packer, and Andrew Y. Ng. Self-taught
+learning: Transfer learning from unlabeled data. In ICML ’07: Proceedings of the 24th inter-
+national conference on Machine learning, 2007.
+[10] D.J.FellemanandD.C.VanEssen. Distributedhierarchicalprocessingintheprimatecerebral
+cortex.Cerebral Cortex, 1(1):1–47, 1991.
+[11] H. Lee, C. Ekanadham, and A.Y. Ng. Sparse deep belief network model for visual area v2. In
+NIPS, 2008.
+[12] R.QuianQuiroga,L.Reddy,G.Kreiman,C.Koch,andI.Fried. Invariantvisualrepresentation
+by single neurons in the human brain. Nature, 435:1102–1107, 2005.
+[13] K.FukushimaandS.Miyake. Neocognitron: Anewalgorithmforpatternrecognitiontolerant
+of deformations and shiftsin position. Pattern Recognition, 1982.
+[14] M. Riesenhuber and T. Poggio. Hierarchical models of object recognition in cortex. Nature
+neuroscience, 2(11):1019–1025, 1999.
+[15] Y. LeCun, B. Boser, J.S. Denker, D. Henderson, R.E. Howard, W. Hubbard, and L.D. Jackel.
+Backpropagation applied to handwritten zip code recognition. Neural Computation, 1:541–
+551, 1989.
+[16] P. Werbos. Beyond regression: New tools for prediction and analysis in the behavioral sci-
+ences. PhD thesis, Harvard University, 1974.
+[17] Y.LeCun.Uneproc ´edured’apprentissagepourr ´eseauaseuilasymmetrique(alearningscheme
+for asymmetric threshold networks). In Proceedings of Cognitiva 85 , pages 599–604, Paris,
+France, 1985.
+[18] D.E. Rumelhart, G.E. Hinton, and R.J. Williams. Learning representations by back-
+propagating errors. Nature, 323:533–536, 1986.
+[19] P. Berkes and L. Wiskott. Slow feature analysis yields a rich repertoire of complex cell prop-
+erties.Journal of Vision, 5(6):579–602, 2005.
+[20] L. Wiskott and T. Sejnowski. Slow feature analysis: Unsupervised learning of invariances.
+Neural Computation, 14(4):715–770, 2002.
+[21] Y. LeCun, F.J. Huang, and L. Bottou. Learning methods for generic object recognition with
+invariance to pose and lighting. In CVPR, 2004.
+[22] Li Fei-Fei, Rod Fergus, and Pietro Perona. Learning generative visual models from few train-
+ing examples: An incremental bayesian approach tested on 101 object categories. page 178,
+2004.
+9

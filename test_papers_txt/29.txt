@@ -1,0 +1,551 @@
+Data-Efficient Hierarchical Reinforcement Learning
+
+Oﬁr Nachum
+Google Brain
+ofirnachum@google.comShixiang Gu
+Google Brain
+shanegu@google.com
+Honglak Lee
+Google Brain
+honglak@google.comSergey Leviney
+Google Brain
+slevine@google.com
+Abstract
+Hierarchical reinforcement learning (HRL) is a promising approach to extend
+traditional reinforcement learning (RL) methods to solve more complex tasks.
+Yet, the majority of current HRL methods require careful task-speciﬁc design and
+on-policy training, making them difﬁcult to apply in real-world scenarios. In this
+paper, we study how we can develop HRL algorithms that are general, in that they
+do not make onerous additional assumptions beyond standard RL algorithms, and
+efﬁcient, in the sense that they can be used with modest numbers of interaction
+samples, making them suitable for real-world problems such as robotic control. For
+generality, we develop a scheme where lower-level controllers are supervised with
+goals that are learned and proposed automatically by the higher-level controllers.
+To address efﬁciency, we propose to use off-policy experience for both higher-
+and lower-level training. This poses a considerable challenge, since changes to
+the lower-level behaviors change the action space for the higher-level policy, and
+we introduce an off-policy correction to remedy this challenge. This allows us
+to take advantage of recent advances in off-policy model-free RL to learn both
+higher- and lower-level policies using substantially fewer environment interactions
+than on-policy algorithms. We term the resulting HRL agent HIRO and ﬁnd that
+it is generally applicable and highly sample-efﬁcient. Our experiments show that
+HIRO can be used to learn highly complex behaviors for simulated robots, such
+as pushing objects and utilizing them to reach target locations,1learning from
+only a few million samples, equivalent to a few days of real-time interaction. In
+comparisons with a number of prior HRL methods, we ﬁnd that our approach
+substantially outperforms previous state-of-the-art techniques.2
+1 Introduction
+Deep reinforcement learning (RL) has made signiﬁcant progress on a range of continuous control
+tasks, such as locomotion skills [ 35,25,17], learning dexterous manipulation behaviors [ 33], and
+training robot arms for simple manipulation tasks [ 13,41]. However, most of these behaviors are
+inherently atomic: they require performing some simple skill, either episodically or cyclically, and
+rarely involve complex multi-level reasoning, such as utilizing a variety of locomotion behaviors to
+accomplish complex goals that require movement, object interaction, and discrete decision-making.
+Also at University of Cambridge; Max Planck Institute of Intelligent Systems.
+yAlso at UC Berkeley.
+1See videos at https://sites.google.com/view/efficient-hrl
+2Find open-source code at https://github.com/tensorflow/models/tree/master/research/
+efficient-hrl
+32nd Conference on Neural Information Processing Systems (NeurIPS 2018), Montréal, Canada.Figure 1: The Ant Gather task along with the three hierarchical navigation tasks we consider:
+Ant Maze, Ant Push, and Ant Fall. The ant (magenta rectangle) is rewarded for approaching the
+target location (green arrow). A successful policy must perform a complex sequence of directional
+movement and, in some cases, interact with objects in its environment (red blocks); e.g., pushing aside
+an obstacle (second from right) or using a block as a bridge (right). In our HRL method, a higher-level
+policy periodically produces goal states (corresponding to desired positions and orientations of the
+ant and its limbs), which the lower-level policy is rewarded to match (blue arrow).
+Hierarchical reinforcement learning (HRL), in which multiple layers of policies are trained to perform
+decision-making and control at successively higher levels of temporal and behavioral abstraction, has
+long held the promise to learn such difﬁcult tasks [ 7,29,39,4]. By having a hierarchy of policies,
+of which only the lowest applies actions to the environment, one is able to train the higher levels
+to plan over a longer time scale. Moreover, if the high-level actions correspond to semantically
+different low-level behavior, standard exploration techniques may be applied to more appropriately
+explore a complex environment. Still, there is a large gap between the basic deﬁnition of HRL
+and the promise it holds to successfully solve complex environments. To achieve the beneﬁts of
+HRL, there are a number of questions that one must suitably answer: How should one train the
+lower-level policy to induce semantically distinct behavior? How should the high-level policy actions
+be deﬁned? How should the multiple policies be trained without incurring an inordinate amount
+of experience collection? Previous work has attempted to answer these questions in a variety of
+ways and has provided encouraging successes [ 43,10,11,18,36]. However, many of these methods
+lack generality, requiring some degree of manual task-speciﬁc design, and often require expensive
+on-policy training that is unable to beneﬁt from advances in off-policy model-free RL, which in
+recent years has drastically brought down sample complexity requirements [12, 15, 3].
+For generality, we propose to take advantage of the state observation provided by the environment
+to the agent, which in locomotion tasks can include the position and orientation of the agent and its
+limbs. We let the high-level actions be goal states and reward the lower-level policy for performing
+actions which yield it an observation close to matching the desired goal. In this way, our HRL setup
+does not require a manual or multi-task design and is fully general.
+This idea of a higher-level policy commanding a lower-level policy to match observations to a goal
+state has been proposed before [ 7,43]. Unlike previous work, which represented goals and rewarded
+matching observations within a learned embedding space, we use the state observations in their
+raw form. This signiﬁcantly simpliﬁes the learning, and in our experiments, we observe substantial
+beneﬁts for this simpler approach.
+While these goal-proposing methods are very general, they require training with on-policy RL
+algorithms, which are generally less efﬁcient than off-policy methods [ 14,28]. On-policy training
+has been attractive in the past since, outside of discrete control, off-policy methods have been plagued
+with instability [ 14], which is ampliﬁed when training multiple policies jointly, as in HRL. Other than
+instability, off-policy training poses another challenge that is unique to HRL. Since the lower-level
+policy is changing underneath the higher-level policy, a sample observed for a certain high-level
+action in the past may not yield the same low-level behavior in the future, and thus not be a valid
+experience for training. This amounts to a non-stationary problem for the higher-level policy. We
+remedy this issue by introducing an off-policy correction, which re-labels an experience in the past
+with a high-level action chosen to maximize the probability of the past lower-level actions. In this way,
+we are able to use past experience for training the higher-level policy, taking advantage of progress
+made in recent years to provide stable, robust, and general off-policy RL methods [12, 28, 3].
+In summary, we introduce a method to train a multi-level HRL agent that stands out from previous
+methods by being both generally applicable and data-efﬁcient. Our method achieves generality by
+training the lower-level policy to reach goal states learned and instructed by the higher-levels. In
+contrast to prior work that operates in this goal-setting model, we use states as goals directly, which
+allows for simple and fast training of the lower layer. Moreover, by using off-policy training with
+2our novel off-policy correction, our method is extremely sample-efﬁcient. We evaluate our method
+on several difﬁcult environments. These environments require the ability to perform exploratory
+navigation as well as complex sequences of interaction with objects in the environment (see Figure 1).
+While these tasks are unsolvable by existing non-HRL methods, we ﬁnd that our HRL setup can
+learn successful policies. When compared to other published HRL methods, we also observe the
+superiority of our method, in terms of both ﬁnal performance and speed of learning. In only a few
+million experience samples, our agents are able to adequately solve previously unapproachable tasks.
+2 Background
+We adopt the standard continuous control RL setting, in which an agent interacts with an environment
+over periods of time according to a behavior policy . At each time step t, the environment produces
+a state observation st2Rds.The agent then samples an action at(st);at2Rdaand applies
+the action to the environment. The environment then yields a reward Rtsampled from an unknown
+reward function R(st;at)and either terminates the episode at state sTor transitions to a new state
+st+1sampled from an unknown transition function f(st;at). The agent’s goal is to maximize the
+expected future discounted reward Es0:T;a0:T 1;R0:T 1hPT 1
+i=0
+iRii
+, where 0
+ <1is a user-
+speciﬁed discount factor. A well-performing RL algorithm will learn a good behavior policy from
+(ideally a small number of) interactions with the environment.
+2.1 Off-Policy Temporal Difference Learning
+Temporal difference learning is a powerful paradigm in RL, in which a policy may be learned
+efﬁciently from state-action-reward transition tuples (st;at;Rt;st+1)collected from interactions
+with the environment. In our HRL method, we utilize the TD3 learning algorithm [ 12], a variant of
+the popular DDPG algorithm for continuous control [25].
+In DDPG, a deterministic neural network policy is learned along with its corresponding state-
+action Q-function Qby performing gradient updates on parameter sets and. The Q-function
+represents the future value of taking a speciﬁc action atstarting from a state st. Accordingly, it is
+trained to minimize the average Bellman error over all sampled transitions, which is given by
+E(st;at;st+1) = (Q(st;at) Rt 
+Q(st+1;(st+1)))2: (1)
+The policy is then trained to yield actions which maximize the Q-value at each state. That is, is
+trained to maximize Q(st;(st))over allstcollected from interactions with the environment.
+We note that although DDPG trains a deterministic policy , its behavior policy, which is used to
+collect experience during training is augmented with Gaussian (or Ornstein-Uhlenbeck) noise [ 25].
+Therefore, actions are collected as atN((st);)for ﬁxed standard deviation , which we will
+shorten asat(st). We will take advantage of the fact that the behavior policy is stochastic for
+the off-policy correction in our HRL method. TD3 [ 12] makes several modiﬁcations to DDPG’s
+learning algorithm to yield a more robust and stable procedure. Its main modiﬁcation is using an
+ensemble over Q-value models and adding noise to the policy when computing the target value in
+Equation 1.
+3 General and Efﬁcient Hierarchical Reinforcement Learning
+In this section, we present our framework for learning hierarchical policies, HIRO: HIerarchical
+Reinforcement learning with Off-policy correction. We make use of parameterized reward functions
+to specify a potentially inﬁnite set of lower-level policies, each of which is trained to match its
+observed states stto a desired goal. The higher-level policy chooses these goals for temporally
+extended periods, and uses an off-policy correction to enable it to use past experience collected from
+previous, different instantiations of the lower-level policy.
+3.1 Hierarchy of Two Policies
+We extend the standard RL setup to a hierarchical two-layer structure, with a lower-level policy
+loand a higher-level policy hi(see Figure 2). The higher-level policy operates at a coarser layer
+3μlo        Environment                                                                    μhig0a0s0μloa1s1μloac - 1sc - 1μloμhigcacscg1hgc - 1h
+R0R1Rc-1RcOff-policy training with respect to goal-conditioned rewards r(st, gt, at, st+1).Principled off-policy training with goal re-labelling.. . .. . .. . .1. Collect experience st,gt,at,Rt;::: .
+2. Trainlowith experience transitions
+(st;gt;at;rt;st+1;gt+1)usinggtas
+additional state observation and reward given by
+goal-conditioned function rt=
+r(st;gt;at;st+1) = jjst+gt st+1jj2.
+3. Trainhion temporally-extended experience
+(st;~gt;PRt:t+c 1;st+c), where ~gtis re-
+labelled high-level action to maximize probability
+of past low-level actions at:t+c 1.
+4. Repeat.
+Figure 2: The design and basic training of HIRO. The lower-level policy interacts directly with the
+environment. The higher-level policy instructs the lower-level policy via high-level actions, or goals,
+gt2Rdswhich it samples anew every csteps. On intermediate steps, a ﬁxed goal transition function
+hdetermines the next step’s goal. The goal simply instructs the lower-level policy to reach speciﬁc
+states, which allows the lower-level policy to easily learn from prior off-policy experience.
+Figure 3: An example of a higher-level policy producing goals in terms of desired observations,
+which in this task correspond to positions and orientations of all of the joints of a quadrupedal robot
+(including root position). The lower-level policy has direct control of the agent (pink), and is rewarded
+for matching the position and orientation of its torso and each limb to the goal (blue rectangle, raised
+for visibility). In this way, the two-layer policy can perform a complex task involving a sequence of
+movements and interactions; e.g. pushing a block aside to reach a target (green).
+of abstraction and sets goals to the lower-level policy, which correspond directly to states that the
+lower-level policy attempts to reach. At each time step t, the environment provides an observation
+statest. The higher-level policy observes the state and produces a high-level action (orgoal)gt2Rds
+by either sampling from its policy gthiwhent0 (modc), or otherwise using a ﬁxed goal
+transition function gt=h(st 1;gt 1;st)(which in the simplest case can be a pass-through function,
+although we will consider a slight variation in our speciﬁc design). This provides temporal abstraction,
+since high-level decisions via hiare made only every csteps. The lower-level policy loobserves
+the statestand goalgtand produces a low-level atomic action atlo(st;gt), which is applied
+to the environment. The environment then yields a reward Rtsampled from an unknown reward
+functionR(st;at)and transitions to a new state st+1sampled from an unknown transition function
+f(st;at).
+The higher-level controller provides the lower-level with an intrinsic reward rt=r(st;gt;at;st+1),
+using a ﬁxed parameterized reward function r. The lower-level policy will store the expe-
+rience (st;gt;at;rt;st+1;h(st;gt;st+1))for off-policy training. The higher-level policy col-
+lects the environment rewards Rtand, every ctime steps, stores the higher-level transition
+(st:t+c 1;gt:t+c 1;at:t+c 1;Rt:t+c 1;st+c)for off-policy training.
+3.2 Parameterized Rewards
+Our higher-level policy produces goals gtindicating desired relative changes in state observations.
+That is, at step t, the higher-level policy produces a goal gt, indicating its desire for the lower-level
+agent to take actions that yield it an observation st+cthat is close to st+gt. Although some state
+dimensions (e.g., the position of the quadrupedal robot in Figure 3) are more natural as goal subspaces,
+we chose this more generic goal representation to make it broadly applicable, without any manual
+design of goal spaces, primitives, or controllable dimensions. This makes our method general and
+4easy to apply to new problem settings. To maintain the same absolute position of the goal regardless
+of state change, the goal transition model his deﬁned as
+h(st;gt;st+1) =st+gt st+1: (2)
+We deﬁne the intrinsic reward as a parameterized reward function based on the distance between the
+current observation and the goal observation:
+r(st;gt;at;st+1) = jjst+gt st+1jj2: (3)
+This rewards the lower-level policy for taking actions that yield observations that are close to
+the desired value st+gt. In our evaluations on simulated ant locomotion, we use all positional
+observations as the representation for gt, without distinguishing between the (x;y;z )root position
+or the joints, making for a generic and broadly applicable choice of goal space. The reward rand
+transition function hare computed only with respect to these positional observations. See Figure 3
+for an example of the goals gtchosen during a successful navigation of a complex environment.
+The lower-level policy may be trained using standard methods by simply incorporating gtas an
+additional input into the value and policy models. For example, in DDPG, the equivalent objective to
+Equation 1 in terms of lower-level Q-value function Qlo
+is to minimize the error
+(Qlo
+(st;gt;at) r(st;gt;at;st+1) 
+Qlo
+(st+1;gt+1;lo
+(st+1;gt+1)))2; (4)
+for all transitions (st;gt;at;st+1;gt+1). The policy lo
+would be trained to maximize the Q-value
+Qlo
+(st;gt;lo
+(st;gt))for all sampled state-goal tuples (st;gt).
+Parameterized rewards are not a new concept, and have been studied previously [ 34,19]. They are a
+natural choice for a generally applicable HRL method and have therefore appeared as components
+of other HRL methods [ 43,22,30,24]. A signiﬁcant distinction between our method and these
+prior approaches is that we directly use the state observation as the goal, and changes in the state
+observation as the action space for the higher-level policy, in contrast to prior methods that must
+train the goal representation. This allows the lower-level policy to begin receiving reward signals
+immediately, even before the lower-level policy has ﬁgured out how to reach the goal and before the
+task’s extrinsic reward provides any meaningful supervision. In our experiments (Section 5), we ﬁnd
+that this produces substantially better results.
+3.3 Off-Policy Corrections for Higher-Level Training
+While a number of prior works have proposed two-level HRL architectures that involve some sort of
+goal setting, such designs in previous work generally require on-policy training [ 43]. This is because
+the changing behavior of the lower-level policy creates a non-stationary problem for the higher-level
+policy, and old off-policy experience may exhibit different transitions conditioned on the same goals.
+However, for HRL methods to be applicable to real-world settings, they must be sample-efﬁcient,
+and off-policy algorithms (often based on some variant of Q-function learning) generally exhibit
+substantially better sample efﬁciency than on-policy actor-critic or policy gradient variants. In this
+section, we describe how we address the challenge of off-policy training of the higher-level policy.
+We would like to take the higher-level transition tuples (st:t+c 1;gt:t+c 1;at:t+c 1;Rt:t+c 1;st+c),
+wherext:t+c 1denotes the sequence xt;:::;xt+c 1, which are collected by the higher-level policy
+and convert them to state-action-reward transitions (st;gt;PRt:t+c 1;st+c)that can be pushed
+into the replay buffer of any standard off-policy RL algorithm. However, since transitions obtained
+from past lower-level controllers do not accurately reﬂect the actions (and therefore resultant states
+st+1:t+c) that would occur if the same goal were used with the current lower-level controller, we must
+introduce a correction that translates old transitions into ones that agree with the current lower-level
+controller.
+Our main observation is that the goal gtof a past high-level transition (st;gt;PRt:t+c 1;st+c)may
+be changed to make the actual observed action sequence more likely to have happened with respect
+to the current instantiation of lo. The high-level action gtwhich in the past induced a low-level
+behaviorat:t+c 1lo(st:t+c 1;gt:t+c 1)may be re-labeled to a goal ~gtwhich is likely to induce
+the same low-level behavior with the current instantiation of the lower-level policy. Thus, we propose
+to remedy the off-policy issue by re-labeling the high-level transition (st;gt;PRt:t+c 1;st+c)with
+a different high-level action ~gtchosen to maximize the probability lo(at:t+c 1jst:t+c 1;~gt:t+c 1),
+5where the intermediate goals ~gt+1:t+c 1are computed using the ﬁxed goal transition function h. In
+effect, each time we modify the low-level policy lo, we would like to answer the question: for which
+goals would this new controller have taken the same actions as the old one?
+Most RL algorithms will use random action-space exploration to select actions, which means that
+the behavior policy (even for deterministic algorithms such as DDPG [ 25]) is stochastic and the log
+probability loglo(at:t+c 1jst:t+c 1;~gt:t+c 1)may be computed as
+loglo(at:t+c 1jst:t+c 1;~gt:t+c 1)/ 1
+2t+c 1X
+i=tjjai lo(si;~gi)jj2
+2+const: (5)
+To approximately maximize this quantity in practice, we compute this log probability for a number of
+goals ~gt, and choose the maximal goal to re-label the experience. In our implementation, we calculate
+the quantity on eight candidate goals sampled randomly from a Gaussian centered at st+c st. We
+also include the original goal gtand a goal corresponding to the difference st+c stin the candidate
+set, to have a total of 10 candidates. This provides a suitably diverse set of ~gtto approximately
+solve the arg max of Equation 5, while also biasing the result to be closer to candidates ~gtwhich
+we believe to be appropriate given our knowledge of the problem (see additional implementation
+details in the Appendix). Our approach here is only an approximation, and we elaborate on possible
+alternative off-policy corrections in the Appendix.
+4 Related Work
+Discovering meaningful and effective hierarchies of policies is a long standing research problem
+in RL [ 7,29,39,8,2]. Classically, the work on HRL focused on discrete state domains, where
+state visitation and transition statistics can be used to construct heuristic sub-goals for low-level
+policies [ 37,27,5]. The options framework [ 39,32], a popular formulation for HRL, proposes a
+termination policy for each sub-policy (option). While the traditional options framework relies on
+prior knowledge for designing options, [ 2] recently derived an actor-critic algorithm for learning
+them jointly with the higher-level policy. This option-critic architecture [ 2] is an important step
+toward end-to-end HRL; however, such approaches are often prone to learning either a sub-policy that
+terminates every time step, or one effective sub-policy that runs through the whole episode. In practice,
+regularizers are essential to learn multiple effective and temporally abstracted sub-policies [ 2,16,42].
+To guarantee learning useful sub-policies, recent work has studied approaches that provide auxiliary
+rewards for the low-level policies [ 5,18,22,40,10]. These approaches rely on hand-crafted rewards
+based on prior domain knowledge [ 21,18,22,40] or diversity-encouraging rewards like mutual
+information [ 6,10]. A number of works have suggested that semantically distinct behavior can be
+induced by training on a set of diverse tasks, and have suggested pre-training the lower-level policy
+on such tasks [ 18,10], or training the multi-level hierarchical policy in a multi-task setup [ 11,36].
+However, having access to a collection of suitably similar tasks is a luxury which is not always
+available and may require hand-design. Our method uses a generic reward that is speciﬁed with
+respect to the state space, and therefore avoids designing various rewards or multiple tasks.
+Another difference from most HRL work [ 10,11] is that we use off-policy learning, leading to
+signiﬁcant improvements in sample efﬁciency. In end-to-end HRL, off-policy RL creates a non-
+stationary problem for the higher-level policy, since the lower-level is constantly changing. We are
+aware of only one recent work which applies HRL in an off-policy setting [24]. As in our work, the
+authors devise a hierarchical structure in which a lower-level policy is trained to reach observations
+directed by a higher-level policy. The multiple layers of policies are trained jointly in an off-policy
+manner, while ignoring the non-stationarity problem which we realize is a key issue for off-policy
+HRL. Accordingly, we derive and test an off-policy correction in the context of HRL, and empirically
+show that this technique is crucial to successfully train hierarchical policies on complex tasks.
+Our work is related to FeUdal Networks (FuN) [ 43], originally inspired from feudal RL [ 7]. FuN
+also makes use of goals and a parameterized lower-level reward. Unlike our method, FuN represents
+the goals and computes the rewards in terms of a learned state representation. In our experiments,
+we found this technique to under-perform compared to our approach, which uses the state in its raw
+form. We ﬁnd that this has a number of beneﬁts. For one, the lower-level policies can immediately
+begin receiving intrinsic rewards for reaching goals even before the higher-level policy receives a
+meaningful supervision signal from the task reward. Additionally, the representation is generic and
+6Ant Gather Ant Maze Ant Push Ant Fall
+HIRO 3.021.49 0.990.01 0.920.04 0.660.07
+FuN representation 0:030:01 0:00:0 0:00:0 0:00:0
+FuN transition PG 0:410:06 0:00:0 0:560:39 0:010:02
+FuN cos similarity 0:851:17 0:160:33 0:060:17 0:070:22
+FuN 0:010:01 0:00:0 0:00:0 0:00:0
+SNN4HRL 1:920:52 0:00:0 0:020:01 0:00:0
+VIME 1:420:90 0:00:0 0:020:02 0:00:0
+Table 1: Performance of the best policy obtained in 10M steps of training, averaged over 10 randomly
+seeded trials with standard error. Comparisons are to variants of FuN [ 43], SNN4HRL [ 10], and
+VIME [ 20]. Even after extensive hyper-parameter searches, we were unable to achieve competitive
+performance from the baselines on any of our tasks. In the Appendix, we include the only competitive
+result we could achieve – VIME on Ant Gather trained for a much longer amount of time.
+simple to obtain. Goal-conditioned value functions [ 26,38,34,1,31] are actively explored outside
+the context of HRL. Continued progress in this ﬁeld may be used to further improve HRL methods.
+5 Experiments
+In our experiments, we compare HIRO method to prior techniques, and ablate the various components
+to understand their importance. Our experiments are conducted on a set of challenging environ-
+ments that require a combination of locomotion and object manipulation. Visualizations of these
+environments are shown in Figure 1. See the Appendix for more details on each environment.
+Ant Gather. The ant gather task is a standard task introduced in [ 9]. A simulated ant must navigate to
+gather apples while avoiding bombs, which are randomly placed in the environment at the beginning
+of each episode. The ant receives a reward of 1for each apple and a reward of  1for each bomb.
+Ant Maze. For the ﬁrst difﬁcult navigation task we adapted the maze environment introduced in [ 9].
+In this environment an ant must navigate to various locations in a ‘ ’-shaped corridor. We increase
+the default size of the maze so that the corridor is of width 8. In our evaluation, we assess the success
+rate of the policy when attempting to reach the end of the maze.
+Ant Push. In this task we introduce a movable block which the agent can interact with. A greedy
+agent would move forward, unknowingly pushing the movable block until it blocks its path to the
+target. To successfully reach the target, the ant must ﬁrst move to the left around the block and then
+push the block right, clearing the path towards the target location.
+Ant Fall. This task extends the navigation to three dimensions. The ant is placed on a raised platform,
+with the target location directly in front of it but separated by a chasm which it cannot traverse by
+itself. Luckily, a movable block is provided on its right. To successfully reach the target, the ant must
+ﬁrst walk to the right, push the block into the chasm, and then safely cross.
+5.1 Comparative Analysis
+The primary comparisons to previous HRL methods are done with respect to FeUdal Networks
+(FuN) [ 43], stochastic neural networks for HRL (SNN4HRL) [ 10], and VIME [ 20] (see Table 1, and
+Appendix for more details). As these algorithms often come with problem-speciﬁc design choices,
+we modify each for fairer comparisons. In terms of problem assumptions, our work is closest to
+that of FuN which is applicable to any single task without speciﬁc sub-policy reward engineering.
+MLSH [ 11] is another promising recent work for HRL; however, since it relies on learning meaningful
+sub-policies through experiencing multiple, diverse, hand-designed tasks, we do not include explicit
+comparisons. We leave exploring our method in the context of multi-task learning for future work.
+FeUdal Network (FuN) . Unlike SNN4HRL or VIME, the ofﬁcial open-source code for FuN was not
+available at the time of submission, and therefore we aimed to replicate key design choices of FuN
+from our algorithm implementation. FuN [ 43] primarily proposes four components: (1) transition
+policy gradient, (2) directional cosine similarity rewards, (3) goals speciﬁed with respect to a learned
+representation, and (4) dilated RNN. Since our tasks are low-dimensional and fully observed, we do
+7Ant Gather Ant Maze Ant Push Ant Fall
+0 2 4 6 8 100.00.51.01.52.02.53.0
+0 2 4 6 8 100.00.20.40.60.81.0
+0 2 4 6 8 100.00.10.20.30.40.50.6
+0 2 4 6 8 100.00.10.20.30.40.5
+HIRO
+With lower-level re-labellingWith pre-training
+No oﬀ-policy correctionNo HRL
+Figure 4: Results of our method and a number of variants on a set of difﬁcult tasks. Each plot
+shows average reward (for Ant Gather) or average success rate (for the rest; see Appendix) over 10
+randomly seeded trials, with x-axis in millions of environment steps. We ﬁnd that HIRO can perform
+well across all tasks. We also note that HIRO learns rapidly; on the complex navigation tasks it
+requires only a few million environment steps (a few days in real-world interaction time) to achieve
+good performance. Our method is only out-performed on Ant Gather by a variant that pre-trains the
+lower-level policy (thus not needing an off-policy correction).
+not include design choice (4). For each of (1), (2), and (3), we apply an equivalent modiﬁcation of
+our HRL method and evaluate its performance on the same tasks. We also evaluate all modiﬁcations
+together as an approximation to the entire FuN paradigm. Results in Table 1 show that on our tasks,
+the FuN modiﬁcations do not learn well, and other than Ant Gather are signiﬁcantly out-performed by
+HIRO. In particular, it is worth noting that the use of learned representations, rather than observation
+goals, leads to almost no improvement on the tasks. This suggests that the choice of using goal
+observations as lower-level goals signiﬁcantly improves HRL performance, by providing a strong
+supervision signal to the lower-level policy right from the beginning of training.
+Stochastic Neural Networks for HRL (SNN4HRL) . SNN4HRL [ 10] initially trains the low-level
+policy with a proxy reward to encourage learning useful diverse exploration policies, and then the
+high-level policy is trained in the tasks of interest while the low-level is ﬁxed. While SNN4HRL can
+perform better than FuN, it is still far behind our proposed HRL method.
+Variational Information Maximizing Exploration (VIME) . VIME [ 20] is not an HRL method but
+is used as a strong baseline in SNN4HRL. As discussed in [ 10] and matched by our results, for the
+benchmark’s short horizon task of length 500, it performs approximately the same as SNN4HRL.
+Option-Critic Architecture . We extended the option-critic architecture implementation [ 2] for
+continuous actions and attempted a number of alternative variants besides the naïve modiﬁcation
+of the original. No versions yielded reasonable performance in our tasks, and so we omit it from
+the results. This is possibly due to difﬁculty in continuous control tasks, but most importantly the
+option-critic sub-policies rely solely on the external reward, making learning gait policies difﬁcult.
+5.2 Ablative Analysis
+In Figure 4 we present results of our proposed HRL method (“HIRO”) compared with a number of
+variants to understand the importance of various design choices:
+With lower-level re-labelling. We evaluate the beneﬁt of recent proposals [ 1,23] to increase the
+amount of data available to an agent trained using a parameterized reward (the lower-level policy
+in our setup) by re-labeling experiences with randomly sampled goals. This allows the lower-level
+policy to use experience collected with respect to a speciﬁc goal gto be used to learn behavior with
+respect to any alternative goal ~g. Our results show that this technique can provide an initial speed-up
+in training; however, its performance is quick to plateau. We hypothesize that re-labeling goals
+randomly may make lower-level training more difﬁcult, since the policy must learn to not only satisfy
+the goals provided by the higher-level agent, but instead almost any conceivable goal. The beneﬁt of
+re-labeling goals will require more research, and we encourage future work to investigate better ways
+to harness its beneﬁts.
+8With pre-training. In this variant we evaluate a simpler method to avoid the non-stationary issue
+in higher-level off-policy training. Rather than correct for past experiences, we instead pre-train
+the lower-level policy for 2M steps (using goals sampled from a Gaussian) before freezing it and
+training the higher-level policy alone (this variant also has the advantage of allowing the higher-level
+policy to learn with respect to a deterministic, non-exploratory lower-level policy). In the harder
+navigation tasks, we ﬁnd that pre-training is detrimental. This is understandable, as these tasks require
+specialization in different low-level behavior for different stages of the navigation. By allowing the
+lower-level policy to continually learn as new parts of the environment are encountered, we are able
+to learn a lower-level policy which is better able to satisfy the desired goals of the higher-level. In
+contrast, in the simpler and mostly homogeneous Ant Gather task, the advantage of pre-training is
+signiﬁcant. This suggests that our off-policy correction is still not perfect, and there is potentially
+signiﬁcant beneﬁt to be obtained by improving it.
+No off-policy correction. We assess the advantage of including the off-policy correction compared
+to training off-policy naïvely, ignoring the non-stationary issue. Interestingly, training an HRL policy
+this way can do quite well. However, in the harder tasks (Ant Push, Ant Fall) the issue becomes
+difﬁcult to ignore. Accordingly, we observe a signiﬁcant beneﬁt from using the off-policy correction.
+No HRL. Finally, we evaluate the ability of a single non-HRL policy to learn in these environments.
+This variant makes almost no progress on the tasks compared to our HRL method.
+6 Conclusion
+We have presented a method for training a two-layer hierarchical policy. Our approach is general,
+using learned goals to pass instructions from the higher-level policy to the lower-level one. Moreover,
+we have described a method by which both polices may be trained in an off-policy manner concurrently
+for highly sample-efﬁcient learning. Our experiments show that our method outperforms prior HRL
+algorithms and can solve exceedingly complex tasks that combine locomotion and rudimentary object
+interaction. We note that our results are still far from perfect, and there is much work left for future
+research to improve the stability and performance of HRL methods on these tasks.
+7 Acknowledgments
+We thank Ben Eysenbach and others on the Google Brain team for insightful comments and discus-
+sions.
+References
+[1]Marcin Andrychowicz, Filip Wolski, Alex Ray, Jonas Schneider, Rachel Fong, Peter Welinder,
+Bob McGrew, Josh Tobin, OpenAI Pieter Abbeel, and Wojciech Zaremba. Hindsight experience
+replay. In Advances in Neural Information Processing Systems , pages 5048–5058, 2017.
+[2]Pierre-Luc Bacon, Jean Harb, and Doina Precup. The option-critic architecture. In AAAI , pages
+1726–1734, 2017.
+[3]Gabriel Barth-Maron, Matthew W Hoffman, David Budden, Will Dabney, Dan Horgan, Alistair
+Muldal, Nicolas Heess, and Timothy Lillicrap. Distributed distributional deterministic policy
+gradients. arXiv preprint arXiv:1804.08617 , 2018.
+[4]Andrew G Barto and Sridhar Mahadevan. Recent advances in hierarchical reinforcement
+learning. Discrete Event Dynamic Systems , 13(4):341–379, 2003.
+[5]Nuttapong Chentanez, Andrew G Barto, and Satinder P Singh. Intrinsically motivated rein-
+forcement learning. In Advances in neural information processing systems , pages 1281–1288,
+2005.
+[6]Christian Daniel, Gerhard Neumann, and Jan Peters. Hierarchical relative entropy policy search.
+InArtiﬁcial Intelligence and Statistics , pages 273–281, 2012.
+[7]Peter Dayan and Geoffrey E Hinton. Feudal reinforcement learning. In Advances in neural
+information processing systems , pages 271–278, 1993.
+9[8]Thomas G Dietterich. Hierarchical reinforcement learning with the maxq value function
+decomposition. Journal of Artiﬁcial Intelligence Research , 13:227–303, 2000.
+[9]Yan Duan, Xi Chen, Rein Houthooft, John Schulman, and Pieter Abbeel. Benchmarking
+deep reinforcement learning for continuous control. In International Conference on Machine
+Learning , pages 1329–1338, 2016.
+[10] Carlos Florensa, Yan Duan, and Pieter Abbeel. Stochastic neural networks for hierarchical
+reinforcement learning. arXiv preprint arXiv:1704.03012 , 2017.
+[11] Kevin Frans, Jonathan Ho, Xi Chen, Pieter Abbeel, and John Schulman. Meta learning shared
+hierarchies. International Conference on Learning Representations (ICLR) , 2018.
+[12] Scott Fujimoto, Herke van Hoof, and Dave Meger. Addressing function approximation error in
+actor-critic methods. arXiv preprint arXiv:1802.09477 , 2018.
+[13] Shixiang Gu, Ethan Holly, Timothy Lillicrap, and Sergey Levine. Deep reinforcement learning
+for robotic manipulation with asynchronous off-policy updates. In Robotics and Automation
+(ICRA), 2017 IEEE International Conference on , pages 3389–3396. IEEE, 2017.
+[14] Shixiang Gu, Timothy Lillicrap, Zoubin Ghahramani, Richard E Turner, and Sergey
+Levine. Q-prop: Sample-efﬁcient policy gradient with an off-policy critic. arXiv preprint
+arXiv:1611.02247 , 2016.
+[15] Tuomas Haarnoja, Aurick Zhou, Pieter Abbeel, and Sergey Levine. Soft actor-critic: Off-
+policy maximum entropy deep reinforcement learning with a stochastic actor. arXiv preprint
+arXiv:1801.01290 , 2018.
+[16] Jean Harb, Pierre-Luc Bacon, Martin Klissarov, and Doina Precup. When waiting is not an
+option: Learning options with a deliberation cost. arXiv preprint arXiv:1709.04571 , 2017.
+[17] Nicolas Heess, Srinivasan Sriram, Jay Lemmon, Josh Merel, Greg Wayne, Yuval Tassa, Tom
+Erez, Ziyu Wang, Ali Eslami, Martin Riedmiller, et al. Emergence of locomotion behaviours in
+rich environments. arXiv preprint arXiv:1707.02286 , 2017.
+[18] Nicolas Heess, Greg Wayne, Yuval Tassa, Timothy Lillicrap, Martin Riedmiller, and David Sil-
+ver. Learning and transfer of modulated locomotor controllers. arXiv preprint arXiv:1610.05182 ,
+2016.
+[19] David Held, Xinyang Geng, Carlos Florensa, and Pieter Abbeel. Automatic goal generation for
+reinforcement learning agents. arXiv preprint arXiv:1705.06366 , 2017.
+[20] Rein Houthooft, Xi Chen, Yan Duan, John Schulman, Filip De Turck, and Pieter Abbeel. Vime:
+Variational information maximizing exploration. In Advances in Neural Information Processing
+Systems , pages 1109–1117, 2016.
+[21] George Konidaris and Andrew G Barto. Building portable options: Skill transfer in reinforce-
+ment learning. In IJCAI , volume 7, pages 895–900, 2007.
+[22] Tejas D Kulkarni, Karthik Narasimhan, Ardavan Saeedi, and Josh Tenenbaum. Hierarchical
+deep reinforcement learning: Integrating temporal abstraction and intrinsic motivation. In
+Advances in neural information processing systems , pages 3675–3683, 2016.
+[23] Sergey Levine, Shane Gu, and Vitchyr Pong. Temporal difference model learning: Model-free
+deep rl for model-based control. 2018.
+[24] Andrew Levy, Robert Platt, and Kate Saenko. Hierarchical actor-critic. arXiv preprint
+arXiv:1712.00948 , 2017.
+[25] Timothy P Lillicrap, Jonathan J Hunt, Alexander Pritzel, Nicolas Heess, Tom Erez, Yuval Tassa,
+David Silver, and Daan Wierstra. Continuous control with deep reinforcement learning. arXiv
+preprint arXiv:1509.02971 , 2015.
+[26] Sridhar Mahadevan and Mauro Maggioni. Proto-value functions: A laplacian framework for
+learning representation and control in markov decision processes. Journal of Machine Learning
+Research , 8(Oct):2169–2231, 2007.
+[27] Shie Mannor, Ishai Menache, Amit Hoze, and Uri Klein. Dynamic abstraction in reinforcement
+learning via clustering. In Proceedings of the twenty-ﬁrst international conference on Machine
+learning , page 71. ACM, 2004.
+[28] Oﬁr Nachum, Mohammad Norouzi, Kelvin Xu, and Dale Schuurmans. Trust-pcl: An off-policy
+trust region method for continuous control. arXiv preprint arXiv:1707.01891 , 2017.
+10[29] Ronald Parr and Stuart J Russell. Reinforcement learning with hierarchies of machines. In
+Advances in neural information processing systems , pages 1043–1049, 1998.
+[30] Matthias Plappert, Marcin Andrychowicz, Alex Ray, Bob McGrew, Bowen Baker, Glenn
+Powell, Jonas Schneider, Josh Tobin, Maciek Chociej, Peter Welinder, et al. Multi-goal
+reinforcement learning: Challenging robotics environments and request for research. arXiv
+preprint arXiv:1802.09464 , 2018.
+[31] Vitchyr Pong, Shixiang Gu, Murtaza Dalal, and Sergey Levine. Temporal difference models:
+Model-free deep rl for model-based control. International Conference on Learning Representa-
+tions , 2018.
+[32] Doina Precup. Temporal abstraction in reinforcement learning . University of Massachusetts
+Amherst, 2000.
+[33] Aravind Rajeswaran, Vikash Kumar, Abhishek Gupta, John Schulman, Emanuel Todorov, and
+Sergey Levine. Learning complex dexterous manipulation with deep reinforcement learning
+and demonstrations. arXiv preprint arXiv:1709.10087 , 2017.
+[34] Tom Schaul, Daniel Horgan, Karol Gregor, and David Silver. Universal value function approxi-
+mators. In International Conference on Machine Learning , pages 1312–1320, 2015.
+[35] John Schulman, Sergey Levine, Pieter Abbeel, Michael Jordan, and Philipp Moritz. Trust region
+policy optimization. In International Conference on Machine Learning , pages 1889–1897,
+2015.
+[36] Olivier Sigaud and Freek Stulp. Policy search in continuous action domains: an overview. arXiv
+preprint arXiv:1803.04706 , 2018.
+[37] Martin Stolle and Doina Precup. Learning options in reinforcement learning. In International
+Symposium on abstraction, reformulation, and approximation , pages 212–223. Springer, 2002.
+[38] Richard S Sutton, Joseph Modayil, Michael Delp, Thomas Degris, Patrick M Pilarski, Adam
+White, and Doina Precup. Horde: A scalable real-time architecture for learning knowledge
+from unsupervised sensorimotor interaction. In The 10th International Conference on Au-
+tonomous Agents and Multiagent Systems-Volume 2 , pages 761–768. International Foundation
+for Autonomous Agents and Multiagent Systems, 2011.
+[39] Richard S Sutton, Doina Precup, and Satinder Singh. Between mdps and semi-mdps: A
+framework for temporal abstraction in reinforcement learning. Artiﬁcial intelligence , 112(1-
+2):181–211, 1999.
+[40] Chen Tessler, Shahar Givony, Tom Zahavy, Daniel J Mankowitz, and Shie Mannor. A deep
+hierarchical approach to lifelong learning in minecraft. In AAAI , volume 3, page 6, 2017.
+[41] Matej Ve ˇcerík, Todd Hester, Jonathan Scholz, Fumin Wang, Olivier Pietquin, Bilal Piot, Nicolas
+Heess, Thomas Rothörl, Thomas Lampe, and Martin Riedmiller. Leveraging demonstrations
+for deep reinforcement learning on robotics problems with sparse rewards. arXiv preprint
+arXiv:1707.08817 , 2017.
+[42] Alexander Vezhnevets, V olodymyr Mnih, Simon Osindero, Alex Graves, Oriol Vinyals, John
+Agapiou, et al. Strategic attentive writer for learning macro-actions. In Advances in neural
+information processing systems , pages 3486–3494, 2016.
+[43] Alexander Sasha Vezhnevets, Simon Osindero, Tom Schaul, Nicolas Heess, Max Jaderberg,
+David Silver, and Koray Kavukcuoglu. Feudal networks for hierarchical reinforcement learning.
+arXiv preprint arXiv:1703.01161 , 2017.
+11

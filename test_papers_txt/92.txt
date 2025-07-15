@@ -1,0 +1,706 @@
+Bayesian Probabilistic Matrix Factorization
+using Markov Chain Monte Carlo
+Ruslan Salakhutdinov rsalakhu@cs.toronto.edu
+Andriy Mnih amnih@cs.toronto.edu
+Department of Computer Science, University of Toronto, Tor onto, Ontario M5S 3G4, Canada
+Abstract
+Low-rank matrix approximation methods
+provide one of the simplest and most eﬀective
+approaches to collaborative ﬁltering. Such
+models are usually ﬁtted to data by ﬁnding
+a MAP estimate of the model parameters, a
+procedure that can be performed eﬃciently
+even on very large datasets. However, un-
+less the regularization parameters are tuned
+carefully, this approach is prone to overﬁt-
+ting because it ﬁnds a single point estimate
+of the parameters. In this paper we present a
+fully Bayesian treatment of the Probabilistic
+Matrix Factorization (PMF) model in which
+model capacity is controlled automatically by
+integrating over all model parameters and
+hyperparameters. We show that Bayesian
+PMF models can be eﬃciently trained us-
+ing Markov chain Monte Carlo methods by
+applying them to the Netﬂix dataset, which
+consists of over 100 million movie ratings.
+The resulting models achieve signiﬁcantly
+higher prediction accuracy than PMF models
+trained using MAP estimation.
+1. Introduction
+Factor-based models have been used extensively in the
+domain of collaborative ﬁltering for modelling user
+preferences. The idea behind such models is that pref-
+erences of a user are determined by a small number of
+unobserved factors. In a linear factor model, a user’s
+rating of an item is modelled by the inner product of
+an item factor vector and a user factor vector. This
+means that the N×Mpreference matrix of ratings
+thatNusers assign to Mmovies is modeled by the
+product of an D×Nuser coeﬃcient matrix Uand a
+D×Mfactor matrix V(Rennie & Srebro, 2005; Srebro
+Appearing in Proceedings of the 25thInternational Confer-
+ence on Machine Learning , Helsinki, Finland, 2008. Copy-
+right 2008 by the author(s)/owner(s).& Jaakkola, 2003). Training such a model amounts to
+ﬁnding the best rank- Dapproximation to the observed
+N×Mtarget matrix Runder the given loss function.
+A variety of probabilistic factor-based models have
+been proposed (Hofmann, 1999; Marlin, 2004; Marlin
+& Zemel, 2004; Salakhutdinov & Mnih, 2008). In these
+models factor variables are assumed to be marginally
+independent while rating variables are assumed to be
+conditionally independent given the factor variables.
+The main drawback of such models is that inferring
+the posterior distribution over the factors given the
+ratings is intractable. Many of the existing methods
+resort to performing MAP estimation of the model pa-
+rameters. Training such models amounts to maximiz-
+ing the log-posterior over model parameters and can
+be done very eﬃciently even on very large datasets.
+In practice, we are usually interested in predicting rat-
+ings for new user/movie pairs rather than in estimat-
+ing model parameters. This view suggests taking a
+Bayesian approach to the problem which involves in-
+tegrating out the model parameters. In this paper, we
+describe a fully Bayesian treatment of the Probabilis-
+tic Matrix Factorization (PMF) model which has been
+recently applied to collaborative ﬁltering (Salakhutdi-
+nov & Mnih, 2008). The distinguishing feature of our
+work is the use of Markov chain Monte Carlo (MCMC)
+methods for approximate inference in this model. In
+practice, MCMC methods are rarely used on large-
+scale problems because they are perceived to be very
+slow by practitioners. In this paper we show that
+MCMC can be successfully applied to the large, sparse,
+and very imbalanced Netﬂix dataset, containing over
+100 million user/movie ratings. We also show that it
+signiﬁcantly increases the model’s predictive accuracy,
+especially for the infrequent users, compared to the
+standard PMF models trained using MAP with regu-
+larization parameters that have been carefully tuned
+on the validation set.
+Previous applications of Bayesian matrix factorization
+methods to collaborative ﬁltering (Lim & Teh, 2007;
+Raiko et al., 2007) have used variational approxima-Bayesian Probabilistic Matrix Factorization using MCMC
+tions for performing inference. These methods at-
+tempt to approximate the true posterior distribution
+by a simpler, factorized distribution under which the
+user factor vectors are independent of the movie factor
+vectors. The consequence of this assumption is that
+that the variational posterior distributions over the
+factor vectors is a product of two multivariate Gaus-
+sians: one for the viewer factor vectors and one for
+the movie factor vectors. This assumption of indepen-
+dence between the viewer and movie factors seems un-
+reasonable, and, as our experiments demonstrate, the
+distributions over factors in such models turn out to
+be non-Gaussian. This conclusion is supported by the
+fact that the Bayesian PMF models outperform their
+MAP trained counterparts by a much larger margin
+than the variationally trained models do.
+2. Probabilistic Matrix Factorization
+Probabilistic Matrix Factorization (PMF) is a proba-
+bilistic linear model with Gaussian observation noise
+(see Fig. 1, left panel). Suppose we have Nusers
+andMmovies. Let Rijbe the rating value of user i
+for movie j,UiandVjrepresent D-dimensional user-
+speciﬁc and movie-speciﬁc latent feature vectors re-
+spectively. The conditional distribution over the ob-
+served ratings R∈RN×M(the likelihood term) and
+the prior distributions over U∈RD×NandV∈
+RD×Mare given by:
+p(R|U, V, α ) =N/productdisplay
+i=1M/productdisplay
+j=1/bracketleftbigg
+N(Rij|UT
+iVj, α−1)/bracketrightbiggIij
+(1)
+p(U|αU) =N/productdisplay
+i=1N(Ui|0, α−1
+UI) (2)
+p(V|αV) =M/productdisplay
+j=1N(Vj|0, α−1
+VI), (3)
+where N(x|µ, α−1) denotes the Gaussian distribution
+with mean µand precision α, and Iijis the indicator
+variable that is equal to 1 if user irated movie jand
+equal to 0 otherwise.
+Learning in this model is performed by maximizing
+the log-posterior over the movie and user features with
+ﬁxed hyperparameters (i.e. the observation noise vari-
+ance and prior variances):
+lnp(U, V|R, α, α V, αU) = ln p(R|U, V, α ) +
++ lnp(U|αU) + ln p(V|αV) +C,
+where Cis a constant that does not depend on the pa-
+rameters. Maximizing this posterior distribution with
+respect to UandVis equivalent to minimizing thesum-of-squares error function with quadratic regular-
+ization terms:
+E=1
+2N/summationdisplay
+i=1M/summationdisplay
+j=1Iij/parenleftbig
+Rij−UT
+iVj/parenrightbig2
++λU
+2N/summationdisplay
+i=1/bardblUi/bardbl2
+Fro+λV
+2M/summationdisplay
+j=1/bardblVj/bardbl2
+Fro,(4)
+where λU=αU/α,λV=αV/α, and /bardbl · /bardbl2
+Frodenotes
+the Frobenius norm. A local minimum of the objective
+function given by Eq. 4 can be found by performing
+gradient descent in UandV.
+The main drawback of this training procedure is the
+need for manual complexity control that is essential
+to making the model generalize well, particularly on
+sparse and imbalanced datasets. One way to control
+the model complexity is to search for appropriate val-
+ues of regularization parameters λUandλVdeﬁned
+above. We could, for example, consider a set of reason-
+able parameter values, train a model for each setting
+of the parameters, and choose the model that performs
+best on the validation set. This approach however is
+computationally very expensive, since it requires train-
+ing a multitude of models instead of training a single
+one.
+Alternatively, we could introduce priors for the hy-
+perparameters and maximize the log-posterior of the
+model over both parameters and hyperparameters ,
+which allows model complexity to be controlled auto-
+matically based on the training data (Nowlan & Hin-
+ton, 1992; Salakhutdinov & Mnih, 2008). Though this
+approach has been shown to work in practice it is not
+well-grounded theoretically, and it is not diﬃcult to
+construct a simple example for which such joint opti-
+mization would not produce the desired results.
+In the next section we describe a fully Bayesian treat-
+ment of the PMF model with model parameters and
+hyperparameters integrated out using MCMC meth-
+ods, which provides fully automatic complexity con-
+trol.
+3. Bayesian Probabilistic Matrix
+Factorization
+3.1. The Model
+The graphical model representing Bayesian PMF is
+shown in Fig. 1 (right panel). As in PMF, the likeli-
+hood of the observed ratings is given by Eq. 1. The
+prior distributions over the user and movie feature vec-Bayesian Probabilistic Matrix Factorization using MCMC
+U Vj i
+Rij
+j=1,...,Mi=1,...,NV U
+αα α
+j
+Rij
+j=1,...,Mi=1,...,NV µ µ UiΛU
+µU0ν, W0
+µ0 V 0VΛ, W00ν
+α
+Figure 1. The left panel shows the graphical model for Probabilistic M atrix Factorization (PMF). The right panel shows
+the graphical model for Bayesian PMF.
+tors are assumed to be Gaussian:
+p(U|µU,ΛU) =N/productdisplay
+i=1N(Ui|µU,Λ−1
+U), (5)
+p(V|µV,ΛV) =M/productdisplay
+i=1N(Vi|µV,Λ−1
+V). (6)
+We further place Gaussian-Wishart priors on the user
+and movie hyperparameters Θ U={µU,ΛU}and
+ΘV={µV,ΛV}:
+p(ΘU|Θ0) =p(µU|ΛU)p(ΛU)
+=N(µU|µ0,(β0ΛU)−1)W(ΛU|W0, ν0), (7)
+p(ΘV|Θ0) =p(µV|ΛV)p(ΛV)
+=N(µV|µ0,(β0ΛV)−1)W(ΛV|W0, ν0). (8)
+HereWis the Wishart distribution with ν0degrees of
+freedom and a D×Dscale matrix W0:
+W(Λ|W0, ν0) =1
+C|Λ|(ν0−D−1)/2exp (−1
+2Tr(W−1
+0Λ)),
+where Cis the normalizing constant. For convenience
+we also deﬁne Θ 0={µ0, ν0, W0}. In our experiments
+we also set ν0=DandW0to the identity matrix
+for both user and movie hyperparameters and choose
+µ0= 0 by symmetry.
+3.2. Predictions
+The predictive distribution of the rating value R∗
+ijfor
+useriand query movie jis obtained by marginalizingover model parameters and hyperparameters:
+p(R∗
+ij|R,Θ0) =/integraldisplay/integraldisplay
+p(R∗
+ij|Ui, Vj)p(U, V|R,ΘU,ΘV)
+p(ΘU,ΘV|Θ0)d{U, V}d{ΘU,ΘV}.(9)
+Since exact evaluation of this predictive distribution
+is analytically intractable due to the complexity of the
+posterior we need to resort to approximate inference.
+One choice would be to use variational methods (Hin-
+ton & van Camp, 1993; Jordan et al., 1999) that pro-
+vide deterministic approximation schemes for posteri-
+ors. In particular, we could approximate the true pos-
+terior p(U, V,ΘU,ΘV|R) by a distribution that factors,
+with each factor having a speciﬁc parametric form such
+as a Gaussian distribution. This approximate poste-
+rior would allow us to approximate the integrals in
+Eq. 9. Variational methods have become the method-
+ology of choice, since they typically scale well to large
+applications. However, they can produce inaccurate
+results because they tend to involve overly simple ap-
+proximations to the posterior.
+MCMC-based methods (Neal, 1993), on the other
+hand, use the Monte Carlo approximation to the pre-
+dictive distribution of Eq. 9 given by:
+p(R∗
+ij|R,Θ0)≈1
+KK/summationdisplay
+k=1p(R∗
+ij|U(k)
+i, V(k)
+j). (10)
+The samples {U(k)
+i, V(k)
+j}are generated by running
+a Markov chain whose stationary distribution is the
+posterior distribution over the model parameters and
+hyperparameters {U, V,ΘU,ΘV}. The advantage ofBayesian Probabilistic Matrix Factorization using MCMC
+the Monte Carlo-based methods is that asymptoti-
+cally they produce exact results. In practice, how-
+ever, MCMC methods are usually perceived to be so
+computationally demanding that their use is limited
+to small-scale problems.
+3.3. Inference
+One of the simplest MCMC algorithms is the Gibbs
+sampling algorithm, which cycles through the latent
+variables, sampling each one from its distribution con-
+ditional on the current values of all other variables.
+Gibbs sampling is typically used when these condi-
+tional distributions can be sampled from easily.
+Due to the use of conjugate priors for the parame-
+ters and hyperparameters in the Bayesian PMF model,
+the conditional distributions derived from the poste-
+rior distribution are easy to sample from. In particu-
+lar, the conditional distribution over the user feature
+vector Ui, conditioned on the movie features, observed
+user rating matrix R, and the values of the hyperpa-
+rameters is Gaussian:
+p(Ui|R, V,ΘU, α) =N/parenleftbig
+Ui|µ∗
+i,/bracketleftbig
+Λ∗
+i/bracketrightbig−1/parenrightbig
+(11)
+∼M/productdisplay
+j=1/bracketleftbigg
+N(Rij|UT
+iVj, α−1)/bracketrightbiggIij
+p(Ui|µU,ΛU),
+where
+Λ∗
+i= Λ U+αM/summationdisplay
+j=1/bracketleftbig
+VjVT
+j/bracketrightbigIij(12)
+µ∗
+i= [Λ∗
+i]−1/parenleftbigg
+αM/summationdisplay
+j=1/bracketleftbig
+VjRij/bracketrightbigIij+ ΛUµU/parenrightbigg
+.(13)
+Note that the conditional distribution over the user
+latent feature matrix Ufactorizes into the product of
+conditional distributions over the individual user fea-
+ture vectors:
+p(U|R, V,ΘU) =N/productdisplay
+i=1p(Ui|R, V,ΘU).
+Therefore we can easily speed up the sampler by sam-
+pling from these conditional distributions in parallel.
+The speedup could be substantial, particularly when
+the number of users is large.
+The conditional distribution over the user hyperpa-
+rameters conditioned on the user feature matrix Uis
+given by the Gaussian-Wishart distribution:
+p(µU,ΛU|U,Θ0) =
+N(µU|µ∗
+0,(β∗
+0ΛU)−1)W(ΛU|W∗
+0, ν∗
+0),(14)where
+µ∗
+0=β0µ0+N¯U
+β0+N, β∗
+0=β0+N, ν∗
+0=ν0+N,
+/bracketleftbig
+W∗
+0/bracketrightbig−1=W−1
+0+N¯S+β0N
+β0+N(µ0−¯U)(µ0−¯U)T
+¯U=1
+NN/summationdisplay
+i=1Ui¯S=1
+NN/summationdisplay
+i=1UiUT
+i.
+The conditional distributions over the movie feature
+vectors and the movie hyperparameters have exactly
+the same form. The Gibbs sampling algorithm then
+takes the following form:
+Gibbs sampling for Bayesian PMF
+1. Initialize model parameters {U1, V1}
+2. For t=1,...,T
+•Sample the hyperparameters
+(Eq. 14):
+Θt
+U∼p(ΘU|Ut,Θ0)
+Θt
+V∼p(ΘV|Vt,Θ0)
+•For each i= 1, ..., N sample user features in
+parallel (Eq. 11):
+Ut+1
+i∼p(Ui|R, Vt,Θt
+U)
+•For each i= 1, ..., M sample movie features in
+parallel:
+Vt+1
+i∼p(Vi|R, Ut+1,Θt
+V)
+4. Experimental Results
+4.1. Description of the dataset
+The data, collected by Netﬂix, represent the distribu-
+tion of all ratings Netﬂix obtained between October,
+1998 and December, 2005. The training data set con-
+sists of 100,480,507 ratings from 480,189 randomly-
+chosen, anonymous users on 17,770 movie titles. As
+part of the training data, Netﬂix also provides valida-
+tion data, containing 1,408,395 ratings. In addition,
+Netﬂix also provides a test set containing 2,817,131
+user/movie pairs with the ratings withheld. The pairs
+were selected from the most recent ratings from a sub-
+set of the users in the training data set. Performance
+is assessed by submitting predicted ratings to Netﬂix
+which then posts the root mean squared error (RMSE)
+on an unknown half of the test set. As a baseline, Net-
+ﬂix provided the test score of its own system trained
+on the same data, which is 0.9514.Bayesian Probabilistic Matrix Factorization using MCMC
+01020304050600.90.910.920.930.940.950.960.97
+EpochsRMSE
+PMF
+Bayesian PMFNetflix 
+Baseline Score
+SVD
+Logistic PMF
+ 4   8   16  32  64  128 256 5120.890.8950.90.9050.910.9150.92
+Number of SamplesRMSE30−D
+60−D5.7 hrs.23 hrs. 90 hrs.
+11.7 hrs.
+47 hrs. 188 hrs.Bayesian PMF
+Figure 2. Left panel: Performance of SVD, PMF, logistic PMF, and Bayes ian PMF using 30D feature vectors, on the
+Netﬂix validation data. The y-axis displays RMSE (root mean squared error), and the x-axis shows the number of epochs,
+or passes, through the entire training set. Right panel: RMS E for the Bayesian PMF models on the validation set as a
+function of the number of samples generated. The two curves a re for the models with 30D and 60D feature vectors.
+4.2. Training PMF models
+For comparison, we have trained a variety of linear
+PMF models using MAP, choosing their regularization
+parameters using the validation set. In addition to lin-
+ear PMF models, we also trained logistic PMF mod-
+els, in which we pass the dot product between user-
+and movie-speciﬁc feature vectors through the logistic
+function σ(x) = 1/(1 + exp( −x)) to bound the range
+of predictions:
+p(R|U, V, α ) =N/productdisplay
+i=1M/productdisplay
+j=1/bracketleftbigg
+N(Rij|σ(UT
+iVj), α−1)/bracketrightbiggIij
+.(15)
+The ratings 1 , ...,5 are mapped to the interval [0 ,1]
+using the function t(x) = (x−1)/4, so that the range
+of valid rating values matches the range of predictions
+our model can make. Logistic PMF models can some-
+times provide slightly better results than their linear
+counterparts.
+To speed up training, instead of performing full batch
+learning, we subdivided the Netﬂix data into mini-
+batches of size 100,000 (user/movie/rating triples) and
+updated the feature vectors after each mini-batch. We
+used a learning rate of 0.005 and a momentum of 0.9
+for training the linear as well as logistic PMF models.
+4.3. Training Bayesian PMF models
+We initialized the Gibbs sampler by setting the model
+parameters UandVto their MAP estimates obtained
+by training a linear PMF model. We also set µ0=
+0,ν0=D, and W0to the identity matrix, for both
+user and movie hyperpriors. The observation noiseprecision αwas ﬁxed at 2. The predictive distribution
+was computed using Eq. 10 by running the Gibbs
+sampler with samples {U(k)
+i, V(k)
+j}collected after each
+full Gibbs step.
+4.4. Results
+In our ﬁrst experiment, we compared a Bayesian PMF
+model to an SVD model, a linear PMF model, and a
+logistic PMF model, all using 30D feature vectors. The
+SVD model was trained to minimize the sum-squared
+distance to the observed entries of the target matrix,
+with no regularization applied to the feature vectors.
+Note that this model can be seen as a PMF model
+trained using maximum likelihood (ML). For the PMF
+models, the regularization parameters λUandλVwere
+set to 0 .002. Predictive performance of these models
+on the validation set is shown in Fig. 2 (left panel).
+The mean of the predictive distribution of the Bayesian
+PMF model achieves an RMSE of 0 .8994, compared to
+an RMSE of 0 .9174 of a moderately regularized linear
+PMF model, an improvement of over 1.7%.
+The logistic PMF model does slightly outperform its
+linear counterpart, achieving an RMSE of 0.9097.
+However, its performance is still considerably worse
+than that of the Bayesian PMF model. A simple
+SVD achieves an RMSE of about 0.9280 and after
+about 10 epochs begins to overﬁt heavily. This ex-
+periment clearly demonstrates that SVD and MAP-
+trained PMF models can overﬁt and that the pre-
+dictive accuracy can be improved by integrating out
+model parameters and hyperparameters.Bayesian Probabilistic Matrix Factorization using MCMC
+−20−10 01020−20−1001020
+Dimension1Dimension3User A (4 ratings)
+−20 −10 0 10 2005101520253035
+Dimension3Frequency Count
+−20 −10 0 10 2005101520253035
+Dimension1Frequency Count
+−20−10 01020−20−1001020
+Dimension5Dimension1User C (319 ratings)
+−20 −10 0 10 2005101520253035
+Dimension1Frequency Count
+−20 −10 0 10 200510152025
+Dimension5Frequency Count
+−0.4−0.200.20.4−0.4−0.200.20.4
+Dimension1Dimension2Movie X (5 ratings)
+−1 −0.5 0 0.5 1020406080100120
+Dimension2Frequency Count
+−1 −0.5 0 0.5 1020406080100
+Dimension1Frequency Count
+−0.4−0.200.20.4−0.4−0.200.20.4
+Dimension1Dimension2Movie Y (142 ratings)
+−0.2 −0.1 0 0.1 0.2010203040506070
+Dimension2Frequency Count
+−0.2 −0.1 0 0.1 0.20102030405060
+Dimension1Frequency Count
+Figure 3. Samples from the posterior over the user and movie feature ve ctors generated by each step of the Gibbs
+sampler. The two dimensions with the highest variance are sh own for two users and two movies. The ﬁrst 800 samples
+were discarded as “burn-in”.
+D Valid. RMSE % Test RMSE %
+PMF BPMF Inc. PMF BPMF Inc.
+30 0.9154 0.8994 1.74 0.9188 0.9029 1.73
+40 0.9135 0.8968 1.83 0.9170 0.9002 1.83
+60 0.9150 0.8954 2.14 0.9185 0.8989 2.13
+150 0.9178 0.8931 2.69 0.9211 0.8965 2.67
+300 0.9231 0.8920 3.37 0.9265 0.8954 3.36
+Table 1. Performance of Bayesian PMF (BPMF) and lin-
+ear PMF on Netﬂix validation and test sets.
+We than trained larger PMF models with D= 40 and
+D= 60. Capacity control for such models becomes a
+rather challenging task. For example, a PMF model
+withD= 60 has approximately 30 million parameters.
+Searching for appropriate values of the regularization
+coeﬃcients becomes a very computationally expensive
+task. Table 1 further shows that for the 60-dimensional
+feature vectors, Bayesian PMF outperforms its MAP
+counterpart by over 2%. We should also point out
+that even the simplest possible Bayesian extension of
+the PMF model, where Gamma priors are placed over
+the precision hyperparameters αUandαV(see Fig. 1,
+left panel), signiﬁcantly outperforms the MAP-trained
+PMF models, even though it does not perform as wellas the Bayesian PMF models.
+It is interesting to observe that as the feature di-
+mensionality grows, the performance accuracy for the
+MAP-trained PMF models does not improve, and con-
+trolling overﬁtting becomes a critical issue. The pre-
+dictive accuracy of the Bayesian PMF models, how-
+ever, steadily improves as the model complexity grows.
+Inspired by this result, we experimented with Bayesian
+PMF models with D= 150 and D= 300 feature
+vectors. Note that these models have about 75 and
+150 million parameters, and running the Gibbs sam-
+pler becomes computationally much more expensive.
+Nonetheless, the validation set RMSEs for the two
+models were 0 .8931 and 0 .8920. Table 1 shows that
+these models not only signiﬁcantly outperform their
+MAP counterparts but also outperform Bayesian PMF
+models that have fewer parameters. These results
+clearly show that the Bayesian approach does not re-
+quire limiting the complexity of the model based on the
+number of the training samples. In practice, however,
+we will be limited by the available computer resources.
+For completeness, we also report the performance re-
+sults on the Netﬂix test set . These numbers were ob-Bayesian Probabilistic Matrix Factorization using MCMC
+ A   B   C   D  11.522.533.544.55Predicted Ratings
+Users   1−5      6−10      −20      −40      −80      −160     −320     −640   >641   0.80.911.11.2
+Number of Observed RatingsRMSELogistic 
+PMF
+Bayesian 
+PMFMovie Average
+Figure 4. Left panel: Box plot of predictions, obtained after each ful l Gibbs step, for 4 users on a randomly chosen test
+movies. Users A,B,C, and D have 4, 23, 319 and 660 ratings resp ectively. Right panel: Performance of Bayesian PMF,
+logistic PMF, and the movie average algorithm that always pr edicts the average rating of each movie. The users were
+grouped by the number of observed ratings in the training dat a. The linear PMF model performed slightly worse than
+the logistic PMF model.
+tained by submitting the predicted ratings to Netﬂix
+who then provided us with the test score on an un-
+known half of the test set. The test scores are slightly
+worse than the validation scores, but the relative be-
+havior across all models remains the same.
+To diagnose the convergence of the Gibbs sampler, we
+monitored the behaviour of the Frobenius norms of
+the model parameters and hyperparameters: U,V, Λ,
+andµ. Typically, after a few hundred samples these
+quantities stabilize. Fig. 2 (right panel) shows the
+RMSE error on the Netﬂix validation set for Bayesian
+PMF models as the number of samples increases. Af-
+ter obtaining a few hundred samples1the predictive
+accuracy does not signiﬁcantly improve. Note that
+the initial predictive accuracy is already high because
+the Markov chain is initialized using the MAP values
+of the model parameters.
+For the Bayesian PMF model with D= 30 we also col-
+lected samples over the user and movie feature vectors
+generated by each full step of the Gibbs sampler. The
+ﬁrst 800 samples were discarded as “burn-in”. Figure
+3 shows these samples for two users and two movies
+projected onto the two dimensions of the highest vari-
+ance. Users A and C were chosen by randomly picking
+among rare users who have fewer than 10 ratings and
+more frequent users who have more than 100 ratings
+in the training set. Movies X and Y were chosen in the
+same way. Note that the empirical distribution of the
+1We store the model parameters after each full Gibbs
+step as a sample. The fact that these samples are not
+independent does not matter for making predictions.samples from the posterior appear to be non-Gaussian.
+Using these samples from the posterior we also looked
+at the uncertainty of the predictions of four users on
+randomly chosen test movies. Figure 4 (left panel)
+shows results for users A,B,C, and D who have 4, 23,
+319 and 660 ratings respectively. Note that there is
+much more uncertainty about the prediction of user
+A than about the prediction of user D, whose feature
+vector is well-determined. Figure 4 (right panel) shows
+that the Bayesian PMF model considerably outper-
+forms the logistic PMF model on users with few rat-
+ings. As the number of ratings increases, both the
+logistic PMF and the Bayesian PMF exhibit similar
+performance.
+The advantage of Bayesian PMF models is that by av-
+eraging over all settings of parameters that are com-
+patible with the data as well as the prior they deal with
+uncertainty more eﬀectively than the non-Bayesian
+PMF models, which commit to a single most probable
+setting.
+Since the main concern when applying Bayesian meth-
+ods to large datasets is their running time, we provide
+the times for our simple Matlab Bayesian PMF im-
+plementation. One full Gibbs step on a single core of
+a recent Pentium Xeon 3.00GHz machine for models
+withD= 10,30,60,300 takes 6.6, 12.9 , 31.6, and 220
+minutes respectively. Note that the most expensive as-
+pect of training Bayesian PMF models is the inversion
+of aD×Dmatrix per feature vector2(see Eq. 13),
+2In our implementation, we solve a system of Dequa-Bayesian Probabilistic Matrix Factorization using MCMC
+which is an O(D3) operation.
+5. Conclusions
+We have presented a fully Bayesian treatment of Prob-
+abilistic Matrix Factorization by placing hyperpriors
+over the hyperparameters and using MCMC meth-
+ods to perform approximate inference. We have also
+demonstrated that Bayesian PMF models can be suc-
+cessfully applied to a large dataset containing over
+100 million movie ratings, and achieve signiﬁcantly
+higher predictive accuracy compared to the MAP-
+trained PMF models with carefully tuned regulariza-
+tion parameters. An additional advantage of using a
+Bayesian model is that it provides a predictive dis-
+tribution instead of just a single number, allowing the
+conﬁdence in the prediction to be quantiﬁed and taken
+into account when making recommendations using the
+model.
+Using MCMC instead of variational methods for ap-
+proximate inference in Bayesian matrix factorization
+models leads to much larger improvements over the
+MAP trained models, which suggests that the assump-
+tions made by the variational methods about the struc-
+ture of the posterior are not entirely reasonable. This
+conclusion is conﬁrmed by inspecting the empirical dis-
+tribution of the samples from the posterior, which ap-
+pears to be signiﬁcantly non-Gaussian.
+A major problem of MCMC methods is that it is hard
+to determine when the Markov chain has converged to
+the desired distribution. In practice, we have to rely on
+rules of thumb to diagnose convergence, which means
+that there is a risk of using samples from a distribu-
+tion that diﬀers from the true posterior distribution,
+potentially leading to suboptimal predictions. Our re-
+sults show that this problem is not a suﬃcient reason
+to reject MCMC methods.
+For our models, the number of samples from the
+posterior that can be generated within a reasonable
+amount of time will typically be constrained by the
+available computer resources. However, as mentioned
+above, sampling the feature vectors for multiple users
+or movies in parallel provides an easy way to greatly
+speed up the process of generating samples using mul-
+tiple cores.
+Acknowledgments
+We thank Geoﬀrey Hinton for many helpful discus-
+sions. This research was supported by NSERC.
+tions instead of inverting a matrix. The computational cost
+of this operation is still O(D3).References
+Hinton, G. E., & van Camp, D. (1993). Keeping the
+neural networks simple by minimizing the descrip-
+tion length of the weights. COLT (pp. 5–13).
+Hofmann, T. (1999). Probabilistic latent semantic
+analysis. Proceedings of the 15th Conference on Un-
+certainty in AI (pp. 289–296). San Fransisco, Cali-
+fornia: Morgan Kaufmann.
+Jordan, M. I., Ghahramani, Z., Jaakkola, T. S., &
+Saul, L. K. (1999). An introduction to variational
+methods for graphical models. Machine Learning ,
+37, 183.
+Lim, Y. J., & Teh, Y. W. (2007). Variational Bayesian
+approach to movie rating prediction. Proceedings of
+KDD Cup and Workshop .
+Marlin, B. (2004). Modeling user rating proﬁles for
+collaborative ﬁltering. In S. Thrun, L. Saul and
+B. Sch¨ olkopf (Eds.), Advances in neural information
+processing systems 16 . Cambridge, MA: MIT Press.
+Marlin, B., & Zemel, R. S. (2004). The multiple mul-
+tiplicative factor model for collaborative ﬁltering.
+Machine Learning, Proceedings of the Twenty-ﬁrst
+International Conference (ICML 2004), Banﬀ, Al-
+berta, Canada . ACM.
+Neal, R. M. (1993). Probabilistic inference using
+Markov chain Monte Carlo methods (Technical Re-
+port CRG-TR-93-1). Department of Computer Sci-
+ence, University of Toronto.
+Nowlan, S. J., & Hinton, G. E. (1992). Simplify-
+ing neural networks by soft weight-sharing. Neural
+Computation ,4, 473–493.
+Raiko, T., Ilin, A., & Karhunen, J. (2007). Princi-
+pal component analysis for large scale problems with
+lots of missing values. ECML (pp. 691–698).
+Rennie, J. D. M., & Srebro, N. (2005). Fast max-
+imum margin matrix factorization for collabora-
+tive prediction. Machine Learning, Proceedings of
+the Twenty-Second International Conference (ICML
+2005), Bonn, Germany (pp. 713–719). ACM.
+Salakhutdinov, R., & Mnih, A. (2008). Probabilistic
+matrix factorization. Advances in Neural Informa-
+tion Processing Systems 20 . Cambridge, MA: MIT
+Press.
+Srebro, N., & Jaakkola, T. (2003). Weighted low-rank
+approximations. Machine Learning, Proceedings
+of the Twentieth International Conference (ICML
+2003), Washington, DC, USA (pp. 720–727). AAAI
+Press.

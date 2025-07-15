@@ -1,0 +1,4189 @@
+Gradient Descent Finds Global Minima of Deep Neural Networks 
+
+Simon S. Du* 1Jason D. Lee* 2Haochuan Li* 3 4Liwei Wang* 5 4Xiyu Zhai* 6
+Abstract
+Gradient descent ﬁnds a global minimum in train-
+ing deep neural networks despite the objective
+function being non-convex. The current pa-
+per proves gradient descent achieves zero train-
+ing loss in polynomial time for a deep over-
+parameterized neural network with residual con-
+nections (ResNet). Our analysis relies on the
+particular structure of the Gram matrix induced
+by the neural network architecture. This struc-
+ture allows us to show the Gram matrix is stable
+throughout the training process and this stability
+implies the global optimality of the gradient de-
+scent algorithm. We further extend our analysis
+to deep residual convolutional neural networks
+and obtain a similar convergence result.
+1. Introduction
+One of the mysteries in deep learning is randomly initial-
+ized ﬁrst-order methods like gradient descent achieve zero
+training loss, even if the labels are arbitrary ( Zhang et al. ,
+2016 ). Over-parameterization is widely believed to be
+the main reason for this phenomenon as only if the neu-
+ral network has a sufﬁciently large capacity, it is possible
+for this neural network to ﬁt all the training data. For
+example, Lu et al. (2017 ) proved that except for a mea-
+sure zero set, all functions cannot be approximated by
+ReLU networks with a width less than the input dimen-
+sion. In practice, many neural network architectures are
+highly over-parameterized. For example, Wide Residual
+Networks have 100x parameters than the number of train-
+ing data ( Zagoruyko & Komodakis ,2016 ).
+*Equal contribution1Machine Learning Department, Carnegie
+Mellon University2Data Science and Operations Department,
+University of Southern California3School of Physics, Peking Uni-
+versity4Center for Data Science, Peking University, Beijing Insti-
+tute of Big Data Research5Key Laboratory of Machine Percep-
+tion, MOE, School of EECS, Peking University6Department of
+EECS, Massachusetts Institute of Technology. Corresponde nce
+to: Simon S. Du <ssdu@cs.cmu.edu >.
+Proceedings of the 36thInternational Conference on Machine
+Learning , Long Beach, California, PMLR 97, 2019. Copyright
+2019 by the author(s).The second mysterious phenomenon in training deep neu-
+ral networks is “deeper networks are harder to train.” To
+solve this problem, He et al. (2016 ) proposed the deep
+residual network (ResNet) architecture which enables ran-
+domly initialized ﬁrst order method to train neural net-
+works with an order of magnitude more layers. Theoreti-
+cally, Hardt & Ma (2016 ) showed that residual links in lin-
+ear networks prevent gradient vanishing in a large neigh-
+borhood of zero, but for neural networks with non-linear
+activations, the advantages of using residual connections
+are not well understood.
+In this paper, we demystify these two mysterious phenom-
+ena. We consider the setting where there are ndata points,
+and the neural network has Hlayers with width m. We
+focus on the least-squares loss and assume the activation
+function is Lipschitz and smooth. This assumption holds
+for many activation functions including the soft-plus and
+sigmoid. Our contributions are summarized below.
+•As a warm-up, we ﬁrst consider a fully-
+connected feedforward network. We show if
+m= Ω/parenleftbig
+poly(n)2O(H)/parenrightbig1, then randomly initialized
+gradient descent converges to zero training loss at a
+linear rate.
+•Next, we consider the ResNet architecture. We show
+as long as m= Ω(poly( n,H)), then randomly initial-
+ized gradient descent converges to zero training loss
+at a linear rate. Comparing with the ﬁrst result, the
+dependence on the number of layers improves expo-
+nentially for ResNet. This theory demonstrates the ad-
+vantage of using residual architectures.
+•Lastly, we apply the same technique to analyze con-
+volutional ResNet. We show if m= poly(n,p,H)
+wherepis the number of patches, then randomly ini-
+tialized gradient descent achieves zero training loss.
+Our proof builds on two ideas from previous work on gra-
+dient descent for two-layer neural networks. First, we use
+the observation by ( Li & Liang ,2018 ) that if the neural net-
+work is over-parameterized, every weight matrix is close
+to its initialization. Second, following ( Du et al. ,2018b ),
+1The precise polynomials and data-dependent parameters are
+stated in Section 5,6,7.Gradient Descent Finds Global Minima of Deep Neural Network s
+we analyze the dynamics of the predictions whose conver-
+gence is determined by the least eigenvalue of the Gram
+matrix induced by the neural network architecture and to
+lower bound the least eigenvalue, it is sufﬁcient to bound
+the distance of each weight matrix from its initialization.
+Different from these two works, in analyzing deep neural
+networks, we need to exploit more structural properties of
+deep neural networks and develop new techniques for ana-
+lyzing both the initialization and gradient descent dynam-
+ics. In Section 4we give an overview of our proof tech-
+nique.
+1.1. Organization
+This paper is organized as follows. In Section 2, we dis-
+cuss related works. In Section 3, we formally state the
+problem setup. In Section 4, we present our main analy-
+sis techniques. In Section 5, we give a warm-up result for
+the deep fully-connected neural network. In Section 6, we
+give our main result for the ResNet. In Section 7, we give
+our main result for the convolutional ResNet. We conclude
+in Section 8and defer all proofs to the appendix.
+2. Related Works
+Recently, many works try to study the optimization prob-
+lem in deep learning. Since optimizing a neural network
+is a non-convex problem, one approach is ﬁrst to develop
+a general theory for a class of non-convex problems which
+satisfy desired geometric properties and then identify tha t
+the neural network optimization problem belongs to this
+class. One promising candidate class is the set of functions
+that satisfy: a) all local minima are global and b) there
+exists a negative curvature for every saddle point. For this
+function class, researchers have shown (perturbed) gra-
+dient descent ( Jin et al. ,2017 ;Ge et al. ,2015 ;Lee et al. ,
+2016 ;Du et al. ,2017a ) can ﬁnd a global minimum.
+Many previous works thus try to study the optimization
+landscape of neural networks with different activation
+functions ( Soudry & Hoffer ,2017 ;Safran & Shamir ,
+2018 ;2016 ;Zhou & Liang ,2017 ;Freeman & Bruna ,
+2016 ;Hardt & Ma ,2016 ;Nguyen & Hein ,2017 ;
+Kawaguchi ,2016 ;Venturi et al. ,2018 ;Soudry & Carmon ,
+2016 ;Du & Lee ,2018 ;Soltanolkotabi et al. ,2018 ;
+Haeffele & Vidal ,2015 ). However, even for a three-layer
+linear network, there exists a saddle point that does not
+have a negative curvature ( Kawaguchi ,2016 ), so it is
+unclear whether this geometry-based approach can be used
+to obtain the global convergence guarantee of ﬁrst-order
+methods.
+Another way to attack this problem is to study the dy-
+namics of a speciﬁc algorithm for a speciﬁc neural net-
+work architecture. Our paper also belongs to this category.Many previous works put assumptions on the input distri-
+bution and assume the label is generated according to a
+planted neural network. Based on these assumptions, one
+can obtain global convergence of gradient descent for some
+shallow neural networks ( Tian,2017 ;Soltanolkotabi ,2017 ;
+Brutzkus & Globerson ,2017 ;Du et al. ,2018a ;Li & Yuan ,
+2017 ;Du et al. ,2017b ). Some local convergence results
+have also been proved ( Zhong et al. ,2017a ;b;Zhang et al. ,
+2018 ). In comparison, our paper does not try to recover
+the underlying neural network. Instead, we focus on mini-
+mizing the training loss and rigorously prove that randomly
+initialized gradient descent can achieve zero training los s.
+The most related papers are ( Li & Liang ,2018 ;Du et al. ,
+2018b ) who observed that when training an over-
+parametrized two-layer fully-connected neural network,
+the weights do not change a large amount, which we also
+use to show the stability of the Gram matrix. They used
+this observation to obtain the convergence rate of gradi-
+ent descent on a two-layer over-parameterized neural net-
+work for the cross-entropy and least-squares loss. More
+recently, Allen-Zhu et al. (2018b ) generalized ideas from
+(Li & Liang ,2018 ) to derive convergence rates of training
+recurrent neural networks.
+Our work extends these previous results in several ways: a)
+we consider deep networks, b) we generalize to ResNet ar-
+chitectures, and c) we generalize to convolutional network s.
+To improve the width dependence mon sample size n, we
+utilize a smooth activation (e.g. smooth ReLU). For ex-
+ample, our results specialized to depth H= 1 improve
+upon ( Du et al. ,2018b ) in the required amount of over-
+parametrization from m= Ω/parenleftbig
+n6/parenrightbig
+tom= Ω/parenleftbig
+n4/parenrightbig
+. See
+Theorem 5.1for the precise statement.
+Chizat & Bach (2018b ) brought to our attention the paper
+ofJacot et al. (2018 ) which proved a similar weight stabil-
+ity phenomenon for deep networks, but only in the asymp-
+totic setting of inﬁnite-width networks and gradient ﬂow
+run for a ﬁnite time. Jacot et al. (2018 ) do not establish the
+convergence of gradient ﬂow to a global minimizer. In lieu
+of their results, our work can be viewed as a generaliza-
+tion of their result to: a) ﬁnite width, b) gradient descent
+as opposed to gradient ﬂow, and c) convergence to a global
+minimizer.
+Mei et al. (2018 ); Chizat & Bach
+(2018a ); Sirignano & Spiliopoulos (2018 );
+Rotskoff & Vanden-Eijnden (2018 );Wei et al. (2018 )
+used optimal transport theory to analyze gradient descent
+on over-parameterized models. However, their results are
+limited to two-layer neural networks and may require an
+exponential amount of over-parametrization.
+Daniely (2017 ) developed the connection between deep
+neural networks with kernel methods and showed stochas-Gradient Descent Finds Global Minima of Deep Neural Network s
+tic gradient descent can learn a function that is competi-
+tive with the best function in the conjugate kernel space
+of the network. Andoni et al. (2014 ) showed that gradi-
+ent descent can learn networks that are competitive with
+polynomial classiﬁers. However, these results do not im-
+ply gradient descent can ﬁnd a global minimum for the
+empirical loss minimization problem. Our analysis of the
+Gram matrices at random initialization is closely related
+to prior work on the analysis of inﬁnite-width networks
+as Gaussian Processes ( Raghu et al. ,2016 ;Matthews et al. ,
+2018 ;Lee et al. ,2017 ;Schoenholz et al. ,2016 ). Since we
+require the initialization analysis for three distinct arc hi-
+tectures (ResNet, feed-forward, and convolutional ResNet ),
+we re-derive many of these prior results in a uniﬁed fashion
+in Appendix E.
+Finally, in concurrent work, Allen-Zhu et al. (2018c ) also
+analyze gradient descent on deep neural networks. The pri-
+mary difference between the two papers is that we analyze
+general smooth activations, and Allen-Zhu et al. (2018c )
+develop speciﬁc analysis for ReLU activation. The two pa-
+pers also differ signiﬁcantly on their data assumptions. We
+wish to emphasize a fair comparison is not possible due to
+the difference in setting and data assumptions. We view the
+two papers as complementary since they address different
+neural net architectures.
+For ResNet, the primary focus of this manuscript, the
+required width per layer for Allen-Zhu et al. (2018c ) is
+m/greaterorsimilarn30H30log21
+ǫand for this paper’s Theorem 6.1is
+m/greaterorsimilarn4H2.2Our paper requires a width mthat does
+not depend on the desired accuracy ǫ. As a consequence,
+Theorem 6.1guarantees the convergence of gradient de-
+scent to a global minimizer. The iteration complexity of
+Allen-Zhu et al. (2018c ) isT/greaterorsimilarn6H2log1
+ǫand of Theo-
+rem6.1isT/greaterorsimilarn2log1
+ǫ.
+For fully-connected networks, Allen-Zhu et al. (2018c ) re-
+quires width m/greaterorsimilarn30H30log21
+ǫand iteration complex-
+ityT/greaterorsimilarn6H2log1
+ǫ. Theorem 5.1requires width m/greaterorsimilar
+n42O(H)and iteration complexity T/greaterorsimilarn22O(H)log1
+ǫ.
+The primary difference is for very deep fully-connected
+networks, Allen-Zhu et al. (2018c ) has milder dependence
+onH, but worse dependence on n. Commonly used fully-
+connected networks such as VGG are not extremely deep
+(H= 16 ), yet the dataset size such as ImageNet ( n∼106)
+is very large.
+In a second concurrent work, Zou et al. (2018 ) also an-
+alyzed the convergence of gradient descent on fully-
+connected networks with ReLU activation. The emphasis
+is on different loss functions (e.g. hinge loss), so the re-
+2In all comparisons, we ignore the polynomial dependency on
+data-dependent parameters which only depends on the input d ata
+and the activation function. The two papers use different me asures
+and are not directly comparable.sults are not directly comparable. Both Zou et al. (2018 )
+andAllen-Zhu et al. (2018c ) train a subset of the layers,
+instead of all the layers as in this work, but also analyze
+stochastic gradient.
+3. Preliminaries
+3.1. Notations
+We Let[n] ={1,2,...,n}. We use N(0,I)to denote
+the standard Gaussian distribution. For a matrix A, we
+useAijto denote its (i,j)-th entry. We will also use Ai,:
+to denote the i-th row vector of Aand deﬁne Ai,j:k=
+(Ai,j,Ai,j+1,···,Ai,k)as part of the vector. Similarly
+A:,iis thei-th column vector and Aj:k,iis a part of i-th
+column vector. For a vector v, we use/ba∇dblv/ba∇dbl2to denote the
+Euclidean norm. For a matrix Awe use/ba∇dblA/ba∇dblFto denote
+the Frobenius norm and /ba∇dblA/ba∇dbl2to denote the operator norm.
+If a matrix Ais positive semi-deﬁnite, we use λmin(A)to
+denote its smallest eigenvalue. We use /an}b∇acketle{t·,·/an}b∇acket∇i}htto denote the
+standard Euclidean inner product between two vectors or
+matrices. We let O(·)andΩ(·)denote standard Big-O and
+Big-Omega notations, only hiding constants. In this paper
+we will use Candcto denote constants. The speciﬁc value
+can be different from line to line.
+3.2. Activation Function
+We useσ(·)to denote the activation function. In this pa-
+per we impose some technical conditions on the activa-
+tion function. The guiding example is softplus: σ(z) =
+log(1+exp( z)).
+Condition 3.1 (Lipschitz and Smooth) .There exists a con-
+stantc >0such that |σ(0)| ≤cand for any z,z′∈R,
+|σ(z)−σ(z′)| ≤c|z−z′|,
+and|σ′(z)−σ′(z)| ≤c|z−z′|.
+These two conditions will be used to show the stability of
+the training process. Note for softplus both Lipschitz con-
+stant and smoothness constant are 1. In this paper, we view
+all activation function related parameters as constants.
+Condition 3.2. σ(·)is analytic and is not a polynomial
+function.
+This assumption is used to guarantee the positive-
+deﬁniteness of certain Gram matrices which we will deﬁne
+later. Softplus function satisﬁes this assumption by deﬁni -
+tion.Gradient Descent Finds Global Minima of Deep Neural Network s
+3.3. Problem Setup
+In this paper, we focus on the empirical risk minimization
+problem with the quadratic loss function
+min
+θL(θ) =1
+2n/summationdisplay
+i=1(f(θ,xi)−yi)2(1)
+where{xi}n
+i=1are the training inputs, {yi}n
+i=1are the la-
+bels,θis the parameter we optimize over and fis the pre-
+diction function, which in our case is a neural network. We
+consider the following architectures.
+•Multilayer fully-connected neural networks: Let
+x∈Rdbe the input, W(1)∈Rm×dis the ﬁrst weight
+matrix,W(h)∈Rm×mis the weight at the h-th layer
+for2≤h≤H,a∈Rmis the output layer and σ(·)
+is the activation function.3We deﬁne the prediction
+function recursively (for simplicity we let x(0)=x).
+x(h)=/radicalbiggcσ
+mσ/parenleftig
+W(h)x(h−1)/parenrightig
+,1≤h≤H
+f(x,θ) =a⊤x(H). (2)
+wherecσ=/parenleftbig
+Ex∼N(0,1)/bracketleftbig
+σ(x)2/bracketrightbig/parenrightbig−1is a scaling factor
+to normalize the input in the initialization phase.
+•ResNet4: We use the same notations as the multilayer
+fully connected neural networks. We deﬁne the pre-
+diction recursively.
+x(1)=/radicalbiggcσ
+mσ/parenleftig
+W(1)x/parenrightig
+,
+x(h)=x(h−1)+cres
+H√mσ/parenleftig
+W(h)x(h−1)/parenrightig
+for2≤h≤H,
+fres(x,θ) =a⊤x(H)(3)
+where0< cres<1is a small constant. Note here we
+use acres
+H√mscaling. This scaling plays an important
+role in guaranteeing the width per layer only needs
+to scale polynomially with H. In practice, the small
+scaling is enforced by a small initialization of the
+residual connection ( Hardt & Ma ,2016 ;Zhang et al. ,
+2019 ), which obtains state-of-the-art performance for
+3We assume intermediate layers are square matrices for sim-
+plicity. It is not difﬁcult to generalize our analysis to rec tangular
+weight matrices.
+4We will refer to this architecture as ResNet, although
+this differs by the standard ResNet architecture since the s kip-
+connections at every layer, instead of every two layers. Thi s ar-
+chitecture was previously studied in ( Hardt & Ma ,2016 ). We
+study this architecture for the ease of presentation and ana lysis.
+It is not hard to generalize our analysis to architectures wi th skip-
+connections are every two or more layers.deep residual networks. We choose to use an explicit
+scaling, instead of altering the initialization scheme
+for notational convenience.
+•Convolutional ResNet : Lastly, we consider the con-
+volutional ResNet architecture. Again we deﬁne the
+prediction function in a recursive way.
+Letx(0)∈Rd0×pbe the input, where d0is the number
+of input channels and pis the number of pixels. For
+h∈[H], we let the number of channels be dh=m
+and number of pixels be p. Givenx(h−1)∈Rdh−1×p
+forh∈[H], we ﬁrst use an operator φh(·)to divide
+x(h−1)intoppatches. Each patch has size qdh−1and
+this implies a map φh(x(h−1))∈Rqdh−1×p. For ex-
+ample, when the stride is 1andq= 3
+φh(x(h−1))
+=
+/parenleftig
+x(h−1)
+1,0:2/parenrightig⊤
+, ... ,/parenleftig
+x(h−1)
+1,p−1:p+1/parenrightig⊤
+..., ..., .../parenleftig
+x(h−1)
+dh−1,0:2/parenrightig⊤
+, ...,/parenleftig
+x(h−1)
+dh−1,p−1:p+1/parenrightig⊤
+
+where we let x(h−1)
+:,0=x(h−1)
+:,p+1=0, i.e., zero-padding.
+Note this operator has the property
+/vextenddouble/vextenddouble/vextenddoublex(h−1)/vextenddouble/vextenddouble/vextenddouble
+F≤/vextenddouble/vextenddouble/vextenddoubleφh(x(h−1))/vextenddouble/vextenddouble/vextenddouble
+F≤√q/vextenddouble/vextenddouble/vextenddoublex(h−1)/vextenddouble/vextenddouble/vextenddouble
+F.
+because each element from x(h−1)at least appears
+once and at most appears qtimes. In practice, qis of-
+ten small like 3×3, so throughout the paper we view
+qas a constant in our theoretical analysis. To proceed,
+letW(h)∈Rdh×qdh−1, we have
+x(1)=/radicalbiggcσ
+mσ/parenleftig
+W(1)φ1(x)/parenrightig
+∈Rm×p,
+x(h)=x(h−1)+cres
+H√mσ/parenleftig
+W(h)φh(x(h−1))/parenrightig
+∈Rm×p
+for2≤h≤H,
+where0< cres<1is a small constant. Finally, for
+a∈Rm×p, the output is deﬁned as
+fcnn(x,θ) =/an}b∇acketle{ta,x(H)/an}b∇acket∇i}ht.
+Note here we use the similar scaling O(1
+H√m)as
+ResNet.
+To learn the deep neural network, we consider the randomly
+initialized gradient descent algorithm to ﬁnd the global mi n-
+imizer of the empirical loss ( 1). Speciﬁcally, we use the
+following random initialization scheme. For every level
+h∈[H], each entry is sampled from a standard Gaussian
+distribution, W(h)
+ij∼N(0,1)and each entry of the outputGradient Descent Finds Global Minima of Deep Neural Network s
+layerais also sampled from N(0,1). In this paper, we
+train all layers by gradient descent, for k= 1,2,..., and
+h∈[H]
+W(h)(k) =W(h)(k−1)−η∂L(θ(k−1))
+∂W(h)(k−1),
+a(k) =a(k−1)−η∂L(θ(k−1))
+∂a(k−1)
+whereη >0is the step size.
+4. Technique Overview
+In this section, we describe our main idea of proving the
+global convergence of gradient descent. Our proof tech-
+nique is inspired by Du et al. (2018b ) who proposed to
+study the dynamics of differences between labels and pre-
+dictions. Here the individual prediction at the k-th iteration
+is
+ui(k) =f(θ(k),xi)
+and we denote u(k) = ( u1(k),...,u n(k))⊤∈
+Rn.Du et al. (2018b ) showed that for two-layer fully-
+connected neural network, the sequence {y−u(k)}∞
+k=0
+admits the following dynamics
+y−u(k+1) = (I−ηH(k))(y−u(k))
+whereH(k)∈Rn×nis a Gram matrix with5
+Hij(k) =/angbracketleftbigg∂ui(k)
+∂W(1)(k),∂uj(k)
+∂W(1)(k)/angbracketrightbigg
+.
+The key ﬁnding in ( Du et al. ,2018b ) is that if mis suf-
+ﬁciently large, H(k)≈H∞for allkwhereH∞is de-
+ﬁned asH∞
+ij=Ew∼N(0,I)/bracketleftbig
+σ′/parenleftbig
+w⊤xi/parenrightbig
+σ′/parenleftbig
+w⊤xj/parenrightbig
+x⊤
+ixj/bracketrightbig
+.
+Notably,H∞is a ﬁxed matrix which only depends on the
+training input, but does not depend on neural network pa-
+rameters θ. As a direct result, in the large mregime, the
+dynamics of {y−u(k)}∞
+k=0is approximately linear
+y−u(k+1)≈(I−ηH∞)(y−u(k)).
+For this linear dynamics, using standard analysis techniqu e
+for power method, one can show {y−u(k)}∞
+k=0converges
+to0where the rate is determined by the least eigenvalue of
+H∞and the step size η.
+We leverage this insight to our deep neural network setting.
+Again we consider the sequence {y−u(k)}∞
+k=0, which
+admits the dynamics
+y−u(k+1) = (I−ηG(k))(y−u(k))
+5This formula is for the setting that only the ﬁrst layer is
+trained.where
+Gij(k)
+=/angbracketleftbigg∂ui(k)
+∂θ(k),∂uj(k)
+∂θ(k)/angbracketrightbigg
+=H/summationdisplay
+h=1/angbracketleftbigg∂ui(k)
+∂W(h)(k),∂uj(k)
+∂W(h)(k)/angbracketrightbigg
++/angbracketleftbigg∂ui(k)
+∂a(k),∂uj(k)
+∂a(k)/angbracketrightbigg
+/definesH+1/summationdisplay
+h=1G(h)
+ij(k).
+Here we deﬁne G(h)∈Rn×nwithG(h)
+ij(k) =/angbracketleftig
+∂ui(k)
+∂W(h)(k),∂uj(k)
+∂W(h)(k)/angbracketrightig
+forh= 1,...,H and
+G(H+1)
+ij(k) =/angbracketleftig
+∂ui(k)
+∂a(k),∂uj(k)
+∂a(k)/angbracketrightig
+. Note for all h∈[H+1],
+each entry of G(h)(k)is an inner product. Therefore,
+G(h)(k)is a positive semi-deﬁnite (PSD) matrix for
+h∈[H+1]. Furthermore, if there exists one h∈[H]that
+G(h)(k)is strictly positive deﬁnite, then if one chooses the
+step sizeηto be sufﬁciently small, the loss decreases at the
+k-th iteration according the analysis of power method. In
+this paper we focus on G(H)(k), the gram matrix induced
+by the weights from H-th layer for simplicity at the cost of
+a minor degradation in convergence rate.6
+We use the similar observation in ( Du et al. ,2018b ) that we
+show if the width is large enough for all layers, for all k=
+0,1,...,G(H)(k)is close to a ﬁxed matrix K(H)∈Rn×n
+which depends on the input data, neural network architec-
+ture and the activation but does not depend on neural net-
+work parameters θ. According to the analysis of the power
+method, once we establish this, as long as K(H)is strictly
+positive deﬁnite, then the gradient descent enjoys a linear
+convergence rate. We will show for K(H)is strictly posi-
+tive deﬁnite as long as the training data is not degenerate
+(c.f. Proposition F.1andF.2).
+While following the similar high-level analysis framework
+proposed by Du et al. (2018b ), analyzing the convergence
+of gradient descent for deep neural network is signiﬁcantly
+more involved and requires new technical tools. To show
+G(H)(k)is close to K(H), we have two steps. First,
+we show in the initialization phase G(H)(0)is close to
+K(H). Second, we show during training G(H)(k)is close
+toG(H)(0)fork= 1,2,.... Below we give overviews of
+these two steps.
+Analysis of Random Initialization Unlike ( Du et al. ,
+2018b ) in which they showed H(0)is close to H∞via a
+simple concentration inequality, showing G(H)(0)is close
+toK(H)requires more subtle calculations. First, as will
+6Using the contribution of all the gram matrices to the mini-
+mum eigenvalue can potentially improve the convergence rat e.Gradient Descent Finds Global Minima of Deep Neural Network s
+be clear in the following sections, K(H)is a recursively
+deﬁned matrix. Therefore, we need to analyze how the
+perturbation (due to randomness of initialization and ﬁnit e
+m) from lower layers propagates to the H-th layer. Sec-
+ond, this perturbation propagation involves non-linear op er-
+ations due to the activation function. To quantitatively ch ar-
+acterize this perturbation propagation dynamics, we use
+induction and leverage techniques from Malliavin calcu-
+lus (Malliavin ,1995 ). We derive a general framework that
+allows us to analyze the initialization behavior for the ful ly-
+connected neural network, ResNet, convolutional ResNet
+and other potential neural network architectures in a uni-
+ﬁed way.
+One important ﬁnding in our analysis is that ResNet archi-
+tecture makes the “perturbation propagation” more stable.
+The high level intuition is the following. For fully con-
+nected neural network, suppose we have some perturbation/vextenddouble/vextenddoubleG(1)(0)−K(1)/vextenddouble/vextenddouble
+2≤ E1in the ﬁrst layer. This perturba-
+tion propagates to the H-th layer admits the form
+/vextenddouble/vextenddouble/vextenddoubleG(H)(0)−K(H)/vextenddouble/vextenddouble/vextenddouble
+2/definesEH/lessorsimilar2O(H)E1. (4)
+Therefore, we need to have E1≤1
+2O(H)and this makes m
+have exponential dependency on H.7
+On the other hand, for ResNet the perturbation propagation
+admits the form
+EH/lessorsimilar/parenleftbigg
+1+O/parenleftbigg1
+H/parenrightbigg/parenrightbiggH
+ǫ1=O(ǫ1) (5)
+Therefore we do not have the exponential explosion prob-
+lem for ResNet. We refer readers to Section Efor details.
+Analysis of Perturbation of During Training The next
+step is to show G(H)(k)is close to G(H)(0)fork=
+0,1,.... NoteG(H)depends on weight matrices from all
+layers, so to establish that G(H)(k)is close to G(H)(0), we
+need to show W(h)(k)−W(h)(0)is small for all h∈[H]
+anda(k)−a(0)is small.
+In the two-layer neural network setting ( Du et al. ,2018b ),
+they are able to show every weight vector of the ﬁrst layer
+is close to its initialization, i.e.,/vextenddouble/vextenddoubleW(1)(k)−W(1)(0)/vextenddouble/vextenddouble
+2,∞
+is small for k= 0,1,.... While establishing this condition
+for two-layer neural network is not hard, this condition may
+not hold for multi-layer neural networks. In this paper, we
+show instead, the averaged Frobenius norm
+1√m/vextenddouble/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F(6)
+7We not mean to imply that fully-connected networks neces-
+sarily depend exponentially on H, but simply to illustrate in our
+analysis why the exponential dependence arises. For speciﬁ c ac-
+tivations such as ReLU and careful initialization schemes, this
+exponential dependence may be avoided.is small for all k= 0,1,....
+Similar to the analysis in the initialization, showing Equa -
+tion ( 6) is small is highly involved because again, we need
+to analyze how the perturbation propagates. We develop
+a uniﬁed proof strategy for the fully-connected neural net-
+work, ResNet and convolutional ResNet. Our analysis in
+this step again sheds light on the beneﬁt of using ResNet
+architecture for training. The high-level intuition is sim ilar
+to Equation ( 5). See Section B,C, and Dfor details.
+5. Warm Up: Convergence Result of GD for
+Deep Fully-connected Neural Networks
+In this section, as a warm up, we show gradient descent
+with a constant positive step size converges to the global
+minimum at a linear rate. As we discussed in Section 4, the
+convergence rate depends on least eigenvalue of the Gram
+matrixK(H).
+Deﬁnition 5.1. The Gram matrix K(H)is recursively de-
+ﬁned as follows, for (i,j)∈[n]×[n], andh= 1,...,H−1
+K(0)
+ij=/an}b∇acketle{txi,xj/an}b∇acket∇i}ht,
+A(h)
+ij=/parenleftigg
+K(h−1)
+iiK(h−1)
+ij
+K(h−1)
+jiK(h−1)
+jj/parenrightigg
+, (7)
+K(h)
+ij=cσE(u,v)⊤∼N/parenleftig
+0,A(h)
+ij/parenrightig[σ(u)σ(v)],
+K(H)
+ij=cσK(H−1)
+ijE(u,v)⊤∼N/parenleftig
+0,A(H−1)
+ij/parenrightig[σ′(u)σ′(v)].
+The derivation of this Gram matrix is deferred to Sec-
+tion E. The convergence rate and the amount of over-
+parameterization depends on the least eigenvalue of this
+Gram matrix. In Section F.1we show as long as the input
+training data is not degenerate, then λmin/parenleftbig
+K(H)/parenrightbig
+is strictly
+positive. We remark that if H= 1, thenK(H)is the same
+the Gram matrix deﬁned in ( Du et al. ,2018b ).
+Now we are ready to state our main convergence result of
+gradient descent for deep fully-connected neural networks .
+Theorem 5.1 (Convergence Rate of Gradient Descent for
+Deep Fully-connected Neural Networks) .Assume for all
+i∈[n],/ba∇dblxi/ba∇dbl2= 1,|yi|=O(1)and the number of hidden
+nodes per layer
+m= Ω/parenleftigg
+2O(H)max/braceleftigg
+n4
+λ4
+min/parenleftbig
+K(H)/parenrightbig,n
+δ,n2log(Hn
+δ)
+λ2
+min/parenleftbig
+K(H)/parenrightbig/bracerightigg/parenrightigg
+whereK(H)is deﬁned in Equation (7). If we set the step
+size
+η=O/parenleftigg
+λmin/parenleftbig
+K(H)/parenrightbig
+n22O(H)/parenrightigg
+,Gradient Descent Finds Global Minima of Deep Neural Network s
+then with probability at least 1−δover the random initial-
+ization the loss, for k= 1,2,..., the loss at each iteration
+satisﬁes
+L(θ(k))≤/parenleftigg
+1−ηλmin/parenleftbig
+K(H)/parenrightbig
+2/parenrightiggk
+L(θ(0)).
+This theorem states that if the width mis large enough
+and we set step size appropriately then gradient descent
+converges to the global minimum with zero loss at linear
+rate. The main assumption of the theorem is that we need
+a large enough width of each layer. The width mdepends
+onn,Hand1/λmin/parenleftbig
+K(H)/parenrightbig
+. The dependency on nis only
+polynomial, which is the same as previous work on shal-
+low neural networks ( Du et al. ,2018b ;Li & Liang ,2018 ).
+Similar to ( Du et al. ,2018b ),malso polynomially depends
+on1/λmin/parenleftbig
+K(H)/parenrightbig
+. However, the dependency on the num-
+ber of layers His exponential. As we discussed in Sec-
+tionB.1, this exponential comes from the instability of the
+fully-connected architecture (c.f. Equation ( 4)). In the next
+section, we show with ResNet architecture, we can reduce
+the dependency on Hfrom2(H)topoly(H).
+Note the requirement of mhas three terms. The ﬁrst term is
+used to show the Gram matrix is stable during training. The
+second term is used to guarantee the output in each layer is
+approximately normalized at the initialization phase. The
+third term is used to show the perturbation of Gram matrix
+at the initialization phase is small. See Section Bfor proofs.
+The convergence rate depends step size ηandλmin/parenleftbig
+K(H)/parenrightbig
+,
+similar to ( Du et al. ,2018b ). Here we require η=
+O/parenleftbigg
+λmin(K(H))
+n22O(H)/parenrightbigg
+. WhenH= 1, this requirement is the
+same as the one used in ( Du et al. ,2018b ). However, for
+deep fully-connected neural network, we require ηto be
+exponentially small in terms of number of layers. The rea-
+son is similar to that we require mto be exponentially large.
+Again, this will be improved in the next section.
+6. Convergence Result of GD for ResNet
+In this section we consider the convergence of gradient de-
+scent for training a ResNet. We will focus on how much
+over-parameterization is needed to ensure the global con-
+vergence of gradient descent and compare it with fully-
+connected neural networks. Again we ﬁrst deﬁne the key
+Gram matrix whose least eigenvalue will determine the con-
+vergence rate.
+Deﬁnition 6.1. The Gram matrix K(H)is recursively de-
+ﬁned as follows, for (i,j)∈[n]×[n]andh= 2,...,H−1:
+K(0)
+ij=/an}b∇acketle{txi,xj/an}b∇acket∇i}ht,K(1)
+ij=E
+(u,v)⊤∼N
+0,
+K(0)
+iiK(0)
+ij
+K(0)
+jiK(0)
+jj
+
+cσσ(u)σ(v),
+b(1)
+i=√cσEu∼N(0,K(0)
+ii)[σ(u)],
+A(h)
+ij=/parenleftigg
+K(h−1)
+iiK(h−1)
+ij
+K(h−1)
+jiK(h−1)
+jj/parenrightigg
+(8)
+K(h)
+ij=K(h−1)
+ij+
+E(u,v)⊤∼N/parenleftig
+0,A(h)
+ij/parenrightig/bracketleftigg
+cresb(h−1)
+iσ(u)
+H
++cresb(h−1)
+jσ(v)
+H+c2
+resσ(u)σ(v)
+H2/bracketrightigg
+,
+b(h)
+i=b(h−1)
+i+cres
+HEu∼N(0,K(h−1)
+ii)[σ(u)],
+K(H)
+ij=c2
+res
+H2K(H−1)
+ijE(u,v)⊤∼N/parenleftig
+0,A(H−1)
+ij/parenrightig[σ′(u)σ′(v)].
+Comparing K(H)of the ResNet and the one of the fully-
+connect neural network, the deﬁnition of K(H)also de-
+pends on a series of {b(h)}H−1
+h=1. This dependency is comes
+from the skip connection block in the ResNet architecture.
+See Section E. In Section F.2, we show as long as the input
+training data is not degenerate, then λmin/parenleftbig
+K(H)/parenrightbig
+is strictly
+positive. Furthermore, λmin/parenleftbig
+K(H)/parenrightbig
+does not depend in-
+versely exponentially in H.
+Now we are ready to state our main theorem for ResNet.
+Theorem 6.1 (Convergence Rate of Gradient Descent for
+ResNet) .Assume for all i∈[n],/ba∇dblxi/ba∇dbl2= 1,|yi|=O(1)
+and the number of hidden nodes per layer
+m=Ω/parenleftigg
+max/braceleftigg
+n4
+λ4
+min/parenleftbig
+K(H)/parenrightbig
+H6,n2
+λ2
+min(K(H))H2,(9)
+n
+δ,n2log/parenleftbigHn
+δ/parenrightbig
+λ2
+min/parenleftbig
+K(H)/parenrightbig/bracerightigg/parenrightigg
+.
+If we set the step size η=O/parenleftbigg
+λmin(K(H))H2
+n2/parenrightbigg
+, then with
+probability at least 1−δover the random initialization we
+have fork= 1,2,...
+L(θ(k))≤/parenleftigg
+1−ηλmin/parenleftbig
+K(H)/parenrightbig
+2/parenrightiggk
+L(θ(0)).
+In sharp contrast to Theorem 5.1, this theorem is fully poly-
+nomial in the sense that both the number of neurons and
+the convergence rate is polynomially in nandH. Note the
+amount of over-parameterization depends on λmin/parenleftbig
+K(H)/parenrightbig
+which is the smallest eigenvalue of the H-th layer’s GramGradient Descent Finds Global Minima of Deep Neural Network s
+matrix. The main reason that we do not have any exponen-
+tial factor here is that the skip connection block makes the
+overall architecture more stable in both the initializatio n
+phase and the training phase.
+Note the requirement on mhas4terms. The ﬁrst two terms
+are used to show the Gram matrix stable during training.
+The third term is used to guarantee the output in each layer
+is approximately normalized at the initialization phase. T he
+fourth term is used to show bound the size of the pertur-
+bation of the Gram matrix at the initialization phase. See
+Section Cfor details.
+7. Convergence Result of GD for
+Convolutional ResNet
+In this section we generalize the convergence result of gra-
+dient descent for ResNet to convolutional ResNet. Again,
+we focus on how much over-parameterization is needed to
+ensure the global convergence of gradient descent. Simi-
+lar to previous sections, we ﬁrst deﬁne the K(H)for this
+architecture.
+Deﬁnition 7.1. The Gram matrix K(H)is recursively de-
+ﬁned as follows, for (i,j)∈[n]×[n],(l,r)∈[p]×[p]and
+h= 2,...,H−1,
+K(0)
+ij=φ1(xi)⊤φ1(xj)∈Rp×p,
+K(1)
+ij=E
+(u,v)∼N
+0,
+K(0)
+iiK(0)
+ij
+K(0)
+jiK(0)
+jj
+
+cσσ(u)⊤σ(v),
+b(1)
+i=√cσEu∼N/parenleftig
+0,K(0)
+ii/parenrightig[σ(u)],
+A(h)
+ij=/parenleftigg
+K(h−1)
+iiK(h−1)
+ij
+K(h−1)
+jiK(h−1)
+jj/parenrightigg
+H(h)
+ij=K(h−1)
+ij+
+E(u,v)∼N/parenleftig
+0,A(h−1)
+ij/parenrightig/bracketleftigg
+cresb(h−1)⊤
+iσ(u)
+H(10)
++cresb(h−1)⊤
+jσ(v)
+H+c2
+resσ(u)⊤σ(v)
+H2/bracketrightigg
+,
+K(h)
+ij,lr=tr/parenleftbigg
+H(h)
+ij,D(h)
+lD(h)
+r/parenrightbigg
+,
+b(h)
+i=b(h−1)
+i+cres
+HEu∼N/parenleftig
+0,K(h−1)
+ii/parenrightig[σ(u)]
+M(H)
+ij,lr=K(H−1)
+ij,lrE(u,v)∼N/parenleftig
+0,A(H−1)
+ij/parenrightig[σ′(ul)σ′(vr)]
+K(H)
+ij=tr(M(H)
+ij)
+whereuandvare both random row vectors and D(h)
+l/defines
+{s:x(h−1)
+:,s∈thelthpatch}.Note here K(h)
+ijhas dimension p×pforh= 0,...,H−1
+andKij,lrdenotes the (l,r)-th entry.
+Now we state our main convergence theorem for the convo-
+lutional ResNet.
+Theorem 7.1 (Convergence Rate of Gradient Descent for
+Convolutional ResNet) .Assume for all i∈[n],/ba∇dblxi/ba∇dblF= 1,
+|yi|=O(1)and the number of hidden nodes per layer
+m=Ω/parenleftbigg
+max/braceleftbiggn4
+λ4
+0H6,n4
+λ4
+0H2,
+n
+δ,n2log/parenleftbigHn
+δ/parenrightbig
+λ2
+0/bracerightigg
+poly(p)/parenrightigg
+. (11)
+If we set the step size η=O/parenleftig
+λ0H2
+n2poly(p)/parenrightig
+, then with proba-
+bility at least 1−δover the random initialization we have
+fork= 1,2,...
+L(θ(k))≤/parenleftigg
+1−ηλmin/parenleftbig
+K(H)/parenrightbig
+2/parenrightiggk
+L(θ(0)).
+This theorem is similar to that of ResNet. The number of
+neurons required per layer is only polynomial in the depth
+and the number of data points and step size is only polyno-
+mially small. The only extra term is poly(p)in the require-
+ment ofmandη. The analysis is also similar to ResNet
+and we refer readers to Section Dfor details.
+8. Conclusion
+In this paper, we show that gradient descent on deep over-
+parametrized networks can obtain zero training loss. Our
+proof builds on a careful analysis of the random initial-
+ization scheme and a perturbation analysis which shows
+that the Gram matrix is increasingly stable under over-
+parametrization. These techniques allow us to show that
+every step of gradient descent decreases the loss at a geo-
+metric rate.
+We list some directions for future research:
+1. The current paper focuses on the training loss, but
+does not address the test loss. It would be an im-
+portant problem to show that gradient descent can
+also ﬁnd solutions of low test loss. In particular, ex-
+isting work only demonstrate that gradient descent
+works under the same situations as kernel methods and
+random feature methods ( Daniely ,2017 ;Li & Liang ,
+2018 ;Allen-Zhu et al. ,2018a ;Arora et al. ,2019 ). To
+further investigate of generalization behavior, we be-
+lieve some algorithm-dependent analyses may be use-
+ful (Hardt et al. ,2016 ;Mou et al. ,2018 ;Chen et al. ,
+2018 ).Gradient Descent Finds Global Minima of Deep Neural Network s
+2. The width of the layers mis polynomial in all the
+parameters for the ResNet architecture, but still very
+large. Realistic networks have number of parameters,
+not width, a large constant multiple of n. We con-
+sider improving the analysis to cover commonly uti-
+lized networks an important open problem.
+3. The current analysis is for gradient descent, instead of
+stochastic gradient descent. We believe the analysis
+can be extended to stochastic gradient, while maintain-
+ing the linear convergence rate.
+4. The convergence rate can be potentially improved if
+the minimum eigenvalue takes into account the con-
+tribution of all Gram matrices, but this would consid-
+erably complicate the initialization and perturbation
+analysis.
+Acknowledgments
+We thank Lijie Chen and Ruosong Wang for useful dis-
+cussions. SSD acknowledges support from AFRL grant
+FA8750-17-2-0212 and DARPA D17AP00001. JDL ac-
+knowledges support of the ARO under MURI Award
+W911NF-11-1-0303. This is part of the collaboration
+between US DOD, UK MOD and UK Engineering and
+Physical Research Council (EPSRC) under the Multidis-
+ciplinary University Research Initiative. HL and LW ac-
+knowlege support from National Basic Research Program
+of China (973 Program) (grant no. 2015CB352502), NSFC
+(61573026) and BJNSF (L172037). Part of the work is
+done while SSD was visiting Simons Institute.
+References
+Allen-Zhu, Z., Li, Y ., and Liang, Y . Learning and gen-
+eralization in overparameterized neural networks, going
+beyond two layers. arXiv preprint arXiv:1811.04918 ,
+2018a.
+Allen-Zhu, Z., Li, Y ., and Song, Z. On the convergence
+rate of training recurrent neural networks. arXiv preprint
+arXiv:1810.12065 , 2018b.
+Allen-Zhu, Z., Li, Y ., and Song, Z. A convergence the-
+ory for deep learning via over-parameterization. arXiv
+preprint arXiv:1811.03962 , 2018c.
+Andoni, A., Panigrahy, R., Valiant, G., and Zhang, L.
+Learning polynomials with neural networks. In Interna-
+tional Conference on Machine Learning , pp. 1908–1916,
+2014.
+Arora, S., Du, S. S., Hu, W., Li, Z., and Wang, R. Fine-
+grained analysis of optimization and generalization for
+overparameterized two-layer neural networks. arXiv
+preprint arXiv:1901.08584 , 2019.Brutzkus, A. and Globerson, A. Globally optimal gradient
+descent for a ConvNet with gaussian inputs. In Interna-
+tional Conference on Machine Learning , pp. 605–614,
+2017.
+Chen, Y ., Jin, C., and Yu, B. Stability and Convergence
+Trade-off of Iterative Optimization Algorithms. arXiv
+e-prints , art. arXiv:1804.01619, Apr 2018.
+Chizat, L. and Bach, F. On the global convergence of gradi-
+ent descent for over-parameterized models using optimal
+transport. arXiv preprint arXiv:1805.09545 , 2018a.
+Chizat, L. and Bach, F. A note on lazy training in su-
+pervised differentiable programming. arXiv preprint
+arXiv:1812.07956 , 2018b.
+Daniely, A. SGD learns the conjugate kernel class of the
+network. In Advances in Neural Information Processing
+Systems , pp. 2422–2430, 2017.
+Du, S. S. and Lee, J. D. On the power of over-
+parametrization in neural networks with quadratic activa-
+tion. Proceedings of the 35th International Conference
+on Machine Learning , pp. 1329–1338, 2018.
+Du, S. S., Jin, C., Lee, J. D., Jordan, M. I., Singh, A., and
+Poczos, B. Gradient descent can take exponential time to
+escape saddle points. In Advances in Neural Information
+Processing Systems , pp. 1067–1077, 2017a.
+Du, S. S., Lee, J. D., and Tian, Y . When is a convolutional
+ﬁlter easy to learn? arXiv preprint arXiv:1709.06129 ,
+2017b.
+Du, S. S., Lee, J. D., Tian, Y ., Poczos, B., and Singh, A.
+Gradient descent learns one-hidden-layer CNN: Don’t
+be afraid of spurious local minima. Proceedings of the
+35th International Conference on Machine Learning , pp.
+1339–1348, 2018a.
+Du, S. S., Zhai, X., Poczos, B., and Singh, A. Gradient de-
+scent provably optimizes over-parameterized neural net-
+works. arXiv preprint arXiv:1810.02054 , 2018b.
+Freeman, C. D. and Bruna, J. Topology and geometry
+of half-rectiﬁed network optimization. arXiv preprint
+arXiv:1611.01540 , 2016.
+Ge, R., Huang, F., Jin, C., and Yuan, Y . Escaping from
+saddle points −online stochastic gradient for tensor de-
+composition. In Proceedings of The 28th Conference on
+Learning Theory , pp. 797–842, 2015.
+Haeffele, B. D. and Vidal, R. Global optimality in tensor
+factorization, deep learning, and beyond. arXiv preprint
+arXiv:1506.07540 , 2015.Gradient Descent Finds Global Minima of Deep Neural Network s
+Hardt, M. and Ma, T. Identity matters in deep learning.
+arXiv preprint arXiv:1611.04231 , 2016.
+Hardt, M., Recht, B., and Singer, Y . Train faster, gen-
+eralize better: Stability of stochastic gradient descent.
+In Balcan, M. F. and Weinberger, K. Q. (eds.), Pro-
+ceedings of The 33rd International Conference on
+Machine Learning , volume 48 of Proceedings of
+Machine Learning Research , pp. 1225–1234, New
+York, New York, USA, 20–22 Jun 2016. PMLR. URL
+http://proceedings.mlr.press/v48/hardt16.html .
+He, K., Zhang, X., Ren, S., and Sun, J. Deep residual learn-
+ing for image recognition. In Proceedings of the IEEE
+conference on computer vision and pattern recognition ,
+pp. 770–778, 2016.
+Jacot, A., Gabriel, F., and Hongler, C. Neural tangent ker-
+nel: Convergence and generalization in neural networks.
+arXiv preprint arXiv:1806.07572 , 2018.
+Jin, C., Ge, R., Netrapalli, P., Kakade, S. M., and Jordan,
+M. I. How to escape saddle points efﬁciently. In Proceed-
+ings of the 34th International Conference on Machine
+Learning , pp. 1724–1732, 2017.
+Kawaguchi, K. Deep learning without poor local minima.
+InAdvances In Neural Information Processing Systems ,
+pp. 586–594, 2016.
+Lee, J., Bahri, Y ., Novak, R., Schoenholz, S. S., Penning-
+ton, J., and Sohl-Dickstein, J. Deep neural networks as
+gaussian processes. arXiv preprint arXiv:1711.00165 ,
+2017.
+Lee, J. D., Simchowitz, M., Jordan, M. I., and Recht, B.
+Gradient descent only converges to minimizers. In Con-
+ference on Learning Theory , pp. 1246–1257, 2016.
+Li, Y . and Liang, Y . Learning overparameterized neural
+networks via stochastic gradient descent on structured
+data. arXiv preprint arXiv:1808.01204 , 2018.
+Li, Y . and Yuan, Y . Convergence analysis of two-layer neu-
+ral networks with ReLU activation. In Advances in Neu-
+ral Information Processing Systems , pp. 597–607, 2017.
+Lu, Z., Pu, H., Wang, F., Hu, Z., and Wang, L. The expres-
+sive power of neural networks: A view from the width.
+InAdvances in Neural Information Processing Systems
+30, pp. 6231–6239. Curran Associates, Inc., 2017.
+Malliavin, P. Gaussian sobolev spaces and stochastic calcu -
+lus of variations. 1995.
+Matthews, A. G. d. G., Rowland, M., Hron, J., Turner, R. E.,
+and Ghahramani, Z. Gaussian process behaviour in wide
+deep neural networks. arXiv preprint arXiv:1804.11271 ,
+2018.Mei, S., Montanari, A., and Nguyen, P.-M. A mean ﬁeld
+view of the landscape of two-layers neural networks.
+Proceedings of the National Academy of Sciences , pp.
+E7665–E7671, 2018.
+Mou, W., Wang, L., Zhai, X., and Zheng, K. Generalization
+bounds of sgld for non-convex learning: Two theoretical
+viewpoints. In Bubeck, S., Perchet, V ., and Rigollet, P.
+(eds.), Proceedings of the 31st Conference On Learning
+Theory , volume 75 of Proceedings of Machine Learning
+Research , pp. 605–638. PMLR, 06–09 Jul 2018. URL
+http://proceedings.mlr.press/v75/mou18a.html .
+Nguyen, Q. and Hein, M. The loss surface of deep and
+wide neural networks. In International Conference on
+Machine Learning , pp. 2603–2612, 2017.
+Raghu, M., Poole, B., Kleinberg, J., Ganguli, S., and Sohl-
+Dickstein, J. On the expressive power of deep neural
+networks. arXiv preprint arXiv:1606.05336 , 2016.
+Rotskoff, G. M. and Vanden-Eijnden, E. Neural networks
+as interacting particle systems: Asymptotic convexity of
+the loss landscape and universal scaling of the approxi-
+mation error. arXiv preprint arXiv:1805.00915 , 2018.
+Safran, I. and Shamir, O. On the quality of the initial basin
+in overspeciﬁed neural networks. In International Con-
+ference on Machine Learning , pp. 774–782, 2016.
+Safran, I. and Shamir, O. Spurious local minima are com-
+mon in two-layer ReLU neural networks. In Interna-
+tional Conference on Machine Learning , pp. 4433–4441,
+2018.
+Schoenholz, S. S., Gilmer, J., Ganguli, S., and Sohl-
+Dickstein, J. Deep information propagation. arXiv
+preprint arXiv:1611.01232 , 2016.
+Sirignano, J. and Spiliopoulos, K. Mean ﬁeld analysis
+of neural networks. arXiv preprint arXiv:1805.01053 ,
+2018.
+Soltanolkotabi, M. Learning ReLUs via gradient descent.
+InAdvances in Neural Information Processing Systems ,
+pp. 2007–2017, 2017.
+Soltanolkotabi, M., Javanmard, A., and Lee, J. D. Theo-
+retical insights into the optimization landscape of over-
+parameterized shallow neural networks. IEEE Transac-
+tions on Information Theory , 2018.
+Soudry, D. and Carmon, Y . No bad local minima: Data in-
+dependent training error guarantees for multilayer neural
+networks. arXiv preprint arXiv:1605.08361 , 2016.
+Soudry, D. and Hoffer, E. Exponentially vanishing sub-
+optimal local minima in multilayer neural networks.
+arXiv preprint arXiv:1702.05777 , 2017.Gradient Descent Finds Global Minima of Deep Neural Network s
+Tian, Y . An analytical formula of population gradient for
+two-layered ReLU network and its applications in con-
+vergence and critical point analysis. In International
+Conference on Machine Learning , pp. 3404–3413, 2017.
+Venturi, L., Bandeira, A., and Bruna, J. Neural networks
+with ﬁnite intrinsic dimension have no spurious valleys.
+arXiv preprint arXiv:1802.06384 , 2018.
+Vershynin, R. Introduction to the non-asymptotic analy-
+sis of random matrices. arXiv preprint arXiv:1011.3027 ,
+2010.
+Wei, C., Lee, J. D., Liu, Q., and Ma, T. On the margin
+theory of feedforward neural networks. arXiv preprint
+arXiv:1810.05369 , 2018.
+Zagoruyko, S. and Komodakis, N. Wide residual networks.
+NIN, 8:35–67, 2016.
+Zhang, C., Bengio, S., Hardt, M., Recht, B., and Vinyals,
+O. Understanding deep learning requires rethinking gen-
+eralization. arXiv preprint arXiv:1611.03530 , 2016.
+Zhang, H., Dauphin, Y . N., and Ma, T. Resid-
+ual learning without normalization via bet-
+ter initialization. In International Conference
+on Learning Representations , 2019. URL
+https://openreview.net/forum?id=H1gsz30cKX .
+Zhang, X., Yu, Y ., Wang, L., and Gu, Q. Learning one-
+hidden-layer relu networks via gradient descent. arXiv
+preprint arXiv:1806.07808 , 2018.
+Zhong, K., Song, Z., and Dhillon, I. S. Learning non-
+overlapping convolutional neural networks with multiple
+kernels. arXiv preprint arXiv:1711.03440 , 2017a.
+Zhong, K., Song, Z., Jain, P., Bartlett, P. L., and Dhillon,
+I. S. Recovery guarantees for one-hidden-layer neural
+networks. arXiv preprint arXiv:1706.03175 , 2017b.
+Zhou, Y . and Liang, Y . Critical points of neural net-
+works: Analytical forms and landscape properties. arXiv
+preprint arXiv:1710.11205 , 2017.
+Zou, D., Cao, Y ., Zhou, D., and Gu, Q. Stochastic gra-
+dient descent optimizes over-parameterized deep ReLU
+networks. arXiv preprint arXiv:1811.08888 , 2018.Gradient Descent Finds Global Minima of Deep Neural Network s
+Appendix
+In the proof we will use the geometric series function gα(n) =/summationtextn−1
+i=0αiextensively. Some constants we will deﬁne below
+may be different for different network structures, such as cx,cw,0andcx,0. We will also use cto denote a small enough
+constant, which may be different in different lemmas. For si mplicity, we use λ0to denote λmin/parenleftbig
+K(H)/parenrightbig
+in the proofs.
+A. Proof Sketch
+Note we can write the loss as
+L(θ(k)) =1
+2/ba∇dbly−u(k)/ba∇dbl2
+2.
+Our proof is by induction. Our induction hypothesis is just t he following convergence rate of empirical loss.
+Condition A.1. At thek-th iteration, we have
+/ba∇dbly−u(k)/ba∇dbl2
+2≤(1−ηλ0
+2)k/ba∇dbly−u(0)/ba∇dbl2
+2.
+Note this condition implies the conclusions we want to prove . To prove Condition A.1, we consider one iteration on the
+loss function.
+/ba∇dbly−u(k+1)/ba∇dbl2
+2
+=/ba∇dbly−u(k)−(u(k+1)−u(k))/ba∇dbl2
+2
+=/ba∇dbly−u(k)/ba∇dbl2
+2−2(y−u(k))⊤(u(k+1)−u(k))+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2. (12)
+This equation shows if 2(y−u(k))⊤(u(k+1)−u(k))>/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2, the loss decreases. Note both terms
+involvesu(k+1)−u(k), which we will carefully analyze. To simplify notations, we deﬁne
+u′
+i(θ)/defines∂ui
+∂θ, u′(h)
+i(θ)/defines∂ui
+∂W(h), u′(a)
+i(θ)/defines∂ui
+∂aandL′(θ) =∂L(θ)
+∂θ, L′(h)(W(h)) =∂L(θ)
+∂W(h), L′(a)(θ)/defines∂L
+∂a.
+We look one coordinate of u(k+1)−u(k).
+Using Taylor expansion, we have
+ui(k+1)−ui(k)
+=ui(θ(k)−ηL′(θ(k)))−ui(θ(k))
+=−/integraldisplayη
+s=0/an}b∇acketle{tL′(θ(k)),u′
+i(θ(k)−sL′(θ(k)))/an}b∇acket∇i}htds
+=−/integraldisplayη
+s=0/an}b∇acketle{tL′(θ(k)),u′
+i(θ(k))/an}b∇acket∇i}htds+/integraldisplayη
+s=0/an}b∇acketle{tL′(θ(k)),u′
+i(θ(k))−u′
+i(θ(k)−sL′(θ(k)))/an}b∇acket∇i}htds
+/definesIi
+1(k)+Ii
+2(k).
+DenoteI1(k) =/parenleftbig
+I1
+1(k),...,In
+1(k)/parenrightbig⊤andI2(k) =/parenleftbig
+I1
+2(k),...,In
+2(k)/parenrightbig⊤and sou(k+1)−u(k) =I1(k) +I2(k). We
+will show the I1(k)term, which is proportional to η, drives the loss function to decrease and the I2(k)term, which is a
+perturbation term but it is proportional to η2so it is small. We further unpack the Ii
+1(k)term,
+Ii
+1=−η/an}b∇acketle{tL′(θ(k)),u′
+i(θ(k))/an}b∇acket∇i}ht
+=−ηn/summationdisplay
+j=1(uj−yj)/an}b∇acketle{tu′
+j(θ(k)),u′
+i(θ(k))/an}b∇acket∇i}ht
+/defines−ηn/summationdisplay
+j=1(uj−yj)H+1/summationdisplay
+h=1G(h)
+ij(k)Gradient Descent Finds Global Minima of Deep Neural Network s
+According to Section 4, we will only look at G(H)matrix which has the following form
+G(H)
+i,j(k) = (x(H−1)
+i(k))⊤x(H−1)
+j(k)·cσ
+mm/summationdisplay
+r=1a2
+rσ′((θ(H)
+r(k))⊤x(H−1)
+i(k))σ′((θ(H)
+r(k))⊤x(H−1)
+j(k)).
+Now we analyze I1(k). We can write I1in a more compact form with G(k).
+I1(k) =−ηG(k)(u(k)−y).
+Now observe that
+(y−u(k))⊤I1(k) =η(y−u(k))⊤G(k)(y−u(k))
+≥λmin(G(k))/ba∇dbly−u(k)/ba∇dbl2
+2
+≥λmin/parenleftig
+G(H)(k)/parenrightig
+/ba∇dbly−u(k)/ba∇dbl2
+2
+Now recall the progress of loss function in Equation ( 12):
+/ba∇dbly−u(k+1)/ba∇dbl2
+2
+=/ba∇dbly−u(k)/ba∇dbl2
+2−2(y−u(k))⊤I1(k)−2(y−u(k))⊤I2(k)+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2
+≤/parenleftig
+1−ηλmin/parenleftig
+G(H)(k)/parenrightig/parenrightig
+/ba∇dbly−u(k)/ba∇dbl2
+2−2(y−u(k))⊤I2(k)+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2.
+For the perturbation terms, through standard calculations , we can show both −2(y−u(k))⊤I2(k)and
+/ba∇dblu(k+1)−u(k)/ba∇dbl2are proportional to η2/ba∇dbly−u(k)/ba∇dbl2
+2so if we set ηsufﬁciently small, this term is smaller than
+ηλmin/parenleftbig
+G(H)(k)/parenrightbig
+/ba∇dbly−u(k)/ba∇dbl2
+2and thus the loss function decreases with a linear rate.
+Therefore, to prove the induction hypothesis, it sufﬁces to proveλmin/parenleftbig
+G(H)(k)/parenrightbig
+≥λ0
+2fork′= 0,...,k , whereλ0is
+independent of m. To analyze the least eigenvalue, we ﬁrst look at the initial ization. Using assumptions of the population
+Gram matrix and concentration inequalities, we can show at t he beginning/vextenddouble/vextenddoubleG(H)(0)−K(H)(0)/vextenddouble/vextenddouble
+2≤1
+4λ0, which implies
+λmin/parenleftig
+G(H)(0)/parenrightig
+≥3
+4λ0.
+Now for the k-th iteration, by matrix perturbation analysis, we know it i s sufﬁcient to show/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble
+2≤1
+4λ0.
+To do this, we use a similar approach as in ( Du et al. ,2018b ). We show as long as mis large enough, every weight matrix is
+close its initialization in a relative error sense. Ignorin g all other parameters except m,/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble
+F/lessorsimilar1, and
+thus the average per-neuron distance from initialization i s/ba∇dblW(h)(k)−W(h)(0)/ba∇dblF √m/lessorsimilar1√mwhich tends to zero as mincreases.
+See Lemma B.5for precise statements with all the dependencies.
+This fact in turn shows/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble
+2is small. The main difference from ( Du et al. ,2018b ) is that
+we are considering deep neural networks, and when translati ng the small deviation,/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble
+Fto/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble
+2, there is an ampliﬁcation factor which depends on the neural network architecture.
+For deep fully connected neural networks, we show this ampli ﬁcation factor is exponential in H. On the other hand, for
+ResNet and convolutional ResNet we show this ampliﬁcation f actor is only polynomial in H. We further show the width
+mrequired is proportional to this ampliﬁcation factor.
+B. Proofs for Section 5
+We ﬁrst derive the formula of the gradient for the multilayer fully connected neural network
+∂L(θ)
+∂W(h)=/parenleftigcσ
+m/parenrightigH−h+1
+2n/summationdisplay
+i=1(f(xi,θ)−yi)x(h−1)
+ia⊤/parenleftiggH/productdisplay
+k=h+1J(k)
+iW(k)/parenrightigg
+J(h)
+iGradient Descent Finds Global Minima of Deep Neural Network s
+where
+J(h′)/definesdiag/parenleftig
+σ′/parenleftig
+(w(h′)
+1)⊤x(h′−1)/parenrightig
+,...,σ′/parenleftig
+(w(h′)
+m)⊤x(h′−1)/parenrightig/parenrightig
+∈Rm×m
+are the derivative matrices induced by the activation funct ion and
+x(h′)=/radicalbiggcσ
+mσ/parenleftig
+W(h′)x(h′−1)/parenrightig
+.
+is the output of the h′-th layer.
+Through standard calculation, we can get the expression of G(H)
+i,jof the following form
+G(H)
+i,j= (x(H−1)
+i)⊤x(H−1)
+j·cσ
+mm/summationdisplay
+r=1a2
+rσ′((w(H)
+r)⊤x(H−1)
+i)σ′((w(H)
+r)⊤x(H−1)
+j). (13)
+We ﬁrst present a lemma which shows with high probability the feature of each layer is approximately normalized.
+Lemma B.1 (Lemma on Initialization Norms) .Ifσ(·)isL−Lipschitz and m= Ω/parenleftig
+nHgC(H)2
+δ/parenrightig
+, where C/defines
+cσL/parenleftig
+2|σ(0)|/radicalig
+2
+π+2L/parenrightig
+, then with probability at least 1−δover random initialization, for every h∈[H]andi∈[n],
+we have1
+cx,0≤/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2≤cx,0
+wherecx,0= 2.
+We follow the proof sketch described in Section A. We ﬁrst analyze the spectral property of G(H)(0)at the initialization
+phase. The following lemma lower bounds its least eigenvalu e. This lemma is a direct consequence of results in Section E.
+Lemma B.2 (Least Eigenvalue at the Initialization) .Ifm= Ω/parenleftig
+n2log(Hn/δ)2O(H)
+λ2
+0/parenrightig
+, we have
+λmin(G(H)(0))≥3
+4λ0.
+Now we proceed to analyze the training process. We prove the f ollowing lemma which characterizes how the perturbation
+from weight matrices propagates to the input of each layer. T his Lemma is used to prove the subsequent lemmas.
+Lemma B.3. Suppose for every h∈[H],/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble
+2≤cw,0√m,/vextenddouble/vextenddoublex(h)(0)/vextenddouble/vextenddouble
+2≤cx,0and/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble
+F≤√mR for some constant cw,0,cx,0>0andR≤cw,0. Ifσ(·)isL−Lipschitz, we have
+/vextenddouble/vextenddouble/vextenddoublex(h)(k)−x(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤√cσLcx,0gcx(h)R
+wherecx= 2√cσLcw,0.
+Here the assumption of/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble
+2≤cw,0√mcan be shown using Lemma G.2and taking union bound over h∈[H],
+wherecw,0is a universal constant. Next, we show with high probability over random initialization, perturbation in weight
+matrices leads to small perturbation in the Gram matrix.
+Lemma B.4. Supposeσ(·)isL−Lipschitz and β−smooth. Suppose for h∈[H],/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble
+2≤cw,0√m,/ba∇dbla(0)/ba∇dbl2≤
+a2,0√m,/ba∇dbla(0)/ba∇dbl4≤a4,0m1/4,1
+cx,0≤/vextenddouble/vextenddoublex(h)(0)/vextenddouble/vextenddouble
+2≤cx,0, if/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble
+F,/ba∇dbla(k)−a(0)/ba∇dbl2≤√mR where
+R≤cgcx(H)−1λ0n−1andR≤cgcx(H)−1for some small constant candcx= 2√cσLcw,0, we have
+/vextenddouble/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤λ0
+4.
+Here the assumption of /ba∇dbla(0)/ba∇dbl2≤a2,0√m,/ba∇dbla(0)/ba∇dbl4≤a4,0m1/4can be easily obtained using standard concentration
+inequalities, where a2,0anda4,0are both universal constants. The following lemma shows if t he induction holds, we have
+every weight matrix close to its initialization.Gradient Descent Finds Global Minima of Deep Neural Network s
+Lemma B.5. If Condition A.1holds for k′= 1,...,k , we have for any s= 1,...,k+1
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F,/ba∇dbla(s)−a(0)/ba∇dbl2≤R′√m
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(s−1)/vextenddouble/vextenddouble/vextenddouble
+F,/ba∇dbla(s)−a(s−1)/ba∇dbl2≤ηQ′(s−1)
+whereR′=16cx,0a2,0(cx)H√n/bardbly−u(0)/bardbl2
+λ0√m≤cgcx(H)−1for some small constant cwithcx= max{2√cσLcw,0,1}and
+Q′(s) = 4cx,0a2,0(cx)H√n/ba∇dbly−u(s)/ba∇dbl2
+Now we proceed to analyze the perturbation terms.
+Lemma B.6. If Condition A.1holds for k′= 1,...,k , suppose η≤cλ0/parenleftbig
+n2H2(cx)3Hg2cx(H)/parenrightbig−1for some small
+constantc, we have
+/ba∇dblI2(k)/ba∇dbl2≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2.
+Lemma B.7. If Condition A.1holds for k′= 1,...,k , suppose η≤cλ0/parenleftbig
+n2H2(cx)2Hg2cx(H)/parenrightbig−1for some small
+constantc, then we have /ba∇dblu(k+1)−u(k)/ba∇dbl2
+2≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2
+2.
+We now proceed with the proof of Theorem 5.1. By induction, we assume Condition A.1for allk′< k. Using Lemma
+B.5, this establishes
+/vextenddouble/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤R′√m
+≤R√m (using the choice of min the theorem.)
+By Lemma B.4, this establishes λmin(G(H)(k))≥λ0
+2.
+With these estimates in hand, we are ready to prove the induct ion hypothesis of Condition A.1.
+/ba∇dbly−u(k+1)/ba∇dbl2
+2
+=/ba∇dbly−u(k)/ba∇dbl2
+2−2η(y−u(k))⊤G(k)(y−u(k))−2(y−u(k))⊤I2+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2
+≤ /ba∇dbly−u(k)/ba∇dbl2
+2−2η(y−u(k))⊤G(H)(k)(y−u(k))−2(y−u(k))⊤I2+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2
+≤(1−ηλ0)/ba∇dbly−u(k)/ba∇dbl2
+2−2(y−u(k))⊤I2+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2
+≤(1−ηλ0
+2)/ba∇dbly−u(k)/ba∇dbl2
+2.
+The ﬁrst inequality drops the positive terms (y−u(k))⊤/summationtext
+h∈[H+1],h/negationslash=HG(h)(k)(y−u(k)). The second inequality uses
+the argument above that establishes λmin(G(H)(k))≥λ0
+2. The third inequality uses Lemmas B.6andB.7.
+B.1. Proofs of Lemmas
+Proof of Lemma B.1.We will bound/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2by induction on layers. The induction hypothesis is that wit h probability
+at least1−(h−1)δ
+nHoverW(1)(0),...,W(h−1)(0), for every 1≤h′≤h−1,1
+2≤1−gC(h′)
+2gC(H)≤/vextenddouble/vextenddouble/vextenddoublex(h′)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2≤
+1 +gC(h′)
+2gC(H)≤2. Note that it is true for h= 1. We calculate the expectation of/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2over the randomness from
+W(h)(0). Recall
+/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2=cσ
+mm/summationdisplay
+r=1σ/parenleftig
+w(h)
+r(0)⊤x(h−1)
+i(0)/parenrightig2
+.
+Therefore we have
+E/bracketleftbigg/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2/bracketrightbigg
+=cσE/bracketleftbigg
+σ/parenleftig
+w(h)
+r(0)⊤x(h−1)
+i(0)/parenrightig2/bracketrightbiggGradient Descent Finds Global Minima of Deep Neural Network s
+=cσEX∼N(0,1)σ(/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2X)2.
+Note that σ(·)isL−Lipschitz, for any1
+2≤α≤2, we have
+/vextendsingle/vextendsingleEX∼N(0,1)σ(αX)2−EX∼N(0,1)σ(X)2/vextendsingle/vextendsingle
+≤EX∼N(0,1)/vextendsingle/vextendsingleσ(αX)2−σ(X)2/vextendsingle/vextendsingle
+≤L|α−1|EX∼N(0,1)|X(σ(αX)+σ(X))|
+≤L|α−1|EX∼N(0,1)|X|(|2σ(0)|+L|(α+1)X|)
+≤L|α−1|/parenleftbig
+2|σ(0)|EX∼N(0,1)|X|+L|α+1|EX∼N(0,1)X2/parenrightbig
+=L|α−1|/parenleftigg
+2|σ(0)|/radicalbigg
+2
+π+L|α+1|/parenrightigg
+≤C
+cσ|α−1|,
+whereC/definescσL/parenleftig
+2|σ(0)|/radicalig
+2
+π+2L/parenrightig
+, which implies
+1−CgC(h−1)
+2gC(H)≤E/bracketleftbigg/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2/bracketrightbigg
+≤1+CgC(h−1)
+2gC(H).
+For the variance we have
+Var/bracketleftbigg/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2/bracketrightbigg
+=c2
+σ
+mVar/bracketleftbigg
+σ/parenleftig
+w(h)
+r(0)⊤x(h−1)
+i(0)/parenrightig2/bracketrightbigg
+≤c2
+σ
+mE/bracketleftbigg
+σ/parenleftig
+w(h)
+r(0)⊤x(h−1)
+i(0)/parenrightig4/bracketrightbigg
+≤c2
+σ
+mE/bracketleftbigg/parenleftig
+|σ(0)|+L/vextendsingle/vextendsingle/vextendsinglew(h)
+r(0)⊤x(h−1)
+i(0)/vextendsingle/vextendsingle/vextendsingle/parenrightig4/bracketrightbigg
+≤C2
+m.
+whereC2/definesσ(0)4+ 8|σ(0)|3L/radicalbig
+2/π+ 24σ(0)2L2+ 64σ(0)L3/radicalbig
+2/π+ 512L4and the last inequality we used the
+formula for the ﬁrst four absolute moments of Gaussian.
+Applying Chebyshev’s inequality and plugging in our assump tion onm, we have with probability 1−δ
+nHoverW(h),
+/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2−E/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2/vextendsingle/vextendsingle/vextendsingle/vextendsingle≤1
+2gC(H).
+Thus with probability 1−hδ
+nHoverW(1),...,W(h),
+/vextendsingle/vextendsingle/vextendsingle/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2−1/vextendsingle/vextendsingle/vextendsingle≤/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2−1/vextendsingle/vextendsingle/vextendsingle/vextendsingle≤CgC(h−1)
+2gC(H)+1
+2g(H)=gC(h)
+2gC(H).
+Using union bounds over [n], we prove the lemma.
+Proof of Lemma B.3.We prove this lemma by induction. Our induction hypothesis i s
+/vextenddouble/vextenddouble/vextenddoublex(h)(k)−x(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤√cσLRcx,0gcx(h),
+where
+cx= 2√cσLcw,0.Gradient Descent Finds Global Minima of Deep Neural Network s
+Forh= 0, since the input data is ﬁxed, we know the induction hypothes is holds. Now suppose the induction hypothesis
+holds for h′= 0,...,h−1, we consider h′=h.
+/vextenddouble/vextenddouble/vextenddoublex(h)(k)−x(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2=/radicalbiggcσ
+m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(h)(k)x(h−1)(k)/parenrightig
+−σ/parenleftig
+W(h)(0)x(h−1)(0)/parenrightig/vextenddouble/vextenddouble/vextenddouble
+2
+≤/radicalbiggcσ
+m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(h)(k)x(h−1)(k)/parenrightig
+−σ/parenleftig
+W(h)(k)x(h−1)(0)/parenrightig/vextenddouble/vextenddouble/vextenddouble
+2
++/radicalbiggcσ
+m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(h)(k)x(h−1)(0)/parenrightig
+−σ/parenleftig
+W(h)(0)x(h−1)(0)/parenrightig/vextenddouble/vextenddouble/vextenddouble
+2
+≤/radicalbiggcσ
+mL/parenleftig/vextenddouble/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2+/vextenddouble/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F/parenrightig
+·/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)−x(h−1)(0)/vextenddouble/vextenddouble/vextenddouble
+2
++/radicalbiggcσ
+mL/vextenddouble/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F/vextenddouble/vextenddoublexh−1(0)/vextenddouble/vextenddouble
+2
+≤/radicalbiggcσ
+mL/parenleftbig
+cw,0√m+R√m/parenrightbig√cσLRcx,0gcx(h−1)+/radicalbiggcσ
+mL√mRcx,0
+≤√cσLRcx,0(cxgcx(h−1)+1)
+≤√cσLRcx,0gcx(h).
+Proof of Lemma B.4.Because Frobenius-norm of a matrix is bigger than the operat or norm, it is sufﬁcient to bound/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble
+F. For simplicity deﬁne zi,r(k) =w(H)
+r(k)⊤x(H−1)
+i(k), we have
+/vextendsingle/vextendsingle/vextendsingleG(H)
+i,j(k)−G(H)
+i,j(0)/vextendsingle/vextendsingle/vextendsingle
+=/vextendsingle/vextendsinglex(H−1)
+i(k)⊤x(H−1)
+j(k)cσ
+mm/summationdisplay
+r=1ar(k)2σ′(zi,r(k))σ′(zj,r(k))
+−x(H−1)
+i(0)⊤x(H−1)
+j(0)cσ
+mm/summationdisplay
+r=1ar(0)2σ′(zi,r(0))σ′(zj,r(0))/vextendsingle/vextendsingle
+≤/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i(k)⊤x(H−1)
+j(k)−x(H−1)
+i(0)⊤x(H−1)
+j(0)/vextendsingle/vextendsingle/vextendsinglecσ
+mm/summationdisplay
+r=1ar(0)2|σ′(zi,r(k))σ′(zj,r(k))|
++/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i(0)⊤x(H−1)
+j(0)/vextendsingle/vextendsingle/vextendsinglecσ
+m/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsinglem/summationdisplay
+r=1ar(0)2(σ′(zi,r(k))σ′(zj,r(k))−σ′(zi,r(0))σ′(zj,r(0)))/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle
++/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i(k)⊤x(H−1)
+j(k)/vextendsingle/vextendsingle/vextendsinglecσ
+m/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsinglem/summationdisplay
+r=1/parenleftbig
+ar(k)2−ar(0)2/parenrightbig
+σ′(zi,r(k))σ′(zj,r(k))/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle
+≤L2cσa2
+2,0/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i(k)⊤x(H−1)
+j(k)−x(H−1)
+i(0)⊤x(H−1)
+j(0)/vextendsingle/vextendsingle/vextendsingle
++c2
+x,0cσ
+m/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsinglem/summationdisplay
+r=1ar(0)2(σ′(zi,r(k))σ′(zj,r(k))−σ′(zi,r(0))σ′(zj,r(0)))/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle
++4L2c2
+x,0cσ
+mm/summationdisplay
+r=1/vextendsingle/vextendsinglear(k)2−ar(0)2/vextendsingle/vextendsingle
+/definesIi,j
+1+Ii,j
+2+Ii,j
+3.
+ForIi,j
+1, using Lemma B.3, we have
+Ii,j
+1=L2cσa2
+2,0/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i(k)⊤x(H−1)
+j(k)−x(H−1)
+i(0)⊤x(H−1)
+j(0)/vextendsingle/vextendsingle/vextendsingleGradient Descent Finds Global Minima of Deep Neural Network s
+≤L2cσa2
+2,0/vextendsingle/vextendsingle/vextendsingle(x(H−1)
+i(k)−x(H−1)
+i(0))⊤x(H−1)
+j(k)/vextendsingle/vextendsingle/vextendsingle+L2cσa2
+2,0/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i(0)⊤(x(H−1)
+j(k)−x(H−1)
+j(0))/vextendsingle/vextendsingle/vextendsingle
+≤cσa2
+2,0√cσL3cx,0gcx(H)R·(cx,0+√cσLcx,0gcx(H)R)+cσ√cσa2
+2,0L3cx,0gcx(H)Rcx,0
+≤3cσa2
+2,0c2
+x,0√cσL3gcx(H)R.
+ForIi,j
+2, we have
+Ii,j
+2=c2
+x,0cσ
+m/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsinglem/summationdisplay
+r=1ar(0)2σ′(zi,r(k))σ′(zj,r(k))−ar(0)2σ′(zi,r(0))σ′(zj,r(0))/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle
+≤c2
+x,0cσ
+mm/summationdisplay
+r=1ar(0)2|(σ′(zi,r(k))−σ′(zi,r(0)))σ′(zj,r(k))|+ar(0)2|(σ′(zj,r(k))−σ′(zj,r(0)))σ′(zi,r(0))|
+≤βLcσc2
+x,0
+m/parenleftiggm/summationdisplay
+r=1ar(0)2|zi,r(k)−zi,r(0)|+ar(0)2|zj,r(k)−zj,r(0)|/parenrightigg
+≤βLcσa2
+4,0c2
+x,0√m
+/radicaltp/radicalvertex/radicalvertex/radicalbtm/summationdisplay
+r=1|zi,r(k)−zi,r(0)|2+/radicaltp/radicalvertex/radicalvertex/radicalbtm/summationdisplay
+r=1|zj,r(k)−zj,r(0)|2
+.
+Using the same proof for Lemma B.3, it is easy to see
+m/summationdisplay
+r=1|zi,r(t)−zi,r(0)|2≤c2
+x,0gcx(H)2mR2.
+Thus
+Ii,j
+2≤2βcσa2
+4,0c3
+x,0Lgcx(H)R.
+ForIi,j
+3,
+Ii,j
+3= 4L2c2
+x,0cσ
+mm/summationdisplay
+r=1/vextendsingle/vextendsinglear(k)2−ar(0)2/vextendsingle/vextendsingle
+≤4L2c2
+x,0cσ
+mm/summationdisplay
+r=1|ar(k)−ar(0)||ar(k)|+|ar(k)−ar(0)||ar(0)|
+≤12L2c2
+x,0cσa2,0R.
+Therefore we can bound the perturbation
+/vextenddouble/vextenddouble/vextenddoubleG(H)(t)−G(H)(0)/vextenddouble/vextenddouble/vextenddouble
+F=/radicaltp/radicalvertex/radicalvertex/radicalbtn,n/summationdisplay
+(i,j)/vextendsingle/vextendsingle/vextendsingleG(H)
+i,j(t)−G(H)
+i,j(0)/vextendsingle/vextendsingle/vextendsingle2
+≤/bracketleftbig/parenleftbig
+2βcx,0a2
+4,0+3√cσL2/parenrightbig
+Lcσc2
+x,0a2
+2,0gcx(H)+12L2c2
+x,0cσa2,0/bracketrightbig
+nR.
+Plugging in the bound on R, we have the desired result.
+Proof of Lemma B.5.We will prove this corollary by induction. The induction hyp othesis is
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤s−1/summationdisplay
+s′=0(1−ηλ0
+2)s′/21
+4ηλ0R′√m≤R′√m,s∈[k+1],Gradient Descent Finds Global Minima of Deep Neural Network s
+/ba∇dbla(s)−a(0)/ba∇dbl2≤s−1/summationdisplay
+s′=0(1−ηλ0
+2)s′/21
+4ηλ0R′√m≤R′√m,s∈[k+1].
+First it is easy to see it holds for s′= 0. Now suppose it holds for s′= 0,...,s , we consider s′=s+1. We have
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(s)/vextenddouble/vextenddouble/vextenddouble
+F
+=η/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble/parenleftigcσ
+m/parenrightigH−h+1
+2n/summationdisplay
+i=1(yi−ui(s))x(h−1)
+i(s)/parenleftigg
+a(s)⊤/parenleftiggH/productdisplay
+k=h+1J(k)
+i(s)W(k)(s)/parenrightigg
+J(h)
+i(s)/parenrightigg/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F
+≤η/parenleftigcσ
+m/parenrightigH−h+1
+2/ba∇dbla(s)/ba∇dbl2n/summationdisplay
+i=1|yi−ui(s)|/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(s)/vextenddouble/vextenddouble/vextenddouble
+2H/productdisplay
+k=h+1/vextenddouble/vextenddouble/vextenddoubleW(k)(s)/vextenddouble/vextenddouble/vextenddouble
+2H/productdisplay
+k=h/vextenddouble/vextenddouble/vextenddoubleJ(k)(s)/vextenddouble/vextenddouble/vextenddouble
+2,
+/ba∇dbla(s+1)−a(s)/ba∇dbl2=η/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddoublen/summationdisplay
+i=1(yi−ui(s))x(H)
+i(s)/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+2.
+To bound/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(s)/vextenddouble/vextenddouble/vextenddouble
+2, we can just apply Lemma B.3and get
+/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(s)/vextenddouble/vextenddouble/vextenddouble
+2≤√cσLcx,0gcx(h)R′+cx,0≤2cx,0.
+To bound/vextenddouble/vextenddoubleW(k)(s)/vextenddouble/vextenddouble
+2, we use our assumption
+H/productdisplay
+k=h+1/vextenddouble/vextenddouble/vextenddoubleW(k)(s)/vextenddouble/vextenddouble/vextenddouble
+2≤H/productdisplay
+k=h+1/parenleftig/vextenddouble/vextenddouble/vextenddoubleW(k)(0)/vextenddouble/vextenddouble/vextenddouble
+2+/vextenddouble/vextenddouble/vextenddoubleW(k)(s)−W(k)(0)/vextenddouble/vextenddouble/vextenddouble
+2/parenrightig
+≤H/productdisplay
+k=h+1(cw,0√m+R′√m)
+=(cw,0+R′)H−hmH−h
+2
+≤(2cw,0)H−hmH−h
+2.
+Note that/vextenddouble/vextenddoubleJ(k)(s)/vextenddouble/vextenddouble
+2≤L. Plugging in these two bounds back, we obtain
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(s)/vextenddouble/vextenddouble/vextenddouble
+F≤4ηcx,0a2,0cH
+xn/summationdisplay
+i=1|yi−u(s)|
+≤4ηcx,0a2,0cH
+x√n/ba∇dbly−u(s)/ba∇dbl2
+=ηQ′(s)
+≤(1−ηλ0
+2)s/21
+4ηλ0R′√m.
+Similarly, we have
+/ba∇dbla(s+1)−a(s)/ba∇dbl2≤2ηcx,0n/summationdisplay
+i=1|yi−u(s)|
+≤ηQ′(s)
+≤(1−ηλ0
+2)s/21
+4ηλ0R′√m.
+Thus
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+FGradient Descent Finds Global Minima of Deep Neural Network s
+≤/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(s)/vextenddouble/vextenddouble/vextenddouble
+F+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤s/summationdisplay
+s′=0η(1−ηλ0
+2)s′/21
+4ηλ0R′√m.
+Similarly,
+/ba∇dbla(s+1)−a(0)/ba∇dbl2
+≤s/summationdisplay
+s′=0η(1−ηλ0
+2)s′/21
+4ηλ0R′√m.
+Proof of Lemma B.6.Fixi∈[n], we bound
+/vextendsingle/vextendsingleIi
+2(k)/vextendsingle/vextendsingle≤ηmax
+0≤s≤ηH/summationdisplay
+h=1/vextenddouble/vextenddouble/vextenddoubleL′(h)(θ(k))/vextenddouble/vextenddouble/vextenddouble
+F/vextenddouble/vextenddouble/vextenddoubleu′(h)
+i(θ(k))−u′(h)
+i/parenleftig
+θ(k)−sL′(h)(θ(k))/parenrightig/vextenddouble/vextenddouble/vextenddouble
+F.
+For the gradient norm, we have
+/vextenddouble/vextenddouble/vextenddoubleL′(h)(θ(k))/vextenddouble/vextenddouble/vextenddouble
+F
+=/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble/parenleftigcσ
+m/parenrightigH−h+1
+2n/summationdisplay
+i=1(yi−ui(k))x(h−1)
+i(k)/parenleftigg
+a(k)⊤/parenleftiggH/productdisplay
+l=h+1J(l)
+i(k)W(l)(k)/parenrightigg
+J(h)
+i(k)/parenrightigg/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F.
+Similar to the proof for Lemma B.5, we have
+/vextenddouble/vextenddouble/vextenddoubleL′(h)(θ(k))/vextenddouble/vextenddouble/vextenddouble
+F≤Q′(k).
+Letθ(k,s) =θ(k)−sL′(θ(k)),
+/vextenddouble/vextenddouble/vextenddoubleu′(h)
+i(θ(k))−u′(h)
+i(θ(k,s))/vextenddouble/vextenddouble/vextenddouble
+F
+=/parenleftigcσ
+m/parenrightigH−h+1
+2/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(k)/parenleftigg
+a(k)⊤/parenleftiggH/productdisplay
+l=h+1J(l)
+i(k)W(l)(k)/parenrightigg
+J(h)
+i(k)/parenrightigg
+−x(h−1)
+i(k,s)/parenleftigg
+a(k,s)⊤/parenleftiggH/productdisplay
+l=h+1J(l)
+i(k,s)W(l)(k,s)/parenrightigg
+J(h)
+i(k,s)/parenrightigg/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F
+Through standard calculations, we have
+/vextenddouble/vextenddouble/vextenddoubleW(l)(k)−W(l)(k,s)/vextenddouble/vextenddouble/vextenddouble
+F≤ηQ′(k),
+/ba∇dbla(k)−a(k,s)/ba∇dbl2≤ηQ′(k),
+/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(k)−x(h−1)
+i(k,s)/vextenddouble/vextenddouble/vextenddouble
+F≤2η√cσLcx,0g2cx(H)Q′(k)√m,
+/vextenddouble/vextenddouble/vextenddoubleJ(l)
+i(k)−J(l)
+i(k,s)/vextenddouble/vextenddouble/vextenddouble
+F≤2ηβ√cσLcx,0g2cx(H)Q′(k).
+According to Lemma G.1, we have
+/vextenddouble/vextenddouble/vextenddoubleu′(h)
+i(w(k))−u′(h)
+i(w(k,s))/vextenddouble/vextenddouble/vextenddouble
+FGradient Descent Finds Global Minima of Deep Neural Network s
+≤4cx,0a2,0cH
+xηQ′(k)√m/parenleftbiggH
+2+/bracketleftbigg1
+2cx,0+Hβ√m
+L/bracketrightbigg
+2√cσLcx,0g2cx(H)/parenrightbigg
+≤16H√cσc2
+x,0a2,0cH
+xg2cx(H)βηQ′(k).
+Thus we have
+/vextendsingle/vextendsingleIi
+2/vextendsingle/vextendsingle≤16H2√cσc2
+x,0a2,0cH
+xg2cx(H)βη2Q′(k)2.
+Since this holds for all i∈[n], plugging in ηand noting that /ba∇dbly−u(0)/ba∇dbl2=O(√n), we have
+/ba∇dblI2(k)/ba∇dbl2≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2.
+Proof of Lemma B.7.
+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2=n/summationdisplay
+i=1/parenleftig
+a(k+1)⊤x(H)
+i(k+1)−a(k)⊤x(H)
+i(k)/parenrightig2
+=n/summationdisplay
+i=1/parenleftig
+[a(k+1)−a(k)]⊤x(H)
+i(k+1)+a(k)⊤/bracketleftig
+x(H)
+i(k+1)−x(H)
+i(k)/bracketrightig/parenrightig2
+≤2/ba∇dbla(k+1)−a(k)/ba∇dbl2
+2n/summationdisplay
+i=1/vextenddouble/vextenddouble/vextenddoublex(H)
+i(k+1)/vextenddouble/vextenddouble/vextenddouble2
+2+2/ba∇dbla(k)/ba∇dbl2
+2n/summationdisplay
+i=1/vextenddouble/vextenddouble/vextenddoublex(H)
+i(k+1)−x(H)
+i(k)/vextenddouble/vextenddouble/vextenddouble2
+2
+≤8nη2c2
+x,0Q′(k)2+4n/parenleftbig
+2η√cσLcx,0a2
+2,0g2cx(H)Q′(k)/parenrightbig2
+≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2
+2.
+C. Proofs for Section 6
+The gradient for ResNet is
+∂L
+∂W(h)=cres
+H√mn/summationdisplay
+i=1(yi−ui)x(h−1)
+i·/bracketleftigg
+a⊤H/productdisplay
+l=h+1/parenleftbigg
+I+cres
+H√mJ(l)
+iW(l)/parenrightbigg
+J(h)
+i/bracketrightigg
+For ResNets, G(H)has the following form:
+G(H)
+ij=c2
+res
+H2m(x(H−1)
+i)⊤x(H−1)
+jm/summationdisplay
+r=1a2
+rσ′((w(H)
+r)⊤x(H−1)
+i)σ′((w(H)
+r)⊤x(H−1)
+j). (14)
+Similar to Lemma B.1, we can show with high probability the feature of each layer i s approximately normalized.
+Lemma C.1 (Lemma on Initialization Norms) .Ifσ(·)isL−Lipschitz and m= Ω/parenleftbign
+δ/parenrightbig
+, assuming/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble
+2≤cw,0√m
+forh∈[2,H]andcw,0≈2for Gaussian initialization. We have with probability at le ast1−δover random initialization,
+for every h∈[H]andi∈[n],
+1
+cx,0≤/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2≤cx,0
+for some universal constant cx,0>1(only depends on σ).
+The following lemma lower bounds G(H)(0)’s least eigenvalue. This lemma is a direct consequence of re sults in Section E.
+Lemma C.2 (Least Eigenvalue at the Initialization) .Ifm= Ω/parenleftig
+n2log(Hn/δ)
+λ2
+0/parenrightig
+, we have
+λmin(G(H)(0))≥3
+4λ0.Gradient Descent Finds Global Minima of Deep Neural Network s
+Next, we characterize how the perturbation on the weight mat rices affects the input of each layer.
+Lemma C.3. Suppose σ(·)isL-Lipschitz and for h∈[H],/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble
+2≤cw,0√m,/vextenddouble/vextenddoublex(h)(0)/vextenddouble/vextenddouble
+2≤cx,0and/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble
+F≤√mR for some constant cw,0,cx,0>0andR≤cw,0. Then we have
+/vextenddouble/vextenddouble/vextenddoublex(h)(k)−x(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤/parenleftbigg√cσL+cx,0
+cw,0/parenrightbigg
+e2crescw,0LR.
+Next, we characterize how the perturbation on the weight mat rices affect G(H).
+Lemma C.4. Supposeσ(·)is differentiable, L−Lipschitz and β−smooth. Using the same notations in Lemma B.4, if/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble
+F,/ba∇dbla(k)−a(0)/ba∇dbl2≤√mR whereR≤cλ0H2n−1andR≤cfor some small constant c, we
+have
+/vextenddouble/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤λ0
+2.
+We prove Theorem 6.1by induction. Our induction hypothesis is just the followin g convergence rate of empirical loss.
+A directly corollary of this condition is the following boun d of deviation from the initialization. The proof only invol ves
+standard calculations so we defer it to appendix.
+Lemma C.5. If Condition A.1holds for k′= 1,...,k , we have for any s∈[k+1]
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F,/ba∇dbla(s)−a(0)/ba∇dbl2≤R′√m,
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(s−1)/vextenddouble/vextenddouble/vextenddouble
+F,/ba∇dbla(s)−a(s−1)/ba∇dbl2≤ηQ′(s−1),
+whereR′=16crescx,0a2,0Le2crescw,0L√n/bardbly−u(0)/bardbl2
+Hλ0√m< cfor some small constant cand
+Q′(s) = 4crescx,0a2,0Le2crescw,0L√n/ba∇dbly−u(s)/ba∇dbl2/H.
+The next lemma bounds the I2term.
+Lemma C.6. If Condition A.1holds for k′= 1,...,k andη≤cλ0H2n−2for some small constant c, we have
+/ba∇dblI2(k)/ba∇dbl2≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2.
+Next we bound the quadratic term.
+Lemma C.7. If Condition A.1holds for k′= 1,...,k andη≤cλ0H2n−2for some small constant c, we have
+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2
+2.
+Now using the same argument as in the proof for multilayer ful ly connected neural network, we ﬁnish our proof for ResNet.
+C.1. Proofs of Lemmas
+Proof of Lemma C.1.We will bound/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2layer by layer. For the ﬁrst layer, we can calculate
+E/bracketleftbigg/vextenddouble/vextenddouble/vextenddoublex(1)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2/bracketrightbigg
+=cσE/bracketleftbigg
+σ/parenleftig
+w(1)
+r(0)⊤xi/parenrightig2/bracketrightbigg
+=cσEX∼N(0,1)σ(X)2
+=1.
+Var/bracketleftbigg/vextenddouble/vextenddouble/vextenddoublex(1)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+2/bracketrightbigg
+=c2
+σ
+mVar/bracketleftbigg
+σ/parenleftig
+w(1)
+r(0)⊤xi(0)/parenrightig2/bracketrightbigg
+≤c2
+σ
+mEX∼N(0,1)σ(X)4Gradient Descent Finds Global Minima of Deep Neural Network s
+≤c2
+σ
+mE/bracketleftbigg/parenleftig
+|σ(0)|+L/vextendsingle/vextendsingle/vextendsinglew(1)
+r(0)⊤xi/vextendsingle/vextendsingle/vextendsingle/parenrightig4/bracketrightbigg
+≤C2
+m,
+whereC2/definesσ(0)4+4|σ(0)|3L/radicalbig
+2/π+6σ(0)2L2+8|σ(0)|L3/radicalbig
+2/π+32L4. We have with probability at least 1−δ
+n,
+1
+2≤/vextenddouble/vextenddouble/vextenddoublex(1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2≤2.
+By deﬁnition we have for 2≤h≤H,
+/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2−/vextenddouble/vextenddouble/vextenddouble/vextenddoublecres
+H√mσ/parenleftig
+W(h)(0)x(h−1)
+i(0)/parenrightig/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+2≤/vextenddouble/vextenddouble/vextenddoublex(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2
+≤/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2+/vextenddouble/vextenddouble/vextenddouble/vextenddoublecres
+H√mσ/parenleftig
+W(h)(0)x(h−1)(0)/parenrightig/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+2,
+where /vextenddouble/vextenddouble/vextenddouble/vextenddoublecres
+H√mσ/parenleftig
+W(h)(0)x(h−1)
+i(0)/parenrightig/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+2≤crescw,0L
+H/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2.
+Thus/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2/parenleftbigg
+1−crescw,0L
+H/parenrightbigg
+≤/vextenddouble/vextenddouble/vextenddoublex(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+2/parenleftbigg
+1+crescw,0L
+H/parenrightbigg
+,
+which implies
+1
+2e−crescw,0L≤/vextenddouble/vextenddouble/vextenddoublex(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤2ecrescw,0L.
+Choosing cx,0= 2ecrescw,0Land using union bounds over [n], we prove the lemma.
+Proof of Lemma C.3.We prove this lemma by induction. Our induction hypothesis i s
+/vextenddouble/vextenddouble/vextenddoublex(h)(k)−x(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤g(h),
+where
+g(h) =g(h−1)/bracketleftbigg
+1+2crescw,0L
+H/bracketrightbigg
++L
+HRcx,0.
+Forh= 1, we have
+/vextenddouble/vextenddouble/vextenddoublex(1)(k)−x(1)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤/radicalbiggcσ
+m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(1)(k)x/parenrightig
+−σ/parenleftig
+W(1)(0)x/parenrightig/vextenddouble/vextenddouble/vextenddouble
+2
+≤/radicalbiggcσ
+m/vextenddouble/vextenddouble/vextenddoubleW(1)(k)−W(1)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤√cσLR,
+which implies g(1) =√cσLR, for2≤h≤H, we have
+/vextenddouble/vextenddouble/vextenddoublex(h)(k)−x(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤cres
+H√m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(h)(k)x(h−1)(k)/parenrightig
+−σ/parenleftig
+W(h)(0)x(h−1)(0)/parenrightig/vextenddouble/vextenddouble/vextenddouble
+2
++/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)−x(h−1)(0)/vextenddouble/vextenddouble/vextenddouble
+2
+≤cres
+H√m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(h)(k)x(h−1)(k)/parenrightig
+−σ/parenleftig
+W(h)(k)x(h−1)(0)/parenrightig/vextenddouble/vextenddouble/vextenddouble
+2
++cres
+H√m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(h)(k)x(h−1)(0)/parenrightig
+−σ/parenleftig
+W(h)(0)x(h−1)(0)/parenrightig/vextenddouble/vextenddouble/vextenddouble
+2Gradient Descent Finds Global Minima of Deep Neural Network s
++/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)−x(h−1)(0)/vextenddouble/vextenddouble/vextenddouble
+2
+≤cresL
+H√m/parenleftig/vextenddouble/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2+/vextenddouble/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F/parenrightig
+·/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)−x(h−1)(0)/vextenddouble/vextenddouble/vextenddouble
+2
++cresL
+H√m/vextenddouble/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F/vextenddouble/vextenddoublexh−1(0)/vextenddouble/vextenddouble
+2+/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)−x(h−1)(0)/vextenddouble/vextenddouble/vextenddouble
+2
+≤/bracketleftbigg
+1+cresL
+H√m/parenleftbig
+cw,0√m+R√m/parenrightbig/bracketrightbigg
+g(h−1)+cresL
+H√m√mRcx,0
+≤/parenleftbigg
+1+2crescw,0L
+H/parenrightbigg
+g(h−1)+cres
+HLcx,0R.
+Lastly, simple calculations show g(h)≤/parenleftig√cσL+cx,0
+cw,0/parenrightig
+e2crescw,0LR.
+Proof of Lemma C.4.Similar to the proof of Lemma B.4, we can obtain
+/vextendsingle/vextendsingle/vextendsingleG(H)
+i,j(k)−G(H)
+i,j(0)/vextendsingle/vextendsingle/vextendsingle≤c2
+res
+H2/parenleftig
+Ii,j
+1+Ii,j
+2+Ii,j
+3/parenrightig
+.
+ForIi,j
+1, using Lemma C.3, we have
+Ii,j
+1=L2a2
+2,0/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i(k)⊤x(H−1)
+j(k)−x(H−1)
+i(0)⊤x(H−1)
+j(0)/vextendsingle/vextendsingle/vextendsingle
+≤L2a2
+2,0/vextendsingle/vextendsingle/vextendsingle(x(H−1)
+i(k)−x(H−1)
+i(0))⊤x(H−1)
+j(k)/vextendsingle/vextendsingle/vextendsingle+L2a2
+2,0/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i(0)⊤(x(H−1)
+i(k)−x(H−1)
+i(0))/vextendsingle/vextendsingle/vextendsingle
+≤cxL2a2
+2,0R·(cx,0+cxR)+cx,0cxL2a2
+2,0R
+≤3cx,0cxL2a2
+2,0R,
+wherecx/defines/parenleftig√cσL+cx,0
+cw,0/parenrightig
+e2crescw,0L. To bound Ii,j
+2, we have
+Ii,j
+2=c2
+x,01
+m/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsinglem/summationdisplay
+r=1ar(0)2σ′(zi,r(k))σ′(zj,r(k))−ar(0)2σ′(zi,r(0))σ′(zj,r(0))/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle
+≤c2
+x,01
+mm/summationdisplay
+r=1ar(0)2|(σ′(zi,r(k))−σ′(zi,r(0)))σ′(zj,r(k))|+ar(0)2|(σ′(zj,r(k))−σ′(zj,r(0)))σ′(zi,r(0))|
+≤βLc2
+x,0
+m/parenleftiggm/summationdisplay
+r=1ar(0)2|zi,r(k)−zi,r(0)|+ar(0)2|zj,r(k)−zj,r(0)|/parenrightigg
+≤βLa2
+4,0c2
+x,0√m
+/radicaltp/radicalvertex/radicalvertex/radicalbtm/summationdisplay
+r=1|zi,r(k)−zi,r(0)|2+/radicaltp/radicalvertex/radicalvertex/radicalbtm/summationdisplay
+r=1|zj,r(k)−zj,r(0)|2
+.
+Using the same proof for Lemma C.3, it is easy to see
+m/summationdisplay
+r=1|zi,r(k)−zi,r(0)|2≤(2cxcw,0+cx,0)2L2mR2.
+Thus
+Ii,j
+2≤2βc2
+x,0(2cxcw,0+cx,0)L2R.
+The bound of Ii,j
+3is similar to that in Lemma B.4,
+Ii,j
+3≤12L2c2
+x,0a2,0R.Gradient Descent Finds Global Minima of Deep Neural Network s
+Therefore we can bound the perturbation
+/vextenddouble/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble/vextenddouble
+F=/radicaltp/radicalvertex/radicalvertex/radicalbtn,n/summationdisplay
+(i,j)/vextendsingle/vextendsingle/vextendsingleG(H)
+i,j(k)−G(H)
+i,j(0)/vextendsingle/vextendsingle/vextendsingle2
+≤c2
+resL2nR
+H2/bracketleftbig
+3cx,0cxa2
+2,0+2βc2
+x,0(2cxcw,0+cx,0)a2
+4,0+12c2
+x,0a2,0/bracketrightbig
+.
+Plugging in the bound on R, we have the desired result.
+Proof of Lemma C.5.We will prove this corollary by induction. The induction hyp othesis is
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤s−1/summationdisplay
+s′=0(1−ηλ0
+2)s′/21
+4ηλ0R′√m≤R′√m,s∈[k+1],
+/ba∇dbla(s)−a(0)/ba∇dbl2≤s−1/summationdisplay
+s′=0(1−ηλ0
+2)s′/21
+4ηλ0R′√m≤R′√m,s∈[k+1].
+First it is easy to see it holds for s′= 0. Now suppose it holds for s′= 0,...,s , we consider s′=s+ 1. Similar to
+Lemma B.5, we have
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(s)/vextenddouble/vextenddouble/vextenddouble
+F
+≤ηLcres
+H√m/ba∇dbla/ba∇dbl2n/summationdisplay
+i=1|yi−ui(s)|/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(s)/vextenddouble/vextenddouble/vextenddouble
+2H/productdisplay
+k=h+1/vextenddouble/vextenddouble/vextenddouble/vextenddoubleI+cresλ3/2
+H√mJ(k)
+i(s)W(k)(s)/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+2
+≤2ηcrescx,0La2,0e2crescw,0L√n/ba∇dbly−u(s)/ba∇dbl2/H
+=ηQ′(s)
+≤(1−ηλ0
+2)s/21
+4ηλ0R′√m,
+Similarly, we have
+/ba∇dbla(s+1)−a(s)/ba∇dbl2≤2ηcx,0n/summationdisplay
+i=1|yi−u(s)|
+≤ηQ′(s)
+≤(1−ηλ0
+2)s/21
+4ηλ0R′√m.
+Thus
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(s)/vextenddouble/vextenddouble/vextenddouble
+F+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤s/summationdisplay
+s′=0η(1−ηλ0
+2)s′/21
+4ηλ0R′√m.
+Similarly,
+/ba∇dbla(s+1)−a(0)/ba∇dbl2Gradient Descent Finds Global Minima of Deep Neural Network s
+≤s/summationdisplay
+s′=0η(1−ηλ0
+2)s′/21
+4ηλ0R′√m.
+Proof of Lemma C.6.Similar to Lemma B.6, we ﬁrst bound the gradient norm.
+/vextenddouble/vextenddouble/vextenddoubleL′(h)(w(k))/vextenddouble/vextenddouble/vextenddouble
+F
+=/vextenddouble/vextenddoublecres
+H√mn/summationdisplay
+i=1(yi−ui(k))x(h−1)
+i(k)·/bracketleftigg
+a(k)⊤H/productdisplay
+l=h+1/parenleftbigg
+I+cres
+H√mJ(l)
+i(k)W(l)(k)/parenrightbigg
+J(h)
+i(k)/bracketrightigg
+/vextenddouble/vextenddouble
+F
+≤cresL
+H√m/ba∇dbla(k)/ba∇dbl2n/summationdisplay
+i=1|yi−ui(k)|/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)/vextenddouble/vextenddouble/vextenddouble
+2H/productdisplay
+k=h+1/vextenddouble/vextenddouble/vextenddouble/vextenddoubleI+cres
+H√mJ(k)
+i(k)W(k)(k)/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+2.
+We have bounded the RHS in the proof for Lemma C.5, thus
+/vextenddouble/vextenddouble/vextenddoubleL′(h)(θ(k))/vextenddouble/vextenddouble/vextenddouble
+F≤λ0Q′(k).
+Letθ(k,s) =θ(k)−sL′(θ(k)), we have
+/vextenddouble/vextenddouble/vextenddoubleu′(h)
+i(θ(k))−u′(h)
+i(θ(k,s))/vextenddouble/vextenddouble/vextenddouble
+F=
+cres
+H√m/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(k)a(k)⊤H/productdisplay
+l=h+1/parenleftbigg
+I+cres
+H√mJ(l)
+i(k)W(l)(k)/parenrightbigg
+J(h)
+i(k)
+−x(h−1)
+i(k,s)a(k,s)⊤H/productdisplay
+l=h+1/parenleftbigg
+I+cres
+H√mJ(l)
+i(k,s)W(l)(k,s)/parenrightbigg
+J(h)
+i(k,s)/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F.
+Through standard calculations, we have
+/vextenddouble/vextenddouble/vextenddoubleW(l)(k)−W(l)(k,s)/vextenddouble/vextenddouble/vextenddouble
+F≤ηQ′(k),
+/ba∇dbla(k)−a(k,s)/ba∇dblF≤ηQ′(k),
+/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(k)−x(h−1)
+i(k,s)/vextenddouble/vextenddouble/vextenddouble
+F≤ηcxQ′(k)√m,
+/vextenddouble/vextenddouble/vextenddoubleJ(l)(k)−J(l)(k,s)/vextenddouble/vextenddouble/vextenddouble
+F≤2(cx,0+cw,0cx)ηβQ′(k),
+wherecx/defines/parenleftig√cσL+cx,0
+cw,0/parenrightig
+e3crescw,0L. According to Lemma G.1, we have
+/vextenddouble/vextenddouble/vextenddoubleu′(h)
+i(θ(k))−u′(h)
+i(θ(k,s))/vextenddouble/vextenddouble/vextenddouble
+F
+≤4
+Hcrescx,0La2,0e2Lcw,0ηQ′(k)√m/parenleftbiggcx
+cx,0+2
+L(cx,0+cw,0cx)β√m+4cw,0(cx,0+cw,0cx)β+L+1/parenrightbigg
+≤32
+Hcrescx,0a2,0e2Lcw,0(cx,0+cw,0cx)βηQ′(k).
+Thus we have
+/vextendsingle/vextendsingleIi
+2/vextendsingle/vextendsingle≤32crescx,0a2,0e2Lcw,0(cx,0+cw,0cx)βη2Q′(k)2≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2,
+where we used the bound of ηand that/ba∇dbly−u(0)/ba∇dbl2=O(√n),.Gradient Descent Finds Global Minima of Deep Neural Network s
+Proof of Lemma C.7.
+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2=n/summationdisplay
+i=1/parenleftig
+a(k+1)⊤x(H)
+i(k+1)−a(k)⊤x(H)
+i(k)/parenrightig2
+=n/summationdisplay
+i=1/parenleftig
+[a(k+1)−a(k)]⊤x(H)
+i(k+1)+a(k)⊤/bracketleftig
+x(H)
+i(k+1)−x(H)
+i(k)/bracketrightig/parenrightig2
+≤2/ba∇dbla(k+1)−a(k)/ba∇dbl2
+2n/summationdisplay
+i=1/vextenddouble/vextenddouble/vextenddoublex(H)
+i(k+1)/vextenddouble/vextenddouble/vextenddouble2
+2+2/ba∇dbla(k)/ba∇dbl2
+2n/summationdisplay
+i=1/vextenddouble/vextenddouble/vextenddoublex(H)
+i(k+1)−x(H)
+i(k)/vextenddouble/vextenddouble/vextenddouble2
+2
+≤8nη2c2
+x,0Q′(k)2+4n(ηa2,0cxQ′(k))2
+≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2
+2.
+D. Proofs for Section 7
+For CNN, denote xi,l=φ(xi,l):,l,G(H)has the following form:
+G(H)
+ij=c2
+res
+H2mm/summationdisplay
+r=1/bracketleftiggp/summationdisplay
+l=1al,rx(H−1)
+i,lσ′/parenleftbigg/parenleftig
+w(H)
+r/parenrightig⊤
+x(H−1)
+i,l/parenrightbigg/bracketrightigg⊤/bracketleftiggp/summationdisplay
+k=1ak,rx(H−1)
+j,kσ′/parenleftbigg/parenleftig
+w(H)
+r/parenrightig⊤
+x(H−1)
+j,k/parenrightbigg/bracketrightigg
+. (15)
+We deﬁne a constant cσ,c0=/parenleftbig
+minc0≤α≤1EX∼N(0,1)σ(αX)2/parenrightbig−1>0, where0< c0≤1. In particular, it is easy to see
+for smooth ReLU, cσ,1√p= poly(p).
+Similar to Lemma B.1, we can show with high probability the feature of each layer i s approximately normalized.
+Lemma D.1 (Lemma on Initialization Norms) .Ifσ(·)isL−Lipschitz and m= Ω/parenleftigg
+p2n
+c2
+σ,1√pδ/parenrightigg
+, assuming/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble
+2≤
+cw,0√mforh∈[H], we have with probability at least 1−δover random initialization, for every h∈[H]andi∈[n],
+1
+cx,0≤/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+F≤cx,0
+for some constant cx,0=poly(p)>1.
+The following lemma lower bounds G(H)(0)’s least eigenvalue. This lemma is a direct consequence of re sults in Section E.
+Lemma D.2 (Least Eigenvalue at the Initialization) .Ifm= Ω/parenleftig
+n2p2log(Hn/δ)
+λ2
+0/parenrightig
+, we have
+λmin(G(H)(0))≥3
+4λ0.
+Next, we prove the following lemma which characterizes how t he perturbation from weight matrices propagates to the
+input of each layer.
+Lemma D.3. Suppose σ(·)isL−Lipschitz and for h∈[H],/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble
+2≤cw,0√m,/vextenddouble/vextenddoublex(h)(0)/vextenddouble/vextenddouble
+F≤cx,0and/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble
+F≤√mR for some constant cw,0,cx,0>1andR≤cw,0. Then we have
+/vextenddouble/vextenddouble/vextenddoublex(h)(k)−x(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤/parenleftbigg√cσL√q+cx,0
+cw,0/parenrightbigg
+e2cw,0L√qcresR.
+Next, we show with high probability over random initializat ion, perturbation in weight matrices leads to small perturb ation
+in the Gram matrix.Gradient Descent Finds Global Minima of Deep Neural Network s
+Lemma D.4. Supposeσ(·)is differentaible, L−Lipschitz and β−smooth. Using the same notations in Lemma B.4, if
+/ba∇dbla:,i/ba∇dbl2≤a2,0√mand/ba∇dbla:,i/ba∇dbl4≤a4,0m1/4for anyi∈[p],/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble
+F,/ba∇dbla(k)−a(0)/ba∇dblF≤√mR where
+R≤cλ0H2(n)−1poly(p)−1for some small constant c, we have
+/vextenddouble/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤λ0
+2.
+Lemma D.5. If Condition A.1holds for k′= 1,...,k , we have for any s∈[k+1]
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F,/ba∇dbla(s)−a(0)/ba∇dblF≤R′√m,
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(s−1)/vextenddouble/vextenddouble/vextenddouble
+F,/ba∇dbla(s)−a(s−1)/ba∇dblF≤ηQ′(s−1),
+whereR′=16crescx,0L√pqe2crescw,0La2,0√q√n/bardbly−u(0)/bardbl2
+Hλ0√m< cfor some small constant cand
+Q′(s) = 4crescx,0La2,0√pqe2crescw,0L√q√n/ba∇dbly−u(s)/ba∇dbl2/H.
+The follow lemma bounds the norm of I2.
+Lemma D.6. If Condition A.1holds for k′= 1,...,k andη≤cλ0H2n−2poly(1/p)for some small constant c, we have
+/ba∇dblI2(k)/ba∇dbl2≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2.
+Next we also bound the quadratic term.
+Lemma D.7. If Condition A.1holds for k′= 1,...,k andη≤cλ0H2n−2poly(1/p)for some small constant c, we have
+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2
+2.
+Now using the same argument as in the proof for multilayer ful ly connected neural network, we ﬁnish our proof for CNN.
+D.1. Proofs of Lemmas
+Proof of Lemma D.1.We will bound/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+Flayer by layer. For the ﬁrst layer, we can calculate
+E/bracketleftbigg/vextenddouble/vextenddouble/vextenddoublex(1)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+F/bracketrightbigg
+=cσp1/summationdisplay
+l=1E/bracketleftbigg
+σ/parenleftig
+w(1)
+r(0)⊤xi,l/parenrightig2/bracketrightbigg
+≥cσ
+cσ,1√p,
+where the inequality we use the deﬁnition of cσ,1√pand the fact that there must exist l′∈[p]such that /ba∇dblxi,l′/ba∇dbl2
+2≥1
+p1≥1
+p.
+For the variance,
+Var/bracketleftbigg/vextenddouble/vextenddouble/vextenddoublex(1)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+F/bracketrightbigg
+=c2
+σ
+mVar/bracketleftiggp1/summationdisplay
+l=1σ/parenleftig
+w(1)
+r(0)⊤xi,l/parenrightig2/bracketrightigg
+≤c2
+σ
+mE
+/parenleftiggp1/summationdisplay
+l=1/parenleftig
+|σ(0)|+L/vextendsingle/vextendsingle/vextendsinglew(1)
+r(0)⊤xi,l/vextendsingle/vextendsingle/vextendsingle/parenrightig2/parenrightigg2
+
+≤p2C2
+m,
+whereC2/definesσ(0)4+4|σ(0)|3L/radicalbig
+2/π+6σ(0)2L2+8|σ(0)|L3/radicalbig
+2/π+32L4. We have with probability at least 1−δ
+n,
+/vextenddouble/vextenddouble/vextenddoublex(1)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+F≥cσ
+2cσ,1√p.Gradient Descent Finds Global Minima of Deep Neural Network s
+It is easy to get its upper bound
+/vextenddouble/vextenddouble/vextenddoublex(1)
+i(0)/vextenddouble/vextenddouble/vextenddouble2
+F=cσ
+m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(1)φ(xi)/parenrightig/vextenddouble/vextenddouble/vextenddouble2
+F≤qL2cσc2
+w,0.
+By deﬁnation we have for 2≤h≤H
+/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+F−/vextenddouble/vextenddouble/vextenddouble/vextenddoublecres
+H√mσ/parenleftig
+W(h)(0)φ/parenleftig
+x(h−1)
+i(0)/parenrightig/parenrightig/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F≤/vextenddouble/vextenddouble/vextenddoublex(h)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+F+/vextenddouble/vextenddouble/vextenddouble/vextenddoublecres
+H√mσ/parenleftig
+W(h)(0)φ/parenleftig
+x(h−1)
+i(0)/parenrightig/parenrightig/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F,
+where /vextenddouble/vextenddouble/vextenddouble/vextenddoublecres
+H√mσ/parenleftig
+W(h)(0)φ/parenleftig
+x(h−1)
+i(0)/parenrightig/parenrightig/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F≤√qcrescw,0L
+H/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+F.
+Thus/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+F/parenleftbigg
+1−√qcrescw,0L
+H/parenrightbigg
+≤/vextenddouble/vextenddouble/vextenddoublex(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤/vextenddouble/vextenddouble/vextenddoublex(h−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+F/parenleftbigg
+1+√qcrescw,0L
+H/parenrightbigg
+,
+which implies/radicaliggcσ
+2cσ,1√pe−√qcrescw,0L≤/vextenddouble/vextenddouble/vextenddoublex(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤/radicalig
+qL2cσc2
+w,0e√qcrescw,0L.
+Choosing cx,0= max{/radicalig
+qL2cσc2
+w,0,/radicalbigg
+2cσ,1√p
+cσ}e√qcrescw,0Land using union bounds over [n], we prove the lemma.
+Proof of Lemma D.3.We prove this lemma by induction. Our induction hypothesis i s
+/vextenddouble/vextenddouble/vextenddoublex(h)(k)−x(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤g(h),
+where
+g(h) =g(h−1)/bracketleftbigg
+1+2crescw,0L√q
+H/bracketrightbigg
++cresL√q
+HRcx,0.
+Forh= 1, we have
+/vextenddouble/vextenddouble/vextenddoublex(1)(k)−x(1)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤/radicalbiggcσ
+m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(1)(k)φ1(x)/parenrightig
+−σ/parenleftig
+W(1)(0)φ1(x)/parenrightig/vextenddouble/vextenddouble/vextenddouble
+F
+≤/radicalbiggcσ
+mL√q/vextenddouble/vextenddouble/vextenddoubleW(1)(k)−W(1)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤√cσL√qR,
+which implies g(1) =√cσL√qR, for2≤h≤H, we have
+/vextenddouble/vextenddouble/vextenddoublex(h)(k)−x(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤cres
+H√m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(h)(k)φh/parenleftig
+x(h−1)(k)/parenrightig/parenrightig
+−σ/parenleftig
+W(h)(0)φh/parenleftig
+x(h−1)(0)/parenrightig/parenrightig/vextenddouble/vextenddouble/vextenddouble
+F+/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)−x(h−1)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤cres
+H√m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(h)(k)φh/parenleftig
+x(h−1)(k)/parenrightig/parenrightig
+−σ/parenleftig
+W(h)(k)φh/parenleftig
+x(h−1)(0)/parenrightig/parenrightig/vextenddouble/vextenddouble/vextenddouble
+F
++cres
+H√m/vextenddouble/vextenddouble/vextenddoubleσ/parenleftig
+W(h)(k)φh/parenleftig
+x(h−1)(0)/parenrightig/parenrightig
+−σ/parenleftig
+W(h)(0)φh/parenleftig
+x(h−1)(0)/parenrightig/parenrightig/vextenddouble/vextenddouble/vextenddouble
+F+/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)−x(h−1)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤L√qcres
+H√m/parenleftig/vextenddouble/vextenddouble/vextenddoubleW(h)(0)/vextenddouble/vextenddouble/vextenddouble
+2+/vextenddouble/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F/parenrightig
+·/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)−x(h−1)(0)/vextenddouble/vextenddouble/vextenddouble
+FGradient Descent Finds Global Minima of Deep Neural Network s
++L√qcres
+H√m/vextenddouble/vextenddouble/vextenddoubleW(h)(k)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F/vextenddouble/vextenddoublexh−1(0)/vextenddouble/vextenddouble
+F+/vextenddouble/vextenddouble/vextenddoublex(h−1)(k)−x(h−1)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤/bracketleftbigg
+1+L√qcres
+H√m/parenleftbig
+cw,0√m+R√m/parenrightbig/bracketrightbigg
+g(h−1)+L√qcres
+H√m√mRcx,0
+≤/parenleftbigg
+1+2cw,0L√qcres
+H/parenrightbigg
+g(h−1)+1
+HL√qcrescx,0R.
+Lastly, simple calculations show g(h)≤/parenleftig√cσL√q+cx,0
+cw,0/parenrightig
+e2cw,0L√qcresR.
+Proof of Lemma D.4.Similar to Lemma C.4, deﬁnezi,l,r=/parenleftig
+w(H)
+r/parenrightig⊤
+x(H−1)
+i,l, we have
+/vextendsingle/vextendsingle/vextendsingleG(H)
+i,j(k)−G(H)
+i,j(0)/vextendsingle/vextendsingle/vextendsingle
+=c2
+res
+H2/vextendsingle/vextendsinglep/summationdisplay
+l=1p/summationdisplay
+k=1x(H−1)
+i,l(k)⊤x(H−1)
+j,k(k)1
+mm/summationdisplay
+r=1ar,l(k)ar,k(k)σ′(zi,l,r(k))σ′(zj,k,r(k))
+−p/summationdisplay
+l=1p/summationdisplay
+k=1x(H−1)
+i,l(0)⊤x(H−1)
+j,k(0)1
+mm/summationdisplay
+r=1ar,l(0)ar,k(0)σ′(zi,l,r(0))σ′(zj,k,r(0))/vextendsingle/vextendsingle
+≤c2
+resL2a2
+2,0
+H2/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsinglep/summationdisplay
+l=1p/summationdisplay
+k=1x(H−1)
+i,l(k)⊤x(H−1)
+j,k(k)−x(H−1)
+i,l(0)⊤x(H−1)
+j,k(0)/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle
++c2
+res
+H2p/summationdisplay
+l=1p/summationdisplay
+k=1/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i,l(0)⊤x(H−1)
+j,k(0)/vextendsingle/vextendsingle/vextendsingle1
+mm/summationdisplay
+r=1|ar,l(0)ar,k(0)||σ′(zi,l,r(k))σ′(zj,k,r(k))−σ′(zi,l,r(0))σ′(zj,k,r(0))|
++c2
+res
+H2L2p/summationdisplay
+l=1p/summationdisplay
+k=1/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i,l(k)⊤x(H−1)
+j,k(k)/vextendsingle/vextendsingle/vextendsingle1
+mm/summationdisplay
+r=1|ar,l(k)ar,k(k)−ar,l(0)ar,k(0)|
+/definesc2
+res
+H2/parenleftig
+Ii,j
+1+Ii,j
+2+Ii,j
+3/parenrightig
+.
+ForIi,j
+1, using Lemma D.3, we have
+Ii,j
+1=L2a2
+2,0/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsinglep/summationdisplay
+l=1p/summationdisplay
+k=1x(H−1)
+i,l(k)⊤x(H−1)
+j,k(k)−x(H−1)
+i,l(0)⊤x(H−1)
+j,k(0)/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle
+≤L2a2
+2,0p/summationdisplay
+l=1p/summationdisplay
+k=1/vextendsingle/vextendsingle/vextendsingle(x(H−1)
+i,l(k)−x(H−1)
+i,l(0))⊤x(H−1)
+j,k(k)/vextendsingle/vextendsingle/vextendsingle+L2a2
+2,0p/summationdisplay
+l=1p/summationdisplay
+k=1/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i,l(0)⊤(x(H−1)
+j,k(k)−x(H−1)
+j,k(0))/vextendsingle/vextendsingle/vextendsingle
+≤L2a2
+2,0/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/vextenddouble/vextenddouble/vextenddoublex(H−1)
+i,l(k)−x(H−1)
+i,l(0)/vextenddouble/vextenddouble/vextenddouble2
+2/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/vextenddouble/vextenddouble/vextenddoublex(H−1)
+j,k(k)/vextenddouble/vextenddouble/vextenddouble2
+2
++L2a2
+2,0/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/vextenddouble/vextenddouble/vextenddoublex(H−1)
+i,l(0)/vextenddouble/vextenddouble/vextenddouble2
+2/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/vextenddouble/vextenddouble/vextenddoublex(H−1)
+j,k(k)−x(H−1)
+j,k(0)/vextenddouble/vextenddouble/vextenddouble2
+2
+≤L2a2
+2,0p/vextenddouble/vextenddouble/vextenddoublex(H−1)
+i(k)−x(H−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+F/vextenddouble/vextenddouble/vextenddoublex(H−1)
+j(k)/vextenddouble/vextenddouble/vextenddouble
+F+L2a2
+2,0p/vextenddouble/vextenddouble/vextenddoublex(H−1)
+i(0)/vextenddouble/vextenddouble/vextenddouble
+F/vextenddouble/vextenddouble/vextenddoublex(H−1)
+j(k)−x(H−1)
+j(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤3cx,0cxL2a2
+2,0pR,
+wherecx/defines/parenleftig√cσL√q+cx,0
+cw,0/parenrightig
+e2crescw,0L√q. To bound Ii,j
+2, we have
+Ii,j
+2=p/summationdisplay
+l=1p/summationdisplay
+k=1/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i,l(0)⊤x(H−1)
+j,k(0)/vextendsingle/vextendsingle/vextendsingle1
+mm/summationdisplay
+r=1|ar,l(0)ar,k(0)||σ′(zi,l,r(k))σ′(zj,k,r(k))−σ′(zi,l,r(0))σ′(zj,k,r(0))|Gradient Descent Finds Global Minima of Deep Neural Network s
+≤p/summationdisplay
+l=1p/summationdisplay
+k=1/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i,l(0)⊤x(H−1)
+j,k(0)/vextendsingle/vextendsingle/vextendsingleβL
+m/parenleftiggm/summationdisplay
+r=1|ar,l(0)ar,k(0)|(|zi,l,r(k)−zi,l,r(0)|+|zj,k,r(k)−zj,k,r(0)|)/parenrightigg
+≤βL
+m/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/vextenddouble/vextenddouble/vextenddoublex(H−1)
+i,l(0)/vextenddouble/vextenddouble/vextenddouble2
+2/vextenddouble/vextenddouble/vextenddoublex(H−1)
+j,k(0)/vextenddouble/vextenddouble/vextenddouble2
+2
+
+/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/parenleftiggm/summationdisplay
+r=1|ar,l(0)ar,k(0)||zi,l,r(k)−zi,l,r(0)|/parenrightigg2
++/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/parenleftiggm/summationdisplay
+r=1|ar,l(0)ar,k(0)||zj,k,r(k)−zj,k,r(0)|/parenrightigg2
+
+≤βLc2
+x,0a2
+4,0
+m
+/radicaltp/radicalvertex/radicalvertex/radicalbtmp/summationdisplay
+l=1p/summationdisplay
+k=1m/summationdisplay
+r=1|zi,l,r(k)−zi,l,r(0)|2+/radicaltp/radicalvertex/radicalvertex/radicalbtmp/summationdisplay
+l=1p/summationdisplay
+k=1m/summationdisplay
+r=1|zj,k,r(k)−zj,k,r(0)|2
+
+≤βLa2
+4,0√pc2
+x,0√m/parenleftbig
+/ba∇dblzi/ba∇dblF+/ba∇dblzj/ba∇dblF/parenrightbig
+.
+Using the same proof for Lemma D.3, it is easy to see
+/ba∇dblzi/ba∇dblF≤(2cxcw,0√q+cx,0)R√m.
+Thus
+Ii,j
+2≤2βLa2
+4,0√pc2
+x,0(2cxcw,0√q+cx,0)R.
+Similarly for Ii,j
+3, we have
+Ii,j
+3=c2
+res
+H2L2p/summationdisplay
+l=1p/summationdisplay
+k=1/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i,l(k)⊤x(H−1)
+j,k(k)/vextendsingle/vextendsingle/vextendsingle1
+mm/summationdisplay
+r=1|ar,l(k)ar,k(k)−ar,l(0)ar,k(0)|
+≤c2
+res
+H2L2p/summationdisplay
+l=1p/summationdisplay
+k=1/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i,l(k)⊤x(H−1)
+j,k(k)/vextendsingle/vextendsingle/vextendsingle1
+mm/summationdisplay
+r=1(|ar,l(k)−ar,l(0)||ar,k(k)|+|ar,k(k)−ar,k(0)||ar,l(0)|)
+≤c2
+res
+H2L2p/summationdisplay
+l=1p/summationdisplay
+k=1/vextendsingle/vextendsingle/vextendsinglex(H−1)
+i,l(k)⊤x(H−1)
+j,k(k)/vextendsingle/vextendsingle/vextendsingle1
+m/parenleftbig
+/ba∇dbla:,l(k)−a:,l(0)/ba∇dbl2/ba∇dbla:,k(k)/ba∇dbl2+/ba∇dbla:,k(k)−a:,k(0)/ba∇dbl2/ba∇dbla:,l(0)/ba∇dbl2/parenrightbig
+≤c2
+res
+H2mL2/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/vextenddouble/vextenddouble/vextenddoublex(H−1)
+i,l(k)/vextenddouble/vextenddouble/vextenddouble2
+2/vextenddouble/vextenddouble/vextenddoublex(H−1)
+j,k(k)/vextenddouble/vextenddouble/vextenddouble2
+2
+
+/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/ba∇dbla:,l(k)−a:,l(0)/ba∇dbl2
+2/ba∇dbla:,k(k)/ba∇dbl2
+2+/radicaltp/radicalvertex/radicalvertex/radicalbtp/summationdisplay
+l=1p/summationdisplay
+k=1/ba∇dbla:,k(k)−a:,k(0)/ba∇dbl2
+2/ba∇dbla:,l(0)/ba∇dbl2
+2
+
+≤c2
+res
+H2mL2/vextenddouble/vextenddouble/vextenddoublex(H−1)
+i(k)/vextenddouble/vextenddouble/vextenddouble
+F/vextenddouble/vextenddouble/vextenddoublex(H−1)
+j(k)/vextenddouble/vextenddouble/vextenddouble
+F(/ba∇dbla(k)−a(0)/ba∇dblF/ba∇dbla(k)/ba∇dblF+(/ba∇dbla(k)−a(0)/ba∇dblF/ba∇dbla(0)/ba∇dblF)
+≤12a2,0c2
+resc2
+x,0L2√pR
+H2.
+Therefore we can bound the perturbation
+/vextenddouble/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble/vextenddouble
+2≤/vextenddouble/vextenddouble/vextenddoubleG(H)(k)−G(H)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+=/radicaltp/radicalvertex/radicalvertex/radicalbtn,n/summationdisplay
+(i,j)/vextendsingle/vextendsingle/vextendsingleG(H)
+i,j(k)−G(H)
+i,j(0)/vextendsingle/vextendsingle/vextendsingle2
+≤c2
+res
+H2/bracketleftbig
+3cx,0cxLa2
+2,0p+2βc2
+x,0a2
+4,0√p(2cxcw,0√q+cx,0)+12c2
+x,0La2,0√p/bracketrightbig
+LnR.
+Plugging in the bound on R, we have the desired result.Gradient Descent Finds Global Minima of Deep Neural Network s
+Proof of Lemma D.5.We will prove this corollary by induction. The induction hyp othesis is
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F≤s−1/summationdisplay
+s′=0(1−ηλ0
+2)s′/21
+4ηλ0R′√m≤R′√m,s∈[k+1],
+/ba∇dbla(s)−a(0)/ba∇dblF≤s−1/summationdisplay
+s′=0(1−ηλ0
+2)s′/21
+4ηλ0R′√m≤R′√m,s∈[k+1].
+First it is easy to see it holds for s′= 0. Now suppose it holds for s′= 0,...,s , we consider s′=s+ 1. Similar to
+Lemma B.5, we have
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(s)/vextenddouble/vextenddouble/vextenddouble
+F
+≤ηcresL
+H√m/ba∇dbla/ba∇dblFn/summationdisplay
+i=1|yi−u(s)|/vextenddouble/vextenddouble/vextenddoubleφh/parenleftig
+x(h−1)(s)/parenrightig/vextenddouble/vextenddouble/vextenddouble
+FH/productdisplay
+k=h+1/vextenddouble/vextenddouble/vextenddouble/vextenddoubleI+cres
+H√mW(k)(s)φk/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+op
+≤2ηcrescx,0La2,0√pqe2crescw,0L√q√n/ba∇dbly−u(s)/ba∇dbl2/H
+=ηQ′(s)
+≤(1−ηλ0
+2)s/21
+4ηλ0R′√m,
+where/ba∇dbl·/ba∇dblopdenotes the operator norm. Similarly, we have
+/ba∇dbla(s+1)−a(s)/ba∇dbl2≤2ηcx,0n/summationdisplay
+i=1|yi−u(s)|
+≤ηQ′(s)
+≤(1−ηλ0
+2)s/21
+4ηλ0R′√m.
+Thus
+/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤/vextenddouble/vextenddouble/vextenddoubleW(h)(s+1)−W(h)(s)/vextenddouble/vextenddouble/vextenddouble
+F+/vextenddouble/vextenddouble/vextenddoubleW(h)(s)−W(h)(0)/vextenddouble/vextenddouble/vextenddouble
+F
+≤s/summationdisplay
+s′=0η(1−ηλ0
+2)s′/21
+4ηλ0R′√m.
+Similarly,
+/ba∇dbla(s+1)−a(0)/ba∇dbl2
+≤s/summationdisplay
+s′=0η(1−ηλ0
+2)s′/21
+4ηλ0R′√m.
+Proof of Lemma D.6.
+/vextendsingle/vextendsingleIi
+2/vextendsingle/vextendsingle≤ηmax
+0≤s≤ηH/summationdisplay
+h=1/vextenddouble/vextenddouble/vextenddoubleL′(h)(θ(k))/vextenddouble/vextenddouble/vextenddouble
+F/vextenddouble/vextenddouble/vextenddoubleu′(h)
+i(θ(k))−u′(h)
+i/parenleftig
+θ(k)−sL′(h)(θ(k))/parenrightig/vextenddouble/vextenddouble/vextenddouble
+F.
+For the gradient norm, we have
+/vextenddouble/vextenddouble/vextenddoubleL′(h)(θ(k))/vextenddouble/vextenddouble/vextenddouble
+FGradient Descent Finds Global Minima of Deep Neural Network s
+≤Lcres
+H√m/ba∇dbla(k)/ba∇dblFn/summationdisplay
+i=1|yi−ui(k)|/vextenddouble/vextenddouble/vextenddoubleφh/parenleftig
+x(h−1)
+i(k)/parenrightig/vextenddouble/vextenddouble/vextenddouble
+FH/productdisplay
+k=h+1/vextenddouble/vextenddouble/vextenddouble/vextenddoubleI+cres
+H√mJ(k)
+i(k)W(k)(k)φk/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+op,
+which we have bounded in Lemma D.5, thus
+/vextenddouble/vextenddouble/vextenddoubleL′(h)(θ(k))/vextenddouble/vextenddouble/vextenddouble
+F≤Q′(k).
+Letθ(k,s) =θ(k)−sL′(θ(k)),similar to the proof of Lemma B.6, we have
+/vextenddouble/vextenddouble/vextenddoubleu′(h)
+i(θ(k))−u′(h)
+i(θ(k,s))/vextenddouble/vextenddouble/vextenddouble
+F
+≤2
+Hcrescx,0La2,0√qe2cresLcw,0√qηQ′(k)√m/parenleftbiggcx
+cx,0+2
+L(cx,0+cw,0cx)β√m+4√qcw,0(cx,0+cw,0cx)β√m+(L+1)√q/parenrightbigg
+≤24
+Hcrescx,0La2,0√qcw,0e2cresLcw,0√q(cx,0+cw,0cx)βηQ′(k).
+Thus
+/vextendsingle/vextendsingleIi
+2/vextendsingle/vextendsingle≤24crescx,0La2,0√qcw,0e2cresLcw,0(cx,0+cw,0cx)βη2λ0√mQ′(k)R′≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2.
+where we used the bound of ηand that/ba∇dbly−u(0)/ba∇dbl2=O(√n).
+Proof of Lemma D.7.
+/ba∇dblu(k+1)−u(k)/ba∇dbl2
+2=n/summationdisplay
+i=1/parenleftig
+/an}b∇acketle{ta(k+1),x(H)
+i(k+1)/an}b∇acket∇i}ht−/an}b∇acketle{ta(k),x(H)
+i(k+1)/an}b∇acket∇i}ht/parenrightig2
+≤n/summationdisplay
+i=1/parenleftig
+/an}b∇acketle{ta(k+1)−a(k),x(H)
+i(k+1)/an}b∇acket∇i}ht+/an}b∇acketle{ta(k),x(H)
+i(k+1)−x(H)
+i(k)/an}b∇acket∇i}ht/parenrightig2
+≤2/ba∇dbla(k+1)−a(k)/ba∇dbl2
+Fn/summationdisplay
+i=1/vextenddouble/vextenddouble/vextenddoublex(H)
+i(k+1)/vextenddouble/vextenddouble/vextenddouble2
+F+2/ba∇dbla(k)/ba∇dbl2
+Fn/summationdisplay
+i=1/vextenddouble/vextenddouble/vextenddoublex(H)
+i(k+1)−x(H)
+i(k)/vextenddouble/vextenddouble/vextenddouble2
+F
+≤8nη2c2
+x,0Q′(k)2+4np(ηa2,0cxQ′(k))2
+≤1
+8ηλ0/ba∇dbly−u(k)/ba∇dbl2
+2.
+E. Analysis of Random Initialization
+E.1. A General Framework for Analyzing Random Initializati on in First (H−1)Layers
+In this section we provide a self-contained framework to ana lyze the Gram matrix at the initialization phase. There are t wo
+main objectives. First, we provide the expression of the Gra m matrix as m→ ∞ , i.e., the population Gram matrix. Second,
+we quantitatively study how much over-parameterization is needed to ensure the Gram matrix generated by the random
+initialization. The bound will depend on number of samples nand properties of the activation function. This analysis
+framework is fully general that it can explain fully connect ed neural network, ResNet, convolutional neural considere d in
+this paper and other neural network architectures that sati sfy the general setup deﬁned below.
+We begin with some notations. Suppose that we have a sequence of real vector spaces
+Rp(0)→Rp(1)→ ··· → Rp(H).
+Remark E.1. For fully-connected neural network and ResNet, p(0)=p(1)=...=p(H)= 1. For convolutional neural
+network,p(h)is the number of patches of the h-th layer.Gradient Descent Finds Global Minima of Deep Neural Network s
+For each pair (Rp(h−1),Rp(h)), letW ⊂ L(Rp(h−1),Rp(h)) =Rp(h)×p(h−1)be a linear subspace.
+Remark E.2. For convolutional neural network, the dimension of Wis the ﬁlter size.
+In this section, by Gaussian distribution Pover aq-dimensional subspace W, we mean that for a basis {e1,...,eq}ofW
+and(v1,...,v q)∼N(0,I)such that/summationtextq
+i=1viei∼ P. In this section, we equip one Gaussian distribution P(h)with each
+linear subspace W(h). By an abuse of notation, we also use Wto denote a transformation. For K∈Rp(h−1)×p(h−1), we let
+W(h)(K) =EW∼P(h)/bracketleftbig
+WKW⊤/bracketrightbig
+.
+We also consider a deterministic linear mapping D(h):Rn(h−1)→Rn(h). For this section, we denote D(1)=0, i.e., the
+zero mapping.
+Remark E.3. For full-connected neural networks, we take D(h)to be the zero mapping. For ResNet and convolutional
+ResNet, we take D(h)to be the identity mapping.
+Letρ(1),···,ρ(H)be a sequence of activation functions over R. Note here we use ρinstead of σto denote the activation
+function because we will incorporate the scaling in ρfor the ease of presentation and the full generality.
+Now we recursively deﬁne the output of each layer in this setu p. In the following, we use h∈[H]to index layers, i∈[n]to
+index data points, α,β,γ∈[m]or[d]to index channels (for CNN) or weight vectors (for fully conn ected neural networks
+or ResNet).
+Remark E.4. d= 1for fully connected neural network and ResNet and d≥1for convolutional neural network because
+drepresents the number of input channels.
+We denote X(h),[α]
+i anp(h)-dimensional vector which is the output at (h−1)-th layer. We have the following recursive
+formula
+X(1),(α)
+i=ρ(h)
+/summationdisplay
+βW(h),(α)
+(β)X(h−1),(β)
+i
+
+X(h),(α)
+i=D(h)(X(h−1),(α)
+i)+ρ(h)
+/summationtext
+βW(h),(α)
+(β)X(h−1),(β)
+i√m
+
+whereW(h),(α)
+(β)isp(h)×p(h−1)matrix generated according to the following rule
+•forh= 1,W(h),(α)
+[β]is deﬁned for 1≤α≤mand1≤β≤d; forh >1,W(h),(α)
+(β)is deﬁned for 1≤α≤mand
+1≤β≤m;
+•the set of random variables {W(h),(α)
+(β)}h,α,β are independently generated;
+•for ﬁxedh,α,β ,W(h),(α)
+(β)∼ P(h).
+Remark E.5. Choosing ρ(h)(z)to beσ(z)andD(h)to be the zero mapping, we recover the fully-connected archi tecture.
+Choosing ρ(h)(z)to becres
+Hσ(z)andD(h)to be the identity mapping, we recover ResNet architecture.
+Remark E.6. Note here X(h)
+i=x(h)
+i√mforh≥1andX(h)
+i=x(h)
+iforh= 0in the main text. We change the scaling
+here to simplify the calculation of expectation and the cova riance in this section.
+With these notations, we ﬁrst deﬁne the population Gram matr ices recursively.
+Deﬁnition E.1. We ﬁx(i,j)∈[n]×[n], forh= 1,...,H . The population Gram matrices are deﬁned according to the
+following formula
+K(0)
+ij=/summationdisplay
+γ(X(0),[γ]
+i)⊤X(0),[γ]
+j,Gradient Descent Finds Global Minima of Deep Neural Network s
+b(0)
+i=0,
+K(h)
+ij=D(h)K(h−1)
+ijD(h)⊤+E(U,V)/parenleftig
+ρ(U)D(h)(b(h−1)
+j)⊤+(D(h)(b(h−1)
+i))ρ(V)⊤+ρ(U)ρ(V)⊤)/parenrightig
+,
+b(h)
+i=D(h)(b(h−1)
+i)+EUρ(h)(U), (16)
+where
+(U,V)∼N
+0,
+W/parenleftig
+K(h−1)
+ii/parenrightig
+W/parenleftig
+K(h−1)
+ij/parenrightig
+W/parenleftig
+K(h−1)
+ji/parenrightig
+W/parenleftig
+K(h−1)
+jj/parenrightig
+
+. (17)
+Notice that the Gram matrix of the next layer K(h)not only depends on the previous layer’s Gram matrix K(h−1)but also
+depends on a “bias” term b(h−1).
+Given the population Gram matrices deﬁned in Equation ( 16) and ( 17), we derive the following quantitative bounds which
+characterizes how much over-parameterization, i.e., how l argemis needed to ensure the randomly generated Gram matrices
+is close to the population Gram matrices.
+Theorem E.1. With probability 1−δover the/braceleftig
+W(h),(α)
+(β)/bracerightig
+h,α,β, for any1≤h≤H−1,1≤i,j≤n,
+/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble1
+mm/summationdisplay
+α=1(X(h),(α)
+i)⊤X(h),(α)
+j−K(h)
+ij/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+∞≤ E/radicalbigg
+log(Hnmaxhp(h)/δ)
+m(18)
+and anyh∈[H−1],∀1≤i≤n,
+/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble1
+mm/summationdisplay
+α=1X(h),(α)
+i−b(h)
+i/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+∞≤ E/radicalbigg
+log(Hnmaxhp(h)/δ)
+m(19)
+The error constant Esatisﬁes there exists an absolute constant C >0such that
+E ≤C/parenleftiggH−1/productdisplay
+h=2/parenleftig
+A(h)+Λ(h)W+C(h)A(h)BW+C(h)A(h)/radicalig
+W(h)M/parenrightig/parenrightigg
+×max{W/radicalig
+(1+C2
+(1))M2,/radicalig
+C2
+(1)M}
+whereM,B,Λ(h),C(h),A(h),W(h)are deﬁned by:
+•M= 1+100max i,j,p,q,h|W(h)(K(h−1)
+ij)pq|,
+•A(h)= 1+max/braceleftbig
+/ba∇dblD(h)/ba∇dblL∞→L∞,/ba∇dblD(h)(·)D(h)⊤/ba∇dblL∞→L∞/bracerightbig
+,
+•B= 1+100max i,p,h|b(h)
+ip|,
+•C(h)=|ρ(0)|+supx∈R|ρ′(x)|,
+•Λ(h)is a constant that only depends on ρ(h),
+•W(h)= 1+/ba∇dblW(h)/ba∇dblL∞→L∞.
+Remark E.7. For fully-connected neural networks, we have M=O(1),A(h)= 0,B=O(1),C(h)=O(1),Λ(h)=
+O(1),W(h)=O(1), so we need m= Ω/parenleftig
+n2log(Hn/δ)2O(H)
+λ2
+0/parenrightig
+. For ResNet, we have M=O(1),A(h)= 1,B=
+O(1),C(h)=O(1
+H),Λ(h)=O(1
+H),W(h)=O(1), so we need m= Ω/parenleftig
+n2log(Hn/δ)
+λ2
+0/parenrightig
+. The convolutional ResNet has the
+same parameters as ResNet but because the Gram matrix is np×np, so we need m= Ω/parenleftig
+n2p2log(Hnp/δ)
+λ2
+0/parenrightig
+.
+Proof of Theorem E.1.The proof is by induction. For the base case, h= 1, recall
+X(1),[α]
+i=ρ(1)(/summationdisplay
+βW(1),(α)
+(β)X(0),(β)
+i).Gradient Descent Finds Global Minima of Deep Neural Network s
+We deﬁne
+U(1),(α)
+i=/summationdisplay
+βW(1),(α)
+(β)X(0),(β)
+i.
+By our generating process of/braceleftig
+W(h),(α)
+(β)/bracerightig
+h,α,β, the collection {U(1),(β)
+i}1≤i≤n,1≤β≤mis a mean-zero Gaussian variable
+with covariance matrix:
+EU(1),(α)
+i/parenleftig
+U(1),(β)
+j/parenrightig⊤
+=E/summationdisplay
+γ,γ′W(1),(α)
+(γ)X(0),(γ)
+i/parenleftig
+X(0),(γ′)⊤
+i/parenrightig⊤/parenleftig
+W(1),(β)
+(γ′)/parenrightig⊤
+=δαβW(1)/parenleftigg/summationdisplay
+γ/parenleftig
+X(0),(γ)
+iX(0),(γ)
+j/parenrightig⊤/parenrightigg
+=δαβW(1)(K(0)
+ij)
+Therefore, we have
+E/bracketleftigg
+1
+mm/summationdisplay
+i=1X(1),(α)
+iX(1),(α)⊤
+j/bracketrightigg
+=K(1)
+ij
+E/bracketleftigg
+1
+mm/summationdisplay
+i=1X(1),(α)
+i/bracketrightigg
+=b(1)
+i.
+Now we have calculated the expectation. Note since inside th e expectation is an average, we can apply standard standard
+Bernstein bounds and Hoeffding bound and obtain the followi ng concentration inequalities. With probability at least 1−δ
+H,
+we have
+max
+i,j/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble1
+mm/summationdisplay
+i=1X(1),(α)
+iX(1),(α)⊤
+j−K(1)
+ij/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+∞≤/radicaligg
+16(1+2C2
+(1)/√π)M2log(4Hn2(p(1))2/δ)
+m,
+max
+i,p/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle1
+mm/summationdisplay
+α=1X(1),(α)
+ip−b(1)
+ip/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle≤/radicaligg
+2C2
+(1)Mlog(2np(1)H/δ)
+m
+Now we prove the induction step. Deﬁne for 1≤h≤H
+ˆK(h)
+ij=1
+m/summationdisplay
+γX(h),(γ)
+i/parenleftig
+X(h),(γ)
+j/parenrightig⊤
+ˆb(h)
+i=1
+m/summationdisplay
+γX(1),(γ)
+i
+In the following, by E(h)we mean taking expectation conditioned on ﬁrst (h−1)layers.
+Now suppose that Equation ( 18) and ( 19) hold for 1≤l≤hwith probability at least 1−h
+Hδ, now we want to show
+the equations holds for h+ 1with probability at least 1−δ/H conditioned on previous layers satisfying Equation ( 18)
+and ( 19). Letl=h+1. recall
+X(l),(α)
+i=D(l)(X(l−1))+ρ(l)
+/summationtext
+βW(l),(α)
+(β)X(l−1),(β)
+i√m
+.
+Similar to the base case, denote
+U(l),(α)
+i=/summationtext
+βW(l),(α)
+(β)X(l−1),(β)
+i√m.Gradient Descent Finds Global Minima of Deep Neural Network s
+Again note that {U(l),(β)
+i}1≤i≤n,1≤β≤mis a collection of mean-zero Gaussian variables with covari ance matrix:
+E/bracketleftbigg
+U(1),(α)
+i/parenleftig
+U(1),(β)
+j/parenrightig⊤/bracketrightbigg
+=δαβW(l)(ˆK(l−1)
+ij)
+Now we get the following formula for the expectation:
+E(l)[ˆK(l)
+ij] =D(l)ˆK(l−1)
+ij/parenleftig
+D(l)/parenrightig⊤
++E(U,V)/parenleftig
+ρ(l)(U)⊤D(l)(ˆb(l−1)
+j)+(D(l)(ˆb(l−1)
+i))⊤ρ(l)(V)+ρ(l)(U)⊤ρ(l)(V))/parenrightig
+E(l)ˆb(l)
+i=D(l)(ˆb(l−1)
+i)+EUρ(l)(U)
+with
+(U,V)∼N/parenleftigg
+0,/parenleftigg
+W(l)(ˆK(l−1)
+ii)W(l)(ˆK(l−1)
+ij)
+W(l)(ˆK(l−1)
+ji)W(l)(ˆK(l−1)
+jj)/parenrightigg/parenrightigg
+Same as the base case, applying concentration inequalities , we have with probability at least 1−δ/H ,
+max
+ij/ba∇dblE(l)ˆK(l)
+ij−ˆK(l)
+ij/ba∇dbl∞≤/radicaligg
+16(1+2C2
+(l)/√π)M2log(4Hn2(p(l))2/δ)
+m,
+max
+i/ba∇dblE(l)ˆb(l)
+i−ˆb(l)
+i/ba∇dbl∞≤/radicaligg
+2C2
+(l)Mlog(2np(1)H/δ)
+m
+Now it remains to bound the differences
+max
+ij/vextenddouble/vextenddouble/vextenddoubleE(l)ˆK(l)
+ij−K(l)
+ij/vextenddouble/vextenddouble/vextenddouble
+∞andmax
+i/vextenddouble/vextenddouble/vextenddoubleE(l)ˆb(l)
+ij−b(l)
+ij/vextenddouble/vextenddouble/vextenddouble
+∞
+which determine how the error propagates through layers.
+We analyze the error directly.
+/vextenddouble/vextenddouble/vextenddoubleE(l)ˆK(l)
+ij−K(l)
+ij/vextenddouble/vextenddouble/vextenddouble
+∞
+≤/vextenddouble/vextenddouble/vextenddoubleD(l)ˆK(l−1)
+ijD(l)⊤−D(l)K(l−1)
+ijD(l)⊤/vextenddouble/vextenddouble/vextenddouble
+∞
++/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆAρ(l)(U)⊤D(l)(ˆb(l−1)
+j)−E(U,V)∼Aρ(l)(U)⊤D(l)(b(l−1)
+j)/vextenddouble/vextenddouble/vextenddouble
+∞
++/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆA(D(l)(ˆb(l−1)
+i))⊤ρ(l)(V)−E(U,V)∼A(D(l)(b(l−1)
+i))⊤ρ(l)(V)/vextenddouble/vextenddouble/vextenddouble
+∞
++/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆAρ(l)(U)⊤ρ(l)(V))−E(U,V)∼Aρ(l)(U)⊤ρ(l)(V))/vextenddouble/vextenddouble/vextenddouble
+∞
+≤/vextenddouble/vextenddouble/vextenddoubleD(l)ˆK(l−1)
+ijD(l)⊤−D(l)K(l−1)
+ijD(l)⊤/vextenddouble/vextenddouble/vextenddouble
+∞
++/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆAρ(l)(U)⊤D(l)(ˆb(l−1)
+j)−E(U,V)∼ˆAρ(l)(U)⊤D(l)(b(l−1)
+j)/vextenddouble/vextenddouble/vextenddouble
+∞
++/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆAρ(l)(U)⊤D(l)(b(l−1)
+j)−E(U,V)∼Aρ(l)(U)⊤D(l)(b(l−1)
+j)/vextenddouble/vextenddouble/vextenddouble
+∞
++/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆA(a(l)(ˆb(l−1)
+i))⊤ρ(l)(V)−E(U,V)∼ˆA(D(l)(b(l−1)
+i))⊤ρ(l)(V)/vextenddouble/vextenddouble/vextenddouble
+∞
++/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆA(D(l)(b(l−1)
+i))⊤ρ(l)(V)−E(U,V)∼A(D(l)(b(l−1)
+i))⊤ρ(l)(V)/vextenddouble/vextenddouble/vextenddouble
+∞
++/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆAρ(l)(U)⊤ρ(l)(V))−E(U,V)∼Aρ(l)(U)⊤ρ(l)(V))/vextenddouble/vextenddouble/vextenddouble
+∞
+where we deﬁne
+ˆA=/parenleftigg
+W(l)(ˆK(l−1)
+ii)W(l)(ˆK(l−1)
+ij)
+W(l)(ˆK(l−1)
+ji)W(l)(ˆK(l−1)
+jj)/parenrightigg
+andA=/parenleftigg
+W(l)(K(l−1)
+ii)W(l)(K(l−1)
+ij)
+W(l)(K(l−1)
+ji)W(l)(K(l−1)
+jj)/parenrightiggGradient Descent Finds Global Minima of Deep Neural Network s
+By deﬁnition, we have
+/ba∇dblA−ˆA/ba∇dbl∞≤Wmax
+ij/ba∇dblˆK(l−1)
+ij−K(l−1)
+ij/ba∇dbl∞and
+/vextenddouble/vextenddouble/vextenddoubleD(l)ˆK(l−1)
+ijD(l)⊤−D(l)K(l−1)
+ijD(l)⊤/vextenddouble/vextenddouble/vextenddouble
+∞≤A(l)max
+ij/ba∇dblˆK(l−1)
+ij−K(l−1)
+ij/ba∇dbl∞.
+We can also estimate other terms/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆAρ(l)(U)⊤D(l)(ˆb(l−1)
+j)−E(U,V)∼ˆAρ(l)(U)⊤D(l)(b(l−1)
+j)/vextenddouble/vextenddouble/vextenddouble
+∞
+≤/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆAρ(l)(U)⊤D(l)/parenleftig
+ˆb(l−1)
+j−b(l−1)
+j/parenrightig/vextenddouble/vextenddouble/vextenddouble
+∞
+≤C(l)A(l)/radicalbigg
+Wmax
+ij/ba∇dblˆK(l)
+ij/ba∇dbl∞max
+i/vextenddouble/vextenddouble/vextenddoubleˆb(l−1)
+ij−b(l−1)
+ij/vextenddouble/vextenddouble/vextenddouble
+∞
+≤C(l)A(l)/radicalig
+W(l)Mmax
+i/vextenddouble/vextenddouble/vextenddoubleˆb(l−1)
+ij−b(l−1)
+ij/vextenddouble/vextenddouble/vextenddouble
+∞,
+/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆAρ(l)(U)⊤D(l)(b(l−1)
+j)−E(U,V)∼Aρ(l)(U)⊤D(l)(b(l−1)
+j)/vextenddouble/vextenddouble/vextenddouble
+∞
+≤A(l)BC(l)/ba∇dblA−ˆA/ba∇dbl∞
+≤A(l)BC(l)Wmax
+ij/ba∇dblˆK(l−1)
+ij−K(l−1)
+ij/ba∇dbl∞,
+and/vextenddouble/vextenddouble/vextenddoubleE(U,V)∼ˆAρ(l)(U)⊤ρ(l)(V)−E(U,V)∼Aρ(l)(U)⊤ρ(l)(V)/vextenddouble/vextenddouble/vextenddouble
+∞
+≤Λ(l)/ba∇dblA−ˆA/ba∇dbl∞
+≤Λ(l)Wmax
+ij/ba∇dblˆK(l−1)
+ij−K(l−1)
+ij/ba∇dbl∞.
+where we have used Lemma G.5.
+Putting these estimates together, we have
+max
+ij/ba∇dblE(l)ˆK(l)
+ij−K(l)
+ij/ba∇dbl∞
+≤/parenleftbig
+A(l)+Λ(l)W+2C(l)A(l)BW/parenrightbig
+max
+ij/ba∇dblˆK(l−1)
+ij−K(l−1)
+ij/ba∇dbl∞+2C(l)A(l)/radicalig
+W(l)Mmax
+i/ba∇dblˆb(l−1)
+ij−b(l−1)
+ij/ba∇dbl∞
+≤/parenleftig
+A(l)+Λ(l)W+2C(l)A(l)BW+2C(l)A(l)/radicalig
+W(l)M/parenrightig/parenleftbigg
+max
+ij/ba∇dblˆK(l−1)
+ij−K(l−1)
+ij/ba∇dbl∞∨max
+i/ba∇dblˆb(l−1)
+ij−b(l−1)
+ij/ba∇dbl∞/parenrightbigg
+and
+max
+i/vextenddouble/vextenddouble/vextenddoubleE(l)ˆb(l)
+ij−b(l)
+ij/vextenddouble/vextenddouble/vextenddouble
+∞≤Λ(l)Wmax
+ij/vextenddouble/vextenddouble/vextenddoubleˆK(l−1)
+ij−K(l−1)
+ij/vextenddouble/vextenddouble/vextenddouble
+∞+A(l)max
+i/vextenddouble/vextenddouble/vextenddoubleˆb(l−1)
+ij−b(l−1)
+ij/vextenddouble/vextenddouble/vextenddouble
+∞
+≤(A(l)+Λ(l)W)/parenleftbigg
+max
+ij/ba∇dblˆK(l−1)
+ij−K(l−1)
+ij/ba∇dbl∞∨max
+i/ba∇dblˆb(l−1)
+ij−b(l−1)
+ij/ba∇dbl∞/parenrightbigg
+.
+These two bounds imply the theorem.
+E.2. From K(H−1)toK(H)
+RecallK(H)deﬁned in Equation ( 7), (8) and ( 10). Note the deﬁnition of K(H)is qualitatively different from that of K(h)
+forh= 1,...,H−1becauseK(H)depends on K(H)andσ′(·)instead of σ(·). Therefore, we take special care of
+K(H). Further note K(H)for our three architectures have the same form and only diffe r in scaling and dimension, so we
+will only prove the bound for the fully-connected architect ure. The generalization to ResNet and convolutional ResNet is
+straightforward.Gradient Descent Finds Global Minima of Deep Neural Network s
+Lemma E.1. For(i,j)∈[n]×[n], deﬁne
+ˆK(H−1)
+ij=ˆK(H−1)
+ijEw∼N(0,I)/bracketleftig
+σ′(w⊤x(H−1)
+i(0))σ′(w⊤x(H−1)
+j(0))/bracketrightig
+.
+and suppose/vextendsingle/vextendsingle/vextendsingleˆK(H−1)
+ij−K(H−1)
+ij/vextendsingle/vextendsingle/vextendsingle≤cλ0
+n2for some small constant c >0. Then if m= Ω/parenleftig
+n2log(n/δ)
+λ2
+0/parenrightig
+, we have with
+probability at least 1−δover{w(H)
+r(0)}m
+r=1and{ar(0)}m
+r=1, we have/vextenddouble/vextenddoubleG(H)(0)−K(H)/vextenddouble/vextenddouble
+op≤λ0
+4.
+Proof of Lemma E.1.We decompose
+G(H)(0)−K(H)=/parenleftig
+G(H)(0)−ˆK(H)/parenrightig
++/parenleftig
+ˆK(H)−K(H)/parenrightig
+.
+RecallG(H)deﬁned in Equation ( 13). Based on its expression, it is straightforward to use conc entration inequality to show
+ifm= Ω/parenleftig
+n2log(n/δ)
+λ2
+0/parenrightig
+, we have
+/vextenddouble/vextenddouble/vextenddoubleG(H)(0)−ˆK(H)/vextenddouble/vextenddouble/vextenddouble
+op≤λ0
+8.
+For the other
+RecallA(H)
+ij=/parenleftigg
+K(H−1)
+iiK(H−1)
+ij
+K(H−1)
+jiK(H−1)
+jj/parenrightigg
+and letˆA(H)
+ij=/parenleftiggˆK(H−1)
+iiˆK(H−1)
+ij
+ˆK(H−1)
+jiˆK(H−1)
+jj/parenrightigg
+.
+According to Lemma G.4(viewing σ′(·)as theσ(·)in Lemma G.4), we know
+/vextendsingle/vextendsingle/vextendsingleE(U)∼ˆAij[σ′(u)σ′(v)]−E(u,v)∼Aij[σ′(u)σ′(v)]/vextendsingle/vextendsingle/vextendsingle≤C/vextendsingle/vextendsingle/vextendsingleˆAij−Aij/vextendsingle/vextendsingle/vextendsingle
+for some constant C >0. Sincecis small enough, we directly have
+/vextenddouble/vextenddouble/vextenddoubleˆK(H)−K(H)/vextenddouble/vextenddouble/vextenddouble
+op≤λ0
+8
+Remark E.8. Combing Theorem E.1, Lemma E.1and standard matrix perturbation bound directly have Lemma B.2.
+Similarly we can prove Lemma C.2and Lemma D.2.
+F. Full Rankness of K(h)
+F.1. Full Rankness of K(h)for the Fully-connected Neural Network
+In this section we show as long as no two input vectors are para llel, then K(H)deﬁned in Equation ( 8) is strictly positive
+deﬁnite.
+Proposition F.1. Assumeσ(·)satisﬁes Condition 3.2and for any i,j∈[n],i/ne}ationslash=j,xi/ne}ationslash/ba∇dblxj. Then we have λmin/parenleftbig
+K(H)/parenrightbig
+>0
+whereλmin/parenleftbig
+K(H)/parenrightbig
+is deﬁned in Equation (7).
+Proof of Proposition F .1.By our assumption on the data point and using Lemma F.1we know K(1)is strictly positive
+deﬁnite.
+By letting Z=D1/2U⊤, whereUDU⊤=Kh. We then use Lemma F.1inductively for (H−2)times to conclude
+K(H−1)is strictly positive deﬁnite. Lastly we use Lemma F.2to ﬁnish the proof.
+Lemma F.1. Assumeσ(·)is analytic and not a polynomial function. Consider data Z={zi}i∈[n]ofnnon-parallel points
+(meaning zi/∈span(zj)for alli/ne}ationslash=j). Deﬁne
+G(Z)ij=Ew∼N(0,I)[σ(w⊤zi)σ(w⊤zj)].
+Thenλmin(G(Z))>0.Gradient Descent Finds Global Minima of Deep Neural Network s
+Proof of Lemma F .1.The feature map induced by the kernel Gis given by φz(w) =σ(w⊤z)z. To show that G(Z)is
+strictly positive deﬁnite, we need to show φz1(w),...,φ zn(w)are linearly independent functions. Assume that there are
+aisuch that
+0 =/summationdisplay
+iaiφzi=/summationdisplay
+iaiσ(w⊤zi)zi.
+We wish to show that ai= 0. Differentiating the above equation (n−2)times with respect to w, we have
+0 =/summationdisplay
+i/parenleftig
+aiσ(n−1)(w⊤zi)/parenrightig
+z⊗(n−1)
+i.
+Using Lemma G.6, we know/braceleftig
+z⊗(n−1)
+i/bracerightign
+i=1are linearly independent. Therefore, we must have aiσ(n−1)(w⊤zi) = 0 for
+alli. Now choosing a wsuch that σ(n−1)/parenleftbig
+w⊤zi/parenrightbig
+/ne}ationslash= 0for alli∈[n](suchwexists because of our assumption on σ), we
+haveai= 0for alli∈[n].
+Lemma F.2. Assumeσ(·)is analytic and not a polynomial function. Consider data Z={zi}i∈[n]ofnnon-parallel points
+(meaning zi/∈span(zj)for alli/ne}ationslash=j). Deﬁne
+G(Z)ij=Ew∼N(0,I)[σ′(w⊤zi)σ′(w⊤zj)(z⊤
+izj)].
+Thenλmin(G(Z))>0.
+Proof of Lemma F .2.The feature map induced by the kernel Gis given by φz(w) =σ′(w⊤z)z. To show that G(Z)is
+strictly positive deﬁnite, we need to show φz1(w),...,φ zn(w)are linearly independent functions. Assume that there are
+aisuch that
+0 =/summationdisplay
+iaiφzi=/summationdisplay
+iaiσ′(w⊤zi)zi.
+We wish to show that ai= 0. Differentiating the above equation (n−2)times with respect to w, we have
+0 =/summationdisplay
+i/parenleftig
+aiσ(n)(w⊤zi)/parenrightig
+z⊗(n−1)
+i.
+Using Lemma G.6, we know/braceleftig
+z⊗(n−1)
+i/bracerightign
+i=1are linearly independent. Therefore, we must have aiσn(w⊤zi) = 0 for all
+i. Now choosing a wsuch that σ(n)/parenleftbig
+w⊤zi/parenrightbig
+/ne}ationslash= 0for alli∈[n](suchwexists because of our assumption on σ), we have
+ai= 0for alli∈[n].
+F.2. Full Rankness of K(h)for ResNet
+In this section we show as long as no two input vectors are para llel, then K(H)deﬁned in Equation ( 8) is strictly positive
+deﬁnite. Furthermore, λmin/parenleftbig
+K(H)/parenrightbig
+does not depend inverse exponentially in H.
+Proposition F.2. Assumeσ(·)satisﬁes Condition 3.2and for any i,j∈[n],i/ne}ationslash=j,xi/ne}ationslash/ba∇dblxj. Recall that in Equation (8), we
+deﬁne
+K(H)
+ij=cHK(H−1)
+ij·E
+(u,v)⊤∼N
+0,
+K(H−1)
+iiK(H−1)
+ij
+K(H−1)
+jiK(H−1)
+jj
+
+[σ′(u)σ′(v)],
+wherecH∼1
+H2. Then we have λmin(K(H))≥cHκ, whereκis a constant that only depends on the activation σand the
+input data. In particular, κdoes not depend on the depth.
+Proof of Proposition F .2.First note K(H−1)
+ii∈[1/c2
+x,0,c2
+x,0]for allH, so it is in a bounded range that does not depend on
+the depth (c.f. Lemma C.1). Deﬁne a function
+G:Rn×n→Rn×nGradient Descent Finds Global Minima of Deep Neural Network s
+such that G(K)ij=KijE
+(u,v)⊤∼N
+0,
+KiiKij
+KjiKjj
+
+[σ′(u)σ′(v)]. Now deﬁne a scalar function
+g(λ) = min
+K:K≻0,1
+c2
+x,0≤Kii≤cx,0,λ(K)≥λλmin(G(K))
+with
+λ(K) = min
+ij/parenleftbiggKiiKij
+KjiKjj/parenrightbigg
+.
+By Lemma F.3, we know λ(K(H−1))≥cHλ/parenleftbig
+K(0)/parenrightbig
+.
+Next, letUDU⊤=K(H−1)be the eigen-ecomposition of K, andZ=D1/2U⊤be the feature embedding into Rn. Since/parenleftbiggz⊤
+iziz⊤
+izj
+z⊤
+jziz⊤
+jzj/parenrightbigg
+is full rank, then zi/∈span(zj). Then using Lemma F.2, we know g(λ/parenleftbig
+K(0)/parenrightbig
+)>0. Thus we have
+established that λmin(K(H))≥cHg(λ/parenleftbig
+K(0)/parenrightbig
+), whereg(λ/parenleftbig
+K(0)/parenrightbig
+)only depends on the input data and activation σ. In
+particular, it is independent of the depth.
+Lemma F.3. IfD(h)is the identity mapping deﬁned in Section E, then λ/parenleftbig
+K(H)/parenrightbig
+≥
+min(i,j)∈[n]×[n]λmin/parenleftigg
+K(0)
+iiK(0)
+ij
+K(0)
+jiK(0)
+jj/parenrightigg
+.
+Proof of Lemma F .3.First recall
+(U,V)∼N/parenleftigg
+0,/parenleftigg
+W(h)(K(h−1)
+ii)W(h)(K(h−1)
+ij)
+W(h)(K(h−1)
+ji)W(h)(K(h−1)
+jj)/parenrightigg/parenrightigg
+Then we compute
+K(h)
+ij−b(h)
+ib(h)⊤
+j
+=D(h)K(h−1)
+ijD(h)⊤+E(U,V)/parenleftig
+ρ(U)D(h)(b(h−1)
+j)⊤+(D(h)(b(h−1)
+i))ρ(V)⊤+ρ(U)ρ(V)⊤)/parenrightig
+−/parenleftig
+D(h)(b(h−1)
+i)+EUρ(h)(U)/parenrightig/parenleftig
+D(h)(b(h−1)
+j)+EVρ(h)(V))/parenrightig⊤
+=D(h)/parenleftig
+K(h−1)
+ij−b(h−1)
+ib(h−1)⊤
+j/parenrightig
+D(h)⊤+E(U,V)/parenleftig
+ρ(U)ρ(V)⊤)/parenrightig
+−/parenleftig
+EUρ(h)(U)/parenrightig/parenleftig
+EVρ(h)(V))/parenrightig⊤
+For ResNet, D(h)is the identity mapping so we have
+K(h)
+ij−b(h)
+ib(h)⊤
+j
+=K(h−1)
+ij−b(h−1)
+ib(h−1)⊤
+j+E(U,V)/parenleftig
+ρ(U)ρ(V)⊤)/parenrightig
+−/parenleftig
+EUρ(h)(U)/parenrightig/parenleftig
+EVρ(h)(V))/parenrightig⊤
+.
+To proceed, we calculate
+/parenleftigg
+K(h)
+iiK(h)
+ij
+K(h)
+jiK(h)
+jj/parenrightigg
+−/parenleftigg
+b(h)
+i
+b(h)
+j/parenrightigg/parenleftig
+b(h)⊤
+i,b(h)⊤
+j/parenrightig
+=/parenleftigg
+K(h−1)
+iiK(h−1)
+ij
+K(h−1)
+jiK(h−1)
+jj/parenrightigg
+−/parenleftigg
+b(h−1)
+i
+b(h−1)
+j/parenrightigg/parenleftig
+b(h−1)⊤
+i,b(h−1)⊤
+j/parenrightig
++/parenleftbigg
+EU,V/parenleftbigg
+ρ(h)(U)ρ(h)(U)⊤ρ(h)(U)ρ(h)(V)⊤
+ρ(h)(V)ρ(h)(U)⊤ρ(h)(V)ρ(h)(V)⊤/parenrightbigg
+−EU,V/parenleftbigg
+ρ(U)
+ρ(V)/parenrightbigg
+EU,V/parenleftbig
+ρ(U)⊤,ρ(V)⊤/parenrightbig/parenrightbigg
+≥/parenleftigg
+K(h−1)
+iiK(h−1)
+ij
+K(h−1)
+jiK(h−1)
+jj/parenrightigg
+−/parenleftigg
+b(h−1)
+i
+b(h−1)
+j/parenrightigg/parenleftig
+b(h−1)⊤
+i,b(h−1)⊤
+j/parenrightigGradient Descent Finds Global Minima of Deep Neural Network s
+As a result, we have
+λmin/parenleftigg
+K(h)
+iiK(h)
+ij
+K(h)
+jiK(h)
+jj/parenrightigg
+≥λmin/parenleftigg
+K(h)
+iiK(h)
+ij
+K(h)
+jiK(h)
+jj/parenrightigg
+−/parenleftigg
+b(h)
+i
+b(h)
+j/parenrightigg/parenleftig
+b(h)⊤
+i,b(h)⊤
+j/parenrightig
+≥minλmin/parenleftigg
+K(h−1)
+iiK(h−1)
+ij
+K(h−1)
+jiK(h−1)
+jj/parenrightigg
+−/parenleftigg
+b(h−1)
+i
+b(h−1)
+j/parenrightigg/parenleftig
+b(h−1)⊤
+i,b(h−1)⊤
+j/parenrightig
+≥···
+≥λmin/parenleftigg
+K(0)
+iiK(0)
+ij
+K(0)
+jiK(0)
+jj/parenrightigg
+−/parenleftigg
+b(0)
+i
+b(0)
+j/parenrightigg/parenleftig
+b(0)⊤
+i,b(0)⊤
+j/parenrightig
+=λmin/parenleftigg
+K(0)
+iiK(0)
+ij
+K(0)
+jiK(0)
+jj/parenrightigg
+.(20)
+We now prove the theorem.
+G. Useful Technical Lemmas
+Lemma G.1. Given a set of matrices {Ai,Bi:i∈[n]}, if/ba∇dblAi/ba∇dbl2≤Mi,/ba∇dblBi/ba∇dbl2≤Miand/ba∇dblAi−Bi/ba∇dblF≤αiMi, we
+have/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddoublen/productdisplay
+i=1Ai−n/productdisplay
+i=1Bi/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F≤/parenleftiggn/summationdisplay
+i=1αi/parenrightiggn/productdisplay
+i=1Mi.
+Proof of Lemma G.1.
+/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddoublen/productdisplay
+i=1Ai−n/productdisplay
+i=1Bi/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F
+=/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddoublen/summationdisplay
+i=1
+i−1/productdisplay
+j=1Aj
+(Ai−Bi)/parenleftiggn/productdisplay
+k=i+1Bk/parenrightigg/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F
+≤n/summationdisplay
+i=1/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+i−1/productdisplay
+j=1Aj
+(Ai−Bi)/parenleftiggn/productdisplay
+k=i+1Bk/parenrightigg/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble/vextenddouble
+F
+≤/parenleftiggn/summationdisplay
+i=1αi/parenrightiggn/productdisplay
+i=1Mi.
+Lemma G.2. Given a matrix W∈Rm×cmwithWi,j∼N(0,1), wherecis a constant. We have with probability at least
+1−exp/parenleftbigg
+−(cw,0−√c−1)2m
+2/parenrightbigg
+/ba∇dblW/ba∇dbl2≤cw,0√m,
+wherecw,0>√c+1is a constant.
+Proof of Lemma G.2.The lemma is a consequence of well-known deviations bounds c oncerning the singular values of
+Gaussian random matrices ( Vershynin ,2010 )
+P/parenleftbig
+λmax(W)>√m+√cm+t/parenrightbig
+≤et2/2.Gradient Descent Finds Global Minima of Deep Neural Network s
+Choosing t= (cw,0−√c−1)√m, we prove the lemma.
+Lemma G.3. Assumeσ(·)satisﬁes Condition 3.1. Fora,b∈Rwith1
+c<min(a,b),max(a,b)< c for some constant
+c >0, we have/vextendsingle/vextendsingleEz∼N(0,a)[σ(z)]−Ez∼N(0,b)[σ(z)]/vextendsingle/vextendsingle≤C|a−b|.
+for some constant C >0that depends only on cand the constants in Condition 3.1.
+Proof of Lemma G.3.We compute for any min(a,b)≤α≤max(a,b)
+/vextendsingle/vextendsingle/vextendsingle/vextendsingledEz∼N(0,α)[σ(z)]
+dα/vextendsingle/vextendsingle/vextendsingle/vextendsingle=/vextendsingle/vextendsingle/vextendsingle/vextendsingledEz∼N(0,1)[σ(αz)]
+dα/vextendsingle/vextendsingle/vextendsingle/vextendsingle=/vextendsingle/vextendsingleEz∼N(0,1)[zσ′(αz)]/vextendsingle/vextendsingle≤C.
+Applying Taylor’s Theorem we ﬁnish the proof.
+Lemma G.4. Assumeσ(·)satisﬁes Condition 3.1. Suppose that there exists some constant c >0such that A=/bracketleftbigga2
+1ρa1b1
+ρ1a1b1b2
+1/bracketrightbigg
+,1
+c≤min(a1,b1),max(a1,b1)≤c,B=/bracketleftbigga2
+2ρ2a2b2
+ρa2b2b2
+2/bracketrightbigg
+,1
+c≤min(a2,b2),max(a2,b2)≤c
+andA,B≻0. DeﬁneF(A) =E(u,v)∼N(0,A)σ(u)σ(v). Then, we have
+|F(A)−F(B)| ≤C/ba∇dblA−B/ba∇dblF≤2C/ba∇dblA−B/ba∇dbl∞.
+for some constant C >0that depends only on cand the constants in Condition 3.1.
+Proof. LetA′=/bracketleftbigg
+a2ρab
+ρab b2/bracketrightbigg
+≻0withmin(a1,a2)≤a≤max(a1,a2),min(b1,b2)≤b≤max(b1,b2)and
+min(ρ1,ρ2)≤ρ≤max(ρ1,ρ2). We can express
+F(A′) =E(z1,z2)∼N(0,C)σ(az1)σ(bz2)withC=/parenleftbigg1ρ
+ρ1/parenrightbigg
+.
+RecallL2={f:/integraltext
+f(z)e−z2/2dz <∞}is the Gaussian function space. We compute
+dF
+da=E[σ′(az1)σ(bz2)z1]
+/vextendsingle/vextendsingle/vextendsingledF
+da/vextendsingle/vextendsingle/vextendsingle≤ /ba∇dblσ′(az1)z1/ba∇dblL2/ba∇dblσ(bz2)/ba∇dblL2 (/ba∇dblf/ba∇dblL2:= (Ef(z)2)1/2, Cauchy)
+<∞ (by Condition 3.1)
+By the same argument, we have
+/vextendsingle/vextendsingle/vextendsingledF
+db/vextendsingle/vextendsingle/vextendsingle<∞
+Next, let σa(z) :=σ(az)with Hermite expansion σa(z) =/summationtext∞
+i=0αihi(z)and similarly σb(z) =/summationtext
+iβihi(z). Using the
+orthonormality that E[hi(z)hj(z)] = 1i=j,
+F(A) =∞/summationdisplay
+i=0αiβiρi.
+Differentiating, we have
+/vextendsingle/vextendsingle/vextendsingledF
+dρ/vextendsingle/vextendsingle/vextendsingle=/vextendsingle/vextendsingle/vextendsingle∞/summationdisplay
+i=1αiβiiρi−1/vextendsingle/vextendsingle/vextendsingle
+</parenleftbig∞/summationdisplay
+i=1α2
+ii/parenrightbig1/2/parenleftbig∞/summationdisplay
+i=1β2
+ii/parenrightbig1/2(ρ= 1and Cauchy)Gradient Descent Finds Global Minima of Deep Neural Network s
+<∞ (Condition 3.1)
+Note by Condition 3.1we know there exists Bρ,BaandBbsuch that/vextendsingle/vextendsingledF
+dρ/vextendsingle/vextendsingle≤Bρ,/vextendsingle/vextendsingledF
+da/vextendsingle/vextendsingle≤Ba, and/vextendsingle/vextendsingledF
+db/vextendsingle/vextendsingle≤Bb.
+Next, we bound ∇A′F(A′). We see that
+/vextendsingle/vextendsingle/vextendsingledF
+dA′
+11/vextendsingle/vextendsingle/vextendsingle≤/vextendsingle/vextendsingle/vextendsingledF
+da/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingle/vextendsingleda
+dA′
+11/vextendsingle/vextendsingle/vextendsingle
+≤Ba1
+2/radicalbig
+A′
+11(sincea=/radicalbig
+A′
+11)
+≤1
+2Ba/c
+/vextendsingle/vextendsingle/vextendsingledF
+dA′
+11/vextendsingle/vextendsingle/vextendsingle≤1
+2Bb/c (analogous argument asa bove.)
+Using the change of variables, let
+g(A′
+11,A′
+22,A′
+12) = [/radicalbig
+A′
+11,/radicalbig
+A′
+22,A′
+12//radicalbig
+A′
+11A′
+22] = [a,b,ρ].
+By chain rule, we know
+∂F
+∂A′
+12=∂F
+∂a∂a
+∂A′
+12+∂F
+∂b∂b
+∂A′
+12+∂F
+∂ρ∂ρ
+∂A′
+12=∂F
+∂ρ∂ρ
+∂A′
+12.
+We can easily verify that |∂ρ
+∂A′
+12| ≤1/c2, and so we have
+/vextendsingle/vextendsingle∂F
+∂A′
+12/vextendsingle/vextendsingle≤Bρ
+c2.
+Similarly, we have
+/vextendsingle/vextendsingle/vextendsingle∂F
+∂A′
+11/vextendsingle/vextendsingle/vextendsingle≤Ba
+c2
+/vextendsingle/vextendsingle/vextendsingle∂F
+∂A′
+22/vextendsingle/vextendsingle/vextendsingle≤Bb
+c2
+DeﬁneBσ= max(Ba,Bb,Bρ). This establishes /ba∇dbl∇F(A′)/ba∇dblF≤2Bσ/c2≤Cfor some constant C >0. Thus by
+Taylor’s Theorem, we have
+|F(A)−F(B)| ≤C/ba∇dblA−B/ba∇dblF≤2C/ba∇dblA−B/ba∇dbl∞.
+With Lemma G.3andG.4, we can prove the following useful lemma.
+Lemma G.5. Supposeσ(·)satisﬁes Condition 3.1For a positive deﬁnite matrix A∈R2p×2p, deﬁne
+F(A) =EU∼N(0,A)/bracketleftig
+σ(U)σ(U)⊤/bracketrightig
+,
+G(A) =EU∼N(0,A)[σ(U)].
+Then for any two positive deﬁnite matrices A,Bwith1
+c≤Aii,Bii≤cfor some constant c >0, we have
+/ba∇dblG(A)−G(B)/ba∇dbl∞∨/ba∇dblF(A)−F(B)/ba∇dbl∞≤C/ba∇dblA−B/ba∇dbl∞
+for some constant C >0.Gradient Descent Finds Global Minima of Deep Neural Network s
+Proof of Lemma G.5.The result follows by applying Lemma G.3to all coordiniates and applying Lemma G.4to all2×2
+submatrices.
+Lemma G.6. Ifv1,...,vn∈Rdsatisfy that /ba∇dblvi/ba∇dbl2= 1 and non-parallel (meaning vi/∈span(vj)fori/ne}ationslash=j), then the
+matrix/bracketleftbig
+vec/parenleftbig
+v⊗n
+1/parenrightbig
+,..., vec(v⊗n
+n)/bracketrightbig
+∈Rdn×nhas rank- n.
+Proof of Lemma G.6.We prove by induction. For n= 2,v1v⊤
+1,v2v⊤
+2are linearly independent under the non-parallel
+assumption. By induction suppose {vec/parenleftbig
+v⊗n−1
+1/parenrightbig
+,..., vec/parenleftbig
+v⊗n−1
+n−1/parenrightbig
+}are linearly independent. Suppose the conclusion
+does not hold, then there exists α1,...,α n∈Rnot identically 0, such that
+n/summationdisplay
+i=1αivec/parenleftbig
+v⊗n
+i/parenrightbig
+= 0,
+which implies for p= 1,...,d
+n/summationdisplay
+i=1(αivi,p)vec/parenleftig
+v⊗(n−1)
+i/parenrightig
+= 0.
+Note by induction hypothesis any size (n−1)subset of/braceleftig
+vec/parenleftig
+v⊗(n−1)
+1/parenrightig
+,..., vec/parenleftig
+v⊗(n−1)
+n/parenrightig/bracerightig
+is linearly independent. This implies if αivi,p= 0 for some i∈[n]andp∈[d],
+then we must have αjvj,p= 0 for allj∈[n]. Combining this observation with the assumption that every viis non-zero,
+there must exist p∈[d]such that vi,p/ne}ationslash= 0for alli∈[n]. Without loss of generality, we assume vi,1/ne}ationslash= 0for alli∈[n].
+Next, note if there exists αi= 0, then we have αj= 0 for allj∈[n]becausevj,p/ne}ationslash= 0 for allj∈[n]and the linear
+independence induction hypothesis. Therefore from now on w e assume αi/ne}ationslash= 0for alli∈[n].
+For anyp∈[d], we have
+n/summationdisplay
+i=1(αivi,p)vec/parenleftig
+v⊗(n−1)
+i/parenrightig
+= 0andn/summationdisplay
+i=1(αivi,1)vec/parenleftig
+v⊗(n−1)
+i/parenrightig
+= 0.
+By multiplying the second equation byv1,p
+v1,1and subtracting,
+n/summationdisplay
+i=2(αivi,p−αiv1,p
+v1,1vi,1)vec/parenleftig
+v⊗(n−1)
+i/parenrightig
+= 0.
+Using the linear independence induction hypothesis, we kno w fori= 2,...,n :
+vi,p
+v1,1=v1,p
+v1,1.
+Therefore we know
+v1,p
+v1,1=···=vn,p
+vn,1.
+Thus there exists c2,...,c d∈Rdsuch that
+vi,p=cpvi,1for alli∈[n].
+Note this implies all vi,i∈[n]are on the same line. This contradicts with the non-parallel assumption.

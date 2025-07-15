@@ -1,0 +1,758 @@
+A Unified Architecture for Natural Language Processing:
+Deep Neural Networks with Multitask Learning
+Ronan Collobert collober@nec-labs.com
+Jason Weston jasonw@nec-labs.com
+NEC Labs America, 4 Independence Way, Princeton, NJ 08540 USA
+Abstract
+We describe a single convolutional neural net-
+work architecture that, given a sentence, out-
+puts a host of language processing predic-
+tions: part-of-speech tags, chunks, named en-
+tity tags, semantic roles, semantically similar
+words and the likelihood that the sentence
+makes sense (grammatically and semanti-
+cally) using a language model. The entire
+network is trained jointly on all these tasks
+using weight-sharing, an instance of multitask
+learning . All the tasks use labeled data ex-
+cept the language model which is learnt from
+unlabeled text and represents a novel form of
+semi-supervised learning for the shared tasks.
+We show how both multitask learning and
+semi-supervised learning improve the general-
+ization of the shared tasks, resulting in state-
+of-the-art performance.
+1. Introduction
+The ﬁeld of Natural Language Processing (NLP) aims
+to convert human language into a formal representa-
+tion that is easy for computers to manipulate. Current
+end applications include information extraction, ma-
+chine translation, summarization, search and human-
+computer interfaces.
+While complete semantic understanding is still a far-
+distant goal, researchers have taken a divide and con-
+quer approach and identiﬁed several sub-tasks useful
+for application development and analysis. These range
+from the syntactic, such as part-of-speech tagging,
+chunking and parsing, to the semantic, such as word-
+sense disambiguation, semantic-role labeling, named
+entity extraction and anaphora resolution.
+Appearing in Proceedings of the 25thInternational Confer-
+ence on Machine Learning , Helsinki, Finland, 2008. Copy-
+right 2008 by the author(s)/owner(s).Currently, most research analyzes those tasks sepa-
+rately . Many systems possess few characteristics that
+would help develop a uniﬁed architecture which would
+presumably be necessary for deeper semantic tasks. In
+particular, many systems possess three failings in this
+regard: (i) they are shallow in the sense that the clas-
+siﬁer is often linear, (ii) for good performance with
+a linear classiﬁer they must incorporate many hand-
+engineered features speciﬁc for the task; and (iii) they
+cascade features learnt separately from other tasks,
+thus propagating errors.
+In this work we attempt to deﬁne a uniﬁed architecture
+for Natural Language Processing that learns features
+that are relevant to the tasks at hand given very lim-
+ited prior knowledge. This is achieved by training a
+deep neural network , building upon work by (Bengio &
+Ducharme, 2001) and (Collobert & Weston, 2007). We
+deﬁne a rather general convolutional network architec-
+ture and describe its application to many well known
+NLP tasks including part-of-speech tagging, chunking,
+named-entity recognition, learning a language model
+and the task of semantic role-labeling.
+All of these tasks are integrated into a single system
+which is trained jointly . All the tasks except the lan-
+guage model are supervised tasks with labeled training
+data. The language model is trained in an unsuper-
+vised fashion on the entire Wikipedia website. Train-
+ing this task jointly with the other tasks comprises a
+novel form of semi-supervised learning .
+We focus on, in our opinion, the most diﬃcult of
+these tasks: the semantic role-labeling problem. We
+show that both (i) multitask learning and (ii) semi-
+supervised learning signiﬁcantly improve performance
+on this task in the absence of hand-engineered features .
+We also show how the combined tasks, and in par-
+ticular the unsupervised task, learn powerful features
+with clear semantic information given no human su-
+pervision other than the (labeled) data from the tasks
+(see Table 1).A Uniﬁed Architecture for Natural Language Processing
+The article is structured as follows. In Section 2 we
+describe each of the NLP tasks we consider, and in Sec-
+tion 3 we deﬁne the general architecture that we use
+to solve all the tasks. Section 4 describes how this ar-
+chitecture is employed for multitask learning on all the
+labeled tasks we consider, and Section 5 describes the
+unlabeled task of building a language model in some
+detail. Section 6 gives experimental results of our sys-
+tem, and Section 7 concludes with a discussion of our
+results and possible directions for future research.
+2. NLP Tasks
+We consider six standard NLP tasks in this paper.
+Part-Of-Speech Tagging (POS) aims at labeling
+each word with a unique tag that indicates its syn-
+tactic role, e.g. plural noun, adverb, . . .
+Chunking , also called shallow parsing, aims at label-
+ing segments of a sentence with syntactic constituents
+such as noun or verb phrase (NP or VP). Each word
+is assigned only one unique tag, often encoded as a
+begin-chunk (e.g. B-NP) or inside-chunk tag (e.g. I-
+NP).
+Named Entity Recognition (NER) labels atomic
+elements in the sentence into categories such as “PER-
+SON”, “COMPANY”, or “LOCATION”.
+Semantic Role Labeling (SRL) aims at giving a se-
+mantic role to a syntactic constituent of a sentence.
+In the PropBank (Palmer et al., 2005) formalism one
+assigns roles ARG0-5 to words that are arguments
+of a predicate in the sentence, e.g. the following
+sentence might be tagged “[John] ARG 0[ate] REL [the
+apple] ARG 1”, where “ate” is the predicate. The pre-
+cise arguments depend on a verb’s frame and if there
+are multiple verbs in a sentence some words might have
+multiple tags. In addition to the ARG0-5 tags, there
+there are 13 modiﬁer tags such as ARGM-LOC (loca-
+tional) and ARGM-TMP (temporal) that operate in a
+similar way for all verbs.
+Language Models A language model traditionally
+estimates the probability of the next word being win
+a sequence. We consider a diﬀerent setting: predict
+whether the given sequence exists in nature, or not,
+following the methodology of (Okanohara & Tsujii,
+2007). This is achieved by labeling real texts as posi-
+tive examples, and generating “fake” negative text.
+Semantically Related Words (“Synonyms”) This
+is the task of predicting whether two words are seman-
+tically related (synonyms, holonyms, hypernyms...)
+which is measured using the WordNet database
+(http://wordnet.princeton.edu ) as ground truth.Our main interest is SRL, as it is, in our opinion, the
+most complex of these tasks. We use all these tasks to:
+(i) show the generality of our proposed architecture;
+and (ii) improve SRL through multitask learning.
+3. General Deep Architecture for NLP
+All the NLP tasks above can be seen as tasks assign-
+ing labels to words. The traditional NLP approach is:
+extract from the sentence a rich set of hand-designed
+features which are then fed to a classical shallow clas-
+siﬁcation algorithm, e.g. a Support Vector Machine
+(SVM), often with a linear kernel. The choice of fea-
+tures is a completely empirical process, mainly based
+on trial and error, and the feature selection is task
+dependent, implying additional research for each new
+NLP task. Complex tasks like SRL then require a
+large number of possibly complex features (e.g., ex-
+tracted from a parse tree) which makes such systems
+slow and intractable for large-scale applications.
+Instead we advocate a deep neural network (NN) ar-
+chitecture, trained in an end-to-end fashion. The in-
+put sentence is processed by several layers of feature
+extraction. The features in deep layers of the network
+areautomatically trained by backpropagation to be rel-
+evant to the task. We describe in this section a general
+deep architecture suitable for all our NLP tasks, and
+easily generalizable to other NLP tasks.
+Our architecture is summarized in Figure 1. The ﬁrst
+layer extracts features for each word. The second layer
+extracts features from the sentence treating it as a se-
+quence with local and global structure (i.e., it is not
+treated like a bag of words). The following layers are
+classical NN layers.
+3.1. Transforming Indices into Vectors
+As our architecture deals with raw words and not en-
+gineered features, the ﬁrst layer has to map words into
+real-valued vectors for processing by subsequent layers
+of the NN. For simplicity (and eﬃciency) we consider
+words as indices in a ﬁnite dictionary of words D ⊂N.
+Lookup-Table Layer Each word i∈ D isembed-
+dedinto a d-dimensional space using a lookup table
+LTW(·):
+LTW(i) =Wi,
+where W∈Rd×|D|is a matrix of parameters to be
+learnt, Wi∈Rdis the ithcolumn of Wand dis the
+word vector size ( wsz) to be chosen by the user. In
+the ﬁrst layer of our architecture an input sentence
+{s1, s2, . . . s n}ofnwords in Dis thus transformed
+into a series of vectors {Ws1, Ws2, . . . W sn}by apply-A Uniﬁed Architecture for Natural Language Processing
+ing the lookup-table to each of its words.
+It is important to note that the parameters Wof the
+layer are automatically trained during the learning
+process using backpropagation.
+Variations on Word Representations In practice,
+one may want to introduce some basic pre-processing,
+such as word-stemming or dealing with upper and
+lower case. In our experiments, we limited ourselves to
+converting all words to lower case, and represent the
+capitalization as a separate feature (yes or no).
+When a word is decomposed into Kelements (fea-
+tures), it can be represented as a tuple i=
+{i1, i2, . . . iK} ∈ D1× · · · × DK, where Dkis the dic-
+tionary for the kth-element. We associate to each ele-
+ment a lookup-table LTWk(·), with parameters Wk∈
+Rdk×|Dk|where dk∈Nis a user-speciﬁed vector size.
+A word iis then embedded in a d=/summationtext
+kdkdimensional
+space by concatenating all lookup-table outputs:
+LTW1,...,WK(i)T= (LTW1(i1)T, . . . , LT WK(iK)T)
+Classifying with Respect to a Predicate In a
+complex task like SRL, the class label of each word in a
+sentence depends on a given predicate . It is thus neces-
+sary to encode in the NN architecture which predicate
+we are considering in the sentence.
+We propose to add a feature for each word that encodes
+its relative distance to the chosen predicate. For the ith
+word in the sentence, if the predicate is at position posp
+we use an additional lookup table LTdistp(i−posp).
+3.2. Variable Sentence Length
+The lookup table layer maps the original sentence into
+a sequence x(·) ofnidentically sized vectors:
+(x1,x2, . . . , xn),∀txt∈Rd. (1)
+Obviously the size nof the sequence varies depending
+on the sentence. Unfortunately normal NNs are not
+able to handle sequences of variable length.
+The simplest solution is to use a window approach :
+consider a window of ﬁxed size kszaround each word
+we want to label. While this approach works with
+great success on simple tasks like POS, it fails on more
+complex tasks like SRL. In the latter case it is common
+for the role of a word to depend on words far away
+in the sentence, and hence outside of the considered
+window.
+When modeling long-distance dependencies is impor-
+tant, Time-Delay Neural Networks (TDNNs) (Waibel
+et al., 1989) are a better choice. Here, time refers
+Input Sentence
+the cat sat on the mat feature 1 (text)
+s1(1) s1(2) s1(3) s1(4) s1(5) s1(6) feature 2
+...
+feature K sK(1) sK(2) sK(3) sK(4) sK(5) sK(6)
+Max Over Time ...
+Optional Classical NN Layer(s)
+SoftmaxLookup Tables
+LTw.........
+............1
+LTwK
+#hidden units * (n-2)Convolution Layer...
+#hidden units
+#classes(d1+d2+...dK)*nn words, K featuresFigure 1. A general deep NN architecture for NLP. Given
+an input sentence, the NN outputs class probabilities for
+onechosen word. A classical window approach is a special
+case where the input has a ﬁxed size ksz, and the TDNN
+kernel size is ksz; in that case the TDNN layer outputs
+only one vector and the Max layer performs an identity.
+to the idea that a sequence has a notion of order. A
+TDNN “reads” the sequence in an online fashion: at
+time t≥1, one sees xt, the tthword in the sentence.
+A classical TDNN layer performs a convolution on a
+given sequence x(·), outputting another sequence o(·)
+whose value at time tis:
+o(t) =n−t/summationdisplay
+j=1−tLj·xt+j, (2)
+where Lj∈Rnhu×d(−n≤j≤n) are the parameters
+of the layer (with nhuhidden units) trained by back-
+propagation. One usually constrains this convolution
+by deﬁning a kernel width ,ksz, which enforces
+∀ |j|>(ksz−1)/2,Lj=0. (3)
+A classical window approach only considers words in
+a window of size kszaround the word to be labeled.
+Instead, if we use (2) and (3), a TDNN considers at the
+same time allwindows of kszwords in the sentence.
+TDNN layers can also be stacked so that one can ex-
+tract local features in lower layers, and more global
+features in subsequent ones. This is an approach typ-
+ically used in convolutional networks for vision tasks,
+such as the LeNet architecture (LeCun et al., 1998).
+We then add to our architecture a layer which captures
+themost relevant features over the sentence by feedingA Uniﬁed Architecture for Natural Language Processing
+the TDNN layer(s) into a “Max” Layer, which takes
+the maximum over time (over the sentence) in (2) for
+each of the nhuoutput features.
+As the layer’s output is of ﬁxed dimension (indepen-
+dent of sentence size) subsequent layers can be classical
+NN layers. Provided we have a way to indicate to our
+architecture the word to be labeled , it is then able to
+use features extracted from allwindows of kszwords
+in the sentence to compute the label of oneword of
+interest.
+We indicate the word to be labeled to the NN with an
+additional lookup-table, as suggested in Section 3.1.
+Considering the word at position poswwe encode the
+relative distance between the ithword in the sentence
+and this word using a lookup-table LTdistw(i−posw).
+3.3. Deep Architecture
+A TDNN (or window) layer performs a linear oper-
+ation over the input words. While linear approaches
+work fairly well for POS or NER, more complex tasks
+like SRL require nonlinear models. One can add to the
+NN one or more classical NN layers. The output of the
+lthlayer containing nhulhidden units is computed with
+ol= tanh( Ll·ol−1), where the matrix of parameters
+Ll∈Rnhul×nhul−1is trained by backpropagation.
+The size of the last (parametric) layer’s output olast
+is the number of classes considered in the NLP task.
+This layer is followed by a softmax layer (Bridle, 1990)
+which makes sure the outputs are positive and sum to
+1, allowing us to interpret the outputs of the NN as
+probabilities for each class. The ithoutput is given by
+eolast
+i//summationtext
+jeolast
+j. The whole network is trained with
+the cross-entropy criterion (Bridle, 1990).
+3.4. Related Architectures
+In (Collobert & Weston, 2007) we described a NN
+suited for SRL. This work also used a lookup-table to
+generate word features (see also (Bengio & Ducharme,
+2001)). The issue of labeling with respect to a predi-
+cate was handled with a special hidden layer: its out-
+put, given input sequence (1), predicate position posp,
+and the word of interest poswwas deﬁned as:
+o(t) =C(t−posw, t−posp)·xt.
+The function C(·) is shared through time t: one could
+say that this is a variant of a TDNN layer with a ker-
+nel width ksz= 1 but where the parameters are con-
+ditioned with other variables (distances with respect
+to the verb and word of interest).
+The fact that C(·) does not combine several words in
+the same neighborhood as in our TDNN approach lim-its the dependencies between words it can model. Also
+C(·) is itself a NN inside a NN. Not only does one have
+to carefully design this additional architecture, but it
+also makes the approach more complicated to train
+and implement. Integrating all the desired features
+inx() (including the predicate position) via lookup-
+tables makes our approach simpler, more general and
+easier to tune.
+4. Multitasking with Deep NN
+Multitask learning (MTL) is the procedure of learning
+several tasks at the same time with the aim of mutual
+beneﬁt. This an old idea in machine learning; a good
+overview, especially focusing on NNs, can be found in
+(Caruana, 1997).
+4.1. Deep Joint Training
+If one considers related tasks, it makes sense that fea-
+tures useful for one task might be useful for other ones.
+In NLP for example, POS predictions are often used as
+features for SRL and NER. Improving generalization
+on the POS task might therefore improve both SRL
+and NER.
+A NN automatically learns features for the desired
+tasks in the deep layers of its architecture. In the case
+of our general architecture for NLP presented in Sec-
+tion 3, the deepest layer (consisting of lookup-tables)
+implicitly learns relevant features for each word in the
+dictionary. It is thus reasonable to expect that when
+training NNs on related tasks, sharing deep layers in
+these NNs would improve features produced by these
+deep layers, and thus improve generalization perfor-
+mance. The last layers of the network can then be
+task speciﬁc.
+In this paper we show this procedure performs very
+well for NLP tasks when sharing the lookup-tables of
+each considered task, as depicted in Figure 2. Training
+is achieved in a stochastic manner by looping over the
+tasks:
+1. Select the next task.
+2. Select a random training example for this task.
+3. Update the NN for this task by taking a gradient
+step with respect to this example.
+4. Go to 1.
+It is worth noticing that labeled data for training each
+task can come from completely diﬀerent datasets.
+4.2. Previous Work in MTL for NLP
+The NLP ﬁeld contains many related tasks. This
+makes it a natural ﬁeld for applying MTL, and sev-A Uniﬁed Architecture for Natural Language Processing
+Lookup Tables
+Convolution
+Task 1Max
+Classical NN Layer(s)
+SoftmaxLTw2LTw3Lookup Tables
+Convolution
+Task 2Max
+Classical NN Layer(s)
+SoftmaxLTw1 LTw2‘
+Figure 2. Example of deep multitasking with NN. Task 1
+and Task 2 are two tasks trained with the architecture
+presented in Figure 1. One lookup-table (in black) is shared
+(the other lookup-tables and layers are task speciﬁc). The
+principle is the same with more than two tasks.
+eral techniques have already been explored.
+Cascading Features The most obvious way to
+achieve MTL is to train one task, and then use this
+task as a feature for another task. This is a very com-
+mon approach in NLP. For example, in the case of
+SRL, several methods (e.g., (Pradhan et al., 2004))
+train a POS classiﬁer and use the output as features
+for training a parser, which is then used for building
+features for SRL itself. Unfortunately, tasks (features)
+are learnt separately in such a cascade, thus propagat-
+ing errors from one classiﬁer to the next.
+Shallow Joint Training If one possesses a dataset la-
+beled for several tasks, it is then possible to train these
+tasks jointly in a shallow manner: one unique model
+can predict all task labels at the same time. Using this
+scheme, the authors of (Sutton et al., 2007) proposed a
+conditional random ﬁeld approach where they showed
+improvements from joint training on POS tagging and
+noun-phrase chunking tasks. However the requirement
+of jointly annotated data is a limitation, as this is often
+not the case. Similarly, in (Miller et al., 2000) NER,
+parsing and relation extraction were jointly trained in
+a statistical parsing model achieving improved perfor-
+mance on all tasks. This work has the same joint label-
+ing requirement problem, which the authors avoided
+by using a predictor to ﬁll in the missing annotations.
+In (Sutton & McCallum, 2005a) the authors showed
+that one could learn the tasks independently, hence
+using diﬀerent training sets, by only leveraging predic-
+tions jointly in a test time decoding step, and still ob-
+tain improved results. The problem is, however, that
+this will not make use of the shared tasks at training
+time. The NN approach used here seems more ﬂexible
+in these regards.Finally, the authors of (Musillo & Merlo, 2006) made
+an attempt at improving the semantic role labeling
+task by joint inference with syntactic parsing, but their
+results are not state-of-the-art. The authors of (Sutton
+& McCallum, 2005b) also describe a negative result at
+the same joint task.
+5. Leveraging Unlabeled Data
+Labeling a dataset can be an expensive task, especially
+in NLP where labeling often requires skilled linguists.
+On the other hand, unlabeled data is abundant and
+freely available on the web. Leveraging unlabeled data
+in NLP tasks seems to be a very attractive, and chal-
+lenging, goal.
+In our MTL framework presented in Figure 2, there is
+nothing stopping us from jointly training supervised
+tasks on labeled data and unsupervised tasks on un-
+labeled data. We now present an unsupervised task
+suitable for NLP.
+Language Model We consider a language model
+based on a simple ﬁxed window of text of size kszus-
+ing our NN architecture, given in Figure 2. We trained
+our language model to discriminate a two-class classi-
+ﬁcation task: if the word in the middle of the input
+window is related to its context or not. We construct
+a dataset for this task by considering all possible ksz
+windows of text from the entire of English Wikipedia
+(http://en.wikipedia.org ). Positive examples are
+windows from Wikipedia, negative examples are the
+same windows but where the middle word has been
+replaced by a random word.
+We train this problem with a ranking-type cost:
+X
+s∈SX
+w∈Dmax (0 ,1−f(s) +f(sw)), (4)
+where Sis the set of sentence windows of text, Dis the
+dictionary of words, and f(·) represents our NN archi-
+tecture without the softmax layer and swis a sentence
+window where the middle word has been replaced by
+the word w. We sample this cost online w.r.t. ( s, w).
+We will see in our experiments that the features (em-
+bedding) learnt by the lookup-table layer of this NN
+clusters semantically similar words. These discovered
+features will prove very useful for our shared tasks.
+Previous Work on Language Models (Bengio &
+Ducharme, 2001) and (Schwenk & Gauvain, 2002) al-
+ready presented very similar language models. How-
+ever, their goal was to give a probability of a word
+given previous ones in a sentence. Here, we only want
+to have a good representation of words: we take advan-
+tage of the complete context of a word (before and af-A Uniﬁed Architecture for Natural Language Processing
+ter) to predict its relevance. Perhaps this is the reason
+the authors were never able to obtain a good embed-
+ding of their words. Also, using probabilities imposes
+using a cross-entropy type criterion and can require
+many tricks to speed-up the training, due to normal-
+ization issues. Our criterion (4) is much simpler in
+that respect.
+The authors of (Okanohara & Tsujii, 2007), like us,
+also take a two-class approach (true/fake sentences).
+They use a shallow (kernel) classiﬁer.
+Previous Work in Semi-Supervised Learning
+For an overview of semi-supervised learning, see
+(Chapelle et al., 2006). There have been several uses
+of semi-supervised learning in NLP before, for exam-
+ple in NER (Rosenfeld & Feldman, 2007), machine
+translation (Ueﬃng et al., 2007), parsing (McClosky
+et al., 2006) and text classiﬁcation (Joachims, 1999).
+The ﬁrst work is a highly problem-speciﬁc approach
+whereas the last three all use a self-training type ap-
+proach (Transductive SVMs in the case of text classiﬁ-
+cation, which is a kind of self-training method). These
+methods augment the training set with labeled exam-
+ples from the unlabeled set which are predicted by the
+model itself. This can give large improvements in a
+model, but care must be taken as the predictions are
+of course prone to noise.
+The authors of (Ando & Zhang, 2005) propose a setup
+more similar to ours: they learn from unlabeled data
+as an auxiliary task in a MTL framework. The main
+diﬀerence is that they use shallow classiﬁers; however
+they report positive results on POS and NER tasks.
+Semantically Related Words Task We found it
+interesting to compare the embedding obtained with
+a language model on unlabeled data with an em-
+bedding obtained with labeled data. WordNet is
+a database which contains semantic relations (syn-
+onyms, holonyms, hypernyms, ...) between around
+150,000 words. We used it to train a NN similar to
+the language model one. We considered the problem
+as a two-class classiﬁcation task: positive examples are
+pairs with a relation in Wordnet, and negative exam-
+ples are random pairs.
+6. Experiments
+We used Sections 02-21 of the PropBank dataset ver-
+sion 1 (about 1 million words) for training and Sec-
+tion 23 for testing as standard in all SRL experiments.
+POS and chunking tasks use the same data split via
+the Penn TreeBank. NER labeled data was obtained
+by running the Stanford Named Entity Recognizer (aTable 1. Language model performance for learning an em-
+bedding in wsz= 50 dimensions (dictionary size: 30 ,000).
+For each column the queried word is followed by its index in
+the dictionary (higher means more rare) and its 10 nearest
+neighbors (arbitrary using the Euclidean metric).
+france jesus xbox reddish scratched
+454 1973 6909 11724 29869
+spain christ playstation yellowish smashed
+italy god dreamcast greenish ripped
+russia resurrection psNUMBER brownish brushed
+poland prayer snes bluish hurled
+england yahweh wii creamy grabbed
+denmark josephus nes whitish tossed
+germany moses nintendo blackish squeezed
+portugal sin gamecube silvery blasted
+sweden heaven psp greyish tangled
+austria salvation amiga paler slashed
+CRF based classiﬁer) over the same data.
+Language models were trained on Wikipedia. In all
+cases, any numeric number was converted as “NUM-
+BER”. Accentuated characters were transformed to
+their non-accentuated versions. All paragraphs con-
+taining other non-ASCII characters were discarded.
+For Wikipedia, we obtain a database of 631M words.
+We used WordNet to train the “synonyms” (semanti-
+cally related words) task.
+All tasks use the same dictionary of the 30 ,000 most
+common words from Wikipedia, converted to lower
+case. Other words were considered as unknown and
+mapped to a special word.
+Architectures All tasks were trained using the NN
+shown in Figure 1. POS, NER, and chunking tasks
+were trained with the window version with ksz= 5.
+We chose linear models for POS and NER. For chunk-
+ing we chose a hidden layer of 200 units. The language
+model task had a window size ksz= 11, and a hidden
+layer of 100 units. All these tasks used two lookup-
+tables: one of dimension wsz for the word in lower
+case, and one of dimension 2 specifying if the ﬁrst let-
+ter of the word is a capital letter or not.
+For SRL, the network had a convolution layer with
+ksz= 3 and 100 hidden units, followed by another
+hidden layer of 100 hidden units. It had three lookup-
+tables in the ﬁrst layer: one for the word (in lower
+case), and two that encode relative distances (to the
+word of interest and the verb). The last two lookup-
+tables embed in 5 dimensional spaces. Verb positions
+are obtained with our POS classiﬁer.
+The language model network had only one lookup-
+table (the word in lower case) and 100 hidden units.
+It used a window of size ksz= 11.
+We show results for diﬀerent encoding sizes of the word
+in lower case: wsz= 15, 50 and 100.A Uniﬁed Architecture for Natural Language Processing
+Table 2. A Deep Architecture for SRL improves by learning auxiliary tasks that share the ﬁrst layer that represents words
+aswsz-dimensional vectors. We give word error rates for wsz=15, 50 and 100 and various shared tasks.
+wsz=15 wsz=50 wsz=100
+SRL 16.54 17.33 18.40
+SRL + POS 15.99 16.57 16.53
+SRL + Chunking 16.42 16.39 16.48
+SRL + NER 16.67 17.29 17.21
+SRL + Synonyms 15.46 15.17 15.17
+SRL + Language model 14.42 14.30 14.46
+SRL + POS + Chunking 16.46 15.95 16.41
+SRL + POS + NER 16.45 16.89 16.29
+SRL + POS + Chunking + NER 16.33 16.36 16.27
+SRL + POS + Chunking + NER + Synonyms 15.71 14.76 15.48
+SRL + POS + Chunking + NER + Language model 14.63 14.44 14.50
+wsz=15
+EpochTest Error
+1 11 21 31141516171819202122
+SRL
+SRL+POS
+SRL+CHUNK
+SRL+POS+CHUNK
+SRL+POS+CHUNK+NER
+SRL+SYNONYMS
+SRL+POS+CHUNK+NER+SYNONYMS
+SRL+LANG.MODEL
+SRL+POS+CHUNK+NER+LANG.MODEL
+Wsz=50
+EpochTest Error
+1 3.5 6 8.5 11 13.5 16 18.5141516171819202122
+SRL
+SRL+POS
+SRL+CHUNK
+SRL+POS+CHUNK
+SRL+POS+CHUNK+NER
+SRL+SYNONYMS
+SRL+POS+CHUNK+NER+SYNONYMS
+SRL+LANG.MODEL
+SRL+POS+CHUNK+NER+LANG.MODEL
+Wsz=100
+EpochTest Error
+1 3.5 6 8.5 11 13.5141516171819202122
+SRL
+SRL+POS
+SRL+CHUNK
+SRL+POS+CHUNK
+SRL+POS+CHUNK+NER
+SRL+SYNONYMS
+SRL+POS+CHUNK+NER+SYNONYMS
+SRL+LANG.MODEL
+SRL+POS+CHUNK+NER+LANG.MODEL
+Figure 3. Test error versus number of training epochs over PropBank, for the SRL task alone and SRL jointly trained
+with various other NLP tasks, using deep NNs.
+Results: Language Model Because the language
+model was trained on a huge database we ﬁrst trained
+italone . It takes about a week to train on one com-
+puter. The embedding obtained in the word lookup-
+table was extremely good, even for uncommon words,
+as shown in Table 1. The embedding obtained by
+training on labeled data from WordNet “synonyms”
+is also good (results not shown) however the coverage
+is not as good as using unlabeled data, e.g. “Dream-
+cast” is not in the database.
+The resulting word lookup-table from the language
+model was used as an initializer of the lookup-table
+used in MTL experiments with a language model.
+Results: SRL Our main interest was improving SRL
+performance, the most complex of our tasks. In Ta-
+ble 2, we show results comparing the SRL task alone
+with the SRL task jointly trained with diﬀerent com-
+binations of the other tasks. For all our experiments,
+training was achieved in a few epochs (about a day)
+over the PropBank dataset as shown in Figure 3. Test-
+ing takes 0.015s to label a complete sentence (given one
+verb).All MTL experiments performed better than SRL
+alone. With larger wsz (and thus large capacity) the
+relative improvement becomes larger from using MTL
+compared to the task alone, which shows MTL is a
+good way of regularizing: in fact with MTL results
+are fairly stable with capacity changes.
+The semi-supervised training of SRL using the lan-
+guage model performs better than other combinations.
+Our best model performed as low as 14 .30% in per-
+word error rate, which is to be compared to previ-
+ously published results of 16 .36% with an NN archi-
+tecture (Collobert & Weston, 2007) and 16 .54% for a
+state-of-the-art method based on parse trees (Pradhan
+et al., 2004)1. Further, our system is the only one not
+to use POS tags or parse tree features.
+Results: POS and Chunking Training takes about
+30 min for these tasks alone. Testing time for label-
+ing a complete sentence is about 0.003s. We obtained
+modest improvements to POS and chunking results us-
+1Our loss function optimized per-word error rate. We
+note that many SRL results e.g. the CONLL 2005 evalua-
+tion use F1 as a standard measure.A Uniﬁed Architecture for Natural Language Processing
+ing MTL. Without MTL (for wsz = 50) we obtain
+2.95% test error for POS and 4.5% (91.1 F-measure)
+for chunking. With MTL we obtain 2.91% for POS
+and 3.8% (92.71 F-measure) for chunking. POS error
+rates in the 3% range are state-of-the-art. For chunk-
+ing, although we use a diﬀerent train/test setup to the
+CoNLL-2000 shared task ( http://www.cnts.ua.ac.
+be/conll2000/chunking ) our system seems compet-
+itive with existing systems (better than 9 of the 11
+submitted systems). However, our system is the only
+one that does not use POS tags as input features.
+Note, we did not evaluate NER error rates because
+we used non-gold standard annotations in our setup.
+Future work will more thoroughly evaluate these tasks.
+7. Conclusion
+We proposed a general deep NN architecture for NLP.
+Our architecture is extremely fast enabling us to take
+advantage of huge databases (e.g. 631 million words
+from Wikipedia). We showed our deep NN could be
+applied to various tasks such as SRL, NER, POS,
+chunking and language modeling. We demonstrated
+that learning tasks simultaneously can improve gener-
+alization performance. In particular, when training
+the SRL task jointly with our language model our
+architecture achieved state-of-the-art performance in
+SRL without any explicit syntactic features. This is
+an important result, given that the NLP community
+considers syntax as a mandatory feature for semantic
+extraction (Gildea & Palmer, 2001).
+References
+Ando, R., & Zhang, T. (2005). A Framework for Learn-
+ing Predictive Structures from Multiple Tasks and Un-
+labeled Data. JMLR ,6, 1817–1853.
+Bengio, Y., & Ducharme, R. (2001). A neural probabilistic
+language model. NIPS 13 .
+Bridle, J. (1990). Probabilistic interpretation of feedfor-
+ward classiﬁcation network outputs, with relationships
+to statistical pattern recognition. In F. F. Souli´ e and
+J. H´ erault (Eds.), Neurocomputing: Algorithms, archi-
+tectures and applications , 227–236. NATO ASI Series.
+Caruana, R. (1997). Multitask Learning. Machine Learn-
+ing,28, 41–75.
+Chapelle, O., Schlkopf, B., & Zien, A. (2006). Semi-
+supervised learning . Adaptive computation and machine
+learning. Cambridge, Mass., USA: MIT Press.
+Collobert, R., & Weston, J. (2007). Fast semantic extrac-
+tion using a novel neural network architecture. Proceed-
+ings of the 45th Annual Meeting of the ACL (pp. 560–
+567).Gildea, D., & Palmer, M. (2001). The necessity of parsing
+for predicate argument recognition. Proceedings of the
+40th Annual Meeting of the ACL , 239–246.
+Joachims, T. (1999). Transductive inference for text clas-
+siﬁcation using support vector machines. ICML .
+LeCun, Y., Bottou, L., Bengio, Y., & Haﬀner, P. (1998).
+Gradient-Based Learning Applied to Document Recog-
+nition. Proceedings of the IEEE ,86.
+McClosky, D., Charniak, E., & Johnson, M. (2006). Ef-
+fective self-training for parsing. Proceedings of HLT-
+NAACL 2006 .
+Miller, S., Fox, H., Ramshaw, L., & Weischedel, R. (2000).
+A novel use of statistical parsing to extract informa-
+tion from text. 6th Applied Natural Language Processing
+Conference .
+Musillo, G., & Merlo, P. (2006). Robust Parsing of the
+Proposition Bank. ROMAND 2006: Robust Methods in
+Analysis of Natural language Data .
+Okanohara, D., & Tsujii, J. (2007). A discriminative lan-
+guage model with pseudo-negative samples. Proceedings
+of the 45th Annual Meeting of the ACL , 73–80.
+Palmer, M., Gildea, D., & Kingsbury, P. (2005). The
+proposition bank: An annotated corpus of semantic
+roles. Comput. Linguist. ,31, 71–106.
+Pradhan, S., Ward, W., Hacioglu, K., Martin, J., & Juraf-
+sky, D. (2004). Shallow semantic parsing using support
+vector machines. Proceedings of HLT/NAACL-2004 .
+Rosenfeld, B., & Feldman, R. (2007). Using Corpus Statis-
+tics on Entities to Improve Semi-supervised Relation Ex-
+traction from the Web. Proceedings of the 45th Annual
+Meeting of the ACL , 600–607.
+Schwenk, H., & Gauvain, J. (2002). Connectionist lan-
+guage modeling for large vocabulary continuous speech
+recognition. IEEE International Conference on Acous-
+tics, Speech, and Signal Processing (pp. 765–768).
+Sutton, C., & McCallum, A. (2005a). Composition of con-
+ditional random ﬁelds for transfer learning. Proceedings
+of the conference on Human Language Technology and
+Empirical Methods in Natural Language Processing , 748–
+754.
+Sutton, C., & McCallum, A. (2005b). Joint parsing and
+semantic role labeling. Proceedings of CoNLL-2005 (pp.
+225–228).
+Sutton, C., McCallum, A., & Rohanimanesh, K. (2007).
+Dynamic Conditional Random Fields: Factorized Prob-
+abilistic Models for Labeling and Segmenting Sequence
+Data. JMLR ,8, 693–723.
+Ueﬃng, N., Haﬀari, G., & Sarkar, A. (2007). Transductive
+learning for statistical machine translation. Proceedings
+of the 45th Annual Meeting of the ACL , 25–32.
+Waibel, A., abd G. Hinton, T. H., Shikano, K., & Lang,
+K. (1989). Phoneme recognition using time-delay neural
+networks. IEEE Transactions on Acoustics, Speech, and
+Signal Processing ,37, 328–339.

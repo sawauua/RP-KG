@@ -1,0 +1,422 @@
+Glow: Generative Flow
+with Invertible 1x1 Convolutions
+Diederik P. Kingma*y, Prafulla Dhariwal
+*OpenAI
+yGoogle AI
+Abstract
+Flow-based generative models (Dinh et al., 2014) are conceptually attractive due to
+tractability of the exact log-likelihood, tractability of exact latent-variable inference,
+and parallelizability of both training and synthesis. In this paper we propose Glow ,
+a simple type of generative ﬂow using an invertible 11convolution. Using our
+method we demonstrate a signiﬁcant improvement in log-likelihood on standard
+benchmarks. Perhaps most strikingly, we demonstrate that a ﬂow-based generative
+model optimized towards the plain log-likelihood objective is capable of efﬁcient
+realistic-looking synthesis and manipulation of large images. The code for our
+model is available at https://github.com/openai/glow .
+1 Introduction
+Two major unsolved problems in the ﬁeld of machine learning are (1) data-efﬁciency: the ability to
+learn from few datapoints, like humans; and (2) generalization: robustness to changes of the task or
+its context. AI systems, for example, often do not work at all when given inputs that are different
+Equal contribution.
+32nd Conference on Neural Information Processing Systems (NeurIPS 2018), Montréal, Canada.
+Figure 1: Synthetic celebrities sampled from our model; see Section 3 for architecture and method,
+and Section 5 for more results.from their training distribution. A promise of generative models , a major branch of machine learning,
+is to overcome these limitations by: (1) learning realistic world models, potentially allowing agents to
+plan in a world model before actual interaction with the world, and (2) learning meaningful features
+of the input while requiring little or no human supervision or labeling. Since such features can be
+learned from large unlabeled datasets and are not necessarily task-speciﬁc, downstream solutions
+based on those features could potentially be more robust and more data efﬁcient. In this paper we
+work towards this ultimate vision, in addition to intermediate applications, by aiming to improve
+upon the state-of-the-art of generative models.
+Generative modeling is generally concerned with the extremely challenging task of modeling all
+dependencies within very high-dimensional input data, usually speciﬁed in the form of a full joint
+probability distribution. Since such joint models potentially capture all patterns that are present in the
+data, the applications of accurate generative models are near endless. Immediate applications are as
+diverse as speech synthesis, text analysis, semi-supervised learning and model-based control; see
+Section 4 for references.
+The discipline of generative modeling has experienced enormous leaps in capabilities in recent years,
+mostly with likelihood-based methods (Graves, 2013; Kingma and Welling, 2013, 2018; Dinh et al.,
+2014; van den Oord et al., 2016a) and generative adversarial networks (GANs) (Goodfellow et al.,
+2014) (see Section 4). Likelihood-based methods can be divided into three categories:
+1.Autoregressive models (Hochreiter and Schmidhuber, 1997; Graves, 2013; van den Oord
+et al., 2016a,b; Van Den Oord et al., 2016). Those have the advantage of simplicity, but have
+as disadvantage that synthesis has limited parallelizability, since the computational length of
+synthesis is proportional to the dimensionality of the data; this is especially troublesome for
+large images or video.
+2.Variational autoencoders (V AEs) (Kingma and Welling, 2013, 2018), which optimize a
+lower bound on the log-likelihood of the data. Variational autoencoders have the advantage
+of parallelizability of training and synthesis, but can be comparatively challenging to
+optimize (Kingma et al., 2016).
+3.Flow-based generative models, ﬁrst described in NICE (Dinh et al., 2014) and extended in
+RealNVP (Dinh et al., 2016). We explain the key ideas behind this class of model in the
+following sections.
+Flow-based generative models have so far gained little attention in the research community compared
+to GANs (Goodfellow et al., 2014) and V AEs (Kingma and Welling, 2013). Some of the merits of
+ﬂow-based generative models include:
+Exact latent-variable inference and log-likelihood evaluation. In V AEs, one is able to infer
+only approximately the value of the latent variables that correspond to a datapoint. GAN’s
+have no encoder at all to infer the latents. In reversible generative models, this can be done
+exactly without approximation. Not only does this lead to accurate inference, it also enables
+optimization of the exact log-likelihood of the data, instead of a lower bound of it.
+Efﬁcient inference and efﬁcient synthesis. Autoregressive models, such as the Pixel-
+CNN (van den Oord et al., 2016b), are also reversible, however synthesis from such models
+is difﬁcult to parallelize, and typically inefﬁcient on parallel hardware. Flow-based gener-
+ative models like Glow (and RealNVP) are efﬁcient to parallelize for both inference and
+synthesis.
+Useful latent space for downstream tasks. The hidden layers of autoregressive models
+have unknown marginal distributions, making it much more difﬁcult to perform valid
+manipulation of data. In GANs, datapoints can usually not be directly represented in a latent
+space, as they have no encoder and might not have full support over the data distribution.
+(Grover et al., 2018). This is not the case for reversible generative models and V AEs, which
+allow for various applications such as interpolations between datapoints and meaningful
+modiﬁcations of existing datapoints.
+Signiﬁcant potential for memory savings. Computing gradients in reversible neural networks
+requires an amount of memory that is constant instead of linear in their depth, as explained
+in the RevNet paper (Gomez et al., 2017).
+2In this paper we propose a new a generative ﬂow coined Glow , with various new elements as described
+in Section 3. In Section 5, we compare our model quantitatively with previous ﬂows, and in Section
+6, we study the qualitative aspects of our model on high-resolution datasets.
+2 Background: Flow-based Generative Models
+Letxbe a high-dimensional random vector with unknown true distribution xp(x). We collect
+an i.i.d. datasetD, and choose a model p(x)with parameters . In case of discrete data x, the
+log-likelihood objective is then equivalent to minimizing:
+L(D) =1
+NNX
+i=1 logp(x(i)) (1)
+In case of continuous datax, we minimize the following:
+L(D)'1
+NNX
+i=1 logp(~x(i)) +c (2)
+where ~x(i)=x(i)+uwithuU(0;a), andc= Mlogawhereais determined by the
+discretization level of the data and Mis the dimensionality of x. Both objectives (eqs. (1)and(2))
+measure the expected compression cost in nats or bits; see (Dinh et al., 2016). Optimization is done
+through stochastic gradient descent using minibatches of data (Kingma and Ba, 2015).
+In most ﬂow-based generative models (Dinh et al., 2014, 2016), the generative process is deﬁned as:
+zp(z) (3)
+x=g(z) (4)
+where zis the latent variable and p(z)has a (typically simple) tractable density, such as a spherical
+multivariate Gaussian distribution: p(z) =N(z; 0;I). The function g(::)is invertible, also called
+bijective , such that given a datapoint x, latent-variable inference is done by z=f(x) =g 1
+(x).
+For brevity, we will omit subscript fromfandg.
+We focus on functions where f(and, likewise, g) is composed of a sequence of transformations:
+f=f1f2 fK, such that the relationship between xandzcan be written as:
+xf1 !h1f2 !h2fK !z (5)
+Such a sequence of invertible transformations is also called a (normalizing) ﬂow (Rezende and
+Mohamed, 2015). Under the change of variables of eq. (4), the probability density function (pdf) of
+the model given a datapoint can be written as:
+logp(x) = logp(z) + logjdet(dz=dx)j (6)
+= logp(z) +KX
+i=1logjdet(dhi=dhi 1)j (7)
+where we deﬁne h0,xandhK,zfor conciseness. The scalar value logjdet(dhi=dhi 1)jis
+the logarithm of the absolute value of the determinant of the Jacobian matrix (dhi=dhi 1), also
+called the log-determinant . This value is the change in log-density when going from hi 1tohi
+under transformation fi. While it may look intimidating, its value can be surprisingly simple to
+compute for certain choices of transformations, as previously explored in (Deco and Brauer, 1995;
+Dinh et al., 2014; Rezende and Mohamed, 2015; Kingma et al., 2016). The basic idea is to choose
+transformations whose Jacobian dhi=dhi 1is a triangular matrix. For those transformations, the
+log-determinant is simple:
+logjdet(dhi=dhi 1)j=sum(logjdiag (dhi=dhi 1)j) (8)
+where sum()takes the sum over all vector elements, log() takes the element-wise logarithm, and
+diag ()takes the diagonal of the Jacobian matrix.
+3squeeze
+step of ﬂow
+split× K × (L−1) 
+squeeze
+step of ﬂow× K 
+xzizL
+squeeze
+actnorm
+split× K × (L−1) 
+squeeze
+step of ﬂow× K 
+xzlzL
+invertible 1x1 conv
+aﬃne coupling layer
+actnorm
+invertible 1x1 conv
+aﬃne coupling layer(a) One step of our ﬂow.
+squeeze
+step of ﬂow
+split× K × (L−1) 
+squeeze
+step of ﬂow× K 
+xzizL
+squeeze
+actnorm
+split× K × (L−1) 
+squeeze
+step of ﬂow× K 
+xzlzL
+invertible 1x1 conv
+aﬃne coupling layer
+actnorm
+invertible 1x1 conv
+aﬃne coupling layer (b) Multi-scale architecture (Dinh et al., 2016).
+Figure 2: We propose a generative ﬂow where each step (left) consists of an actnorm step, followed
+by an invertible 11convolution, followed by an afﬁne transformation (Dinh et al., 2014). This
+ﬂow is combined with a multi-scale architecture (right). See Section 3 and Table 1.
+Table 1: The three main components of our proposed ﬂow, their reverses, and their log-determinants.
+Here, xsigniﬁes the input of the layer, and ysigniﬁes its output. Both xandyare tensors of
+shape [hwc]with spatial dimensions (h;w)and channel dimension c. With (i;j)we denote
+spatial indices into tensors xandy. The function NN()is a nonlinear mapping, such as a (shallow)
+convolutional neural network like in ResNets (He et al., 2016) and RealNVP (Dinh et al., 2016).
+Description Function Reverse Function Log-determinant
+Actnorm.
+See Section 3.1.8i; j:yi;j=sxi;j+b8i; j:xi;j= (yi;j b)=shwsum(logjsj)
+Invertible 11convolution.
+W: [cc].
+See Section 3.2.8i; j:yi;j=Wxi;j8i; j:xi;j=W 1yi;j hwlogjdet(W)j
+or
+hwsum(logjsj)
+(see eq. (10))
+Afﬁne coupling layer.
+See Section 3.3 and
+(Dinh et al., 2014)xa;xb=split (x)
+(logs;t) =NN(xb)
+s= exp(log s)
+ya=sxa+t
+yb=xb
+y=concat (ya;yb)ya;yb=split (y)
+(logs;t) =NN(yb)
+s= exp(log s)
+xa= (ya t)=s
+xb=yb
+x=concat (xa;xb)sum(log(jsj))
+3 Proposed Generative Flow
+We propose a new ﬂow, building on the NICE and RealNVP ﬂows proposed in (Dinh et al., 2014,
+2016). It consists of a series of steps of ﬂow, combined in a multi-scale architecture; see Figure 2.
+Each step of ﬂow consists of actnorm (Section 3.1) followed by an invertible 11convolution
+(Section 3.2), followed by a coupling layer (Section 3.3).
+This ﬂow is combined with a multi-scale architecture; due to space constraints we refer to (Dinh et al.,
+2016) for more details. This architecture has a depth of ﬂow K, and number of levels L(Figure 2).
+3.1 Actnorm: scale and bias layer with data dependent initialization
+In Dinh et al. (2016), the authors propose the use of batch normalization (Ioffe and Szegedy, 2015)
+to alleviate the problems encountered when training deep models. However, since the variance of
+4activations noise added by batch normalization is inversely proportional to minibatch size per GPU
+or other processing unit (PU), performance is known to degrade for small per-PU minibatch size.
+For large images, due to memory constraints, we learn with minibatch size 1 per PU. We propose an
+actnorm layer (for activation normalizaton ), that performs an afﬁne transformation of the activations
+using a scale and bias parameter per channel, similar to batch normalization. These parameters are
+initialized such that the post-actnorm activations per-channel have zero mean and unit variance given
+an initial minibatch of data. This is a form of data dependent initialization (Salimans and Kingma,
+2016). After initialization, the scale and bias are treated as regular trainable parameters that are
+independent of the data.
+3.2 Invertible 11convolution
+(Dinh et al., 2014, 2016) proposed a ﬂow containing the equivalent of a permutation that reverses the
+ordering of the channels. We propose to replace this ﬁxed permutation with a (learned) invertible
+11convolution, where the weight matrix is initialized as a random rotation matrix. Note that a
+11convolution with equal number of input and output channels is a generalization of a permutation
+operation.
+The log-determinant of an invertible 11convolution of a hwctensor hwithccweight
+matrix Wis straightforward to compute:
+logdetdconv2D (h;W)
+dh=hwlogjdet(W)j (9)
+The cost of computing or differentiating det(W)isO(c3), which is often comparable to the cost
+computing conv2D (h;W)which isO(hwc2). We initialize the weights Was a random rotation
+matrix, having a log-determinant of 0; after one SGD step these values start to diverge from 0.
+LU Decomposition. This cost of computing det(W)can be reduced from O(c3)toO(c)by
+parameterizing Wdirectly in its LU decomposition:
+W=PL(U+ diag( s)) (10)
+where Pis a permutation matrix, Lis a lower triangular matrix with ones on the diagonal, Uis an
+upper triangular matrix with zeros on the diagonal, and sis a vector. The log-determinant is then
+simply:
+logjdet(W)j=sum(logjsj) (11)
+The difference in computational cost will become signiﬁcant for large c, although for the networks in
+our experiments we did not measure a large difference in wallclock computation time.
+In this parameterization, we initialize the parameters by ﬁrst sampling a random rotation matrix W,
+then computing the corresponding value of P(which remains ﬁxed) and the corresponding initial
+values of LandUands(which are optimized).
+3.3 Afﬁne Coupling Layers
+A powerful reversible transformation where the forward function, the reverse function and the log-
+determinant are computationally efﬁcient, is the afﬁne coupling layer introduced in (Dinh et al., 2014,
+2016). See Table 1. An additive coupling layer is a special case with s= 1and a log-determinant of
+0.
+Zero initialization. We initialize the last convolution of each NN()with zeros, such that each afﬁne
+coupling layer initially performs an identity function; we found that this helps training very deep
+networks.
+Split and concatenation. As in (Dinh et al., 2014), the split ()function splits hthe input tensor
+into two halves along the channel dimension, while the concat ()operation performs the correspond-
+ing reverse operation: concatenation into a single tensor. In (Dinh et al., 2016), another type of split
+was introduced: along the spatial dimensions using a checkerboard pattern. In this work we only
+perform splits along the channel dimension, simplifying the overall architecture.
+5Permutation. Each step of ﬂow above should be preceded by some kind of permutation of the
+variables that ensures that after sufﬁcient steps of ﬂow, each dimensions can affect every other
+dimension. The type of permutation speciﬁcally done in (Dinh et al., 2014, 2016) is equivalent to
+simply reversing the ordering of the channels (features) before performing an additive coupling
+layer. An alternative is to perform a (ﬁxed) random permutation. Our invertible 1x1 convolution is a
+generalization of such permutations. In experiments we compare these three choices.
+4 Related Work
+This work builds upon the ideas and ﬂows proposed in (Dinh et al., 2014) (NICE) and (Dinh et al.,
+2016) (RealNVP); comparisons with this work are made throughout this paper. In (Papamakarios
+et al., 2017) (MAF), the authors propose a generative ﬂow based on IAF (Kingma et al., 2016);
+however, since synthesis from MAF is non-parallelizable and therefore inefﬁcient, we omit it from
+comparisons. Synthesis from autoregressive (AR) models (Hochreiter and Schmidhuber, 1997;
+Graves, 2013; van den Oord et al., 2016a,b; Van Den Oord et al., 2016) is similarly non-parallelizable.
+Synthesis of high-dimensional data typically takes multiple orders of magnitude longer with AR
+models; see (Kingma et al., 2016; Oord et al., 2017) for evidence. Sampling 256256images with
+our largest models takes less than one second on current hardware.2(Reed et al., 2017) explores
+techniques for speeding up synthesis in AR models considerably; we leave the comparison to this
+line of work to future work.
+GANs (Goodfellow et al., 2014) are arguably best known for their ability to synthesize large and
+realistic images (Karras et al., 2017), in contrast with likelihood-based methods. Downsides of
+GANs are their general lack of latent-space encoders, their general lack of full support over the
+data (Grover et al., 2018), their difﬁculty of optimization, and their difﬁculty of assessing overﬁtting
+and generalization.
+5 Quantitative Experiments
+We begin our experiments by comparing how our new ﬂow compares against RealNVP (Dinh et al.,
+2016). We then apply our model on other standard datasets and compare log-likelihoods against
+previous generative models. See the appendix for optimization details. In our experiments, we
+let each NN()have three convolutional layers, where the two hidden layers have ReLU activation
+functions and 512 channels. The ﬁrst and last convolutions are 33, while the center convolution is
+11, since both its input and output have a large number of channels, in contrast with the ﬁrst and
+last convolution.
+Gains using invertible 11Convolution. We choose the architecture described in Section 3,
+and consider three variations for the permutation of the channel variables - a reversing operation
+as described in the RealNVP, a ﬁxed random permutation, and our invertible 11convolution.
+We compare for models with only additive coupling layers, and models with afﬁne coupling. As
+described earlier, we initialize all models with a data-dependent initialization which normalizes the
+activations of each layer. All models were trained with K= 32 andL= 3. The model with 11
+convolution has a negligible 0:2%larger amount of parameters.
+We compare the average negative log-likelihood (bits per dimension) on the CIFAR-10 (Krizhevsky,
+2009) dataset, keeping all training conditions constant and averaging across three random seeds.
+The results are in Figure 3. As we see, for both additive and afﬁne couplings, the invertible 11
+convolution achieves a lower negative log likelihood and converges faster. The afﬁne coupling models
+also converge faster than the additive coupling models. We noted that the increase in wallclock time
+for the invertible 11convolution model was only 7%, thus the operation is computationally
+efﬁcient as well.
+Comparison with RealNVP on standard benchmarks. Besides the permutation operation, the
+RealNVP architecture has other differences such as the spatial coupling layers. In order to verify
+that our proposed architecture is overall competitive with the RealNVP architecture, we compare
+2More speciﬁcally, generating a 256256image at batch size 1 takes about 130ms on a single NVIDIA
+GTX 1080 Ti, and about 550ms on a NVIDIA Tesla K80.
+60 200 400 600 800 1000 1200 1400 1600 1800
+Epochs3.303.353.403.453.503.553.603.653.70NLLReverse
+Shuffle
+1x1 Conv(a) Additive coupling.
+0 200 400 600 800 1000 1200 1400 1600 1800
+Epochs3.303.353.403.453.503.553.603.653.70NLLReverse
+Shuffle
+1x1 Conv (b) Afﬁne coupling.
+Figure 3: Comparison of the three variants - a reversing operation as described in the RealNVP, a
+ﬁxed random permutation, and our proposed invertible 11convolution, with additive (left) versus
+afﬁne (right) coupling layers. We plot the mean and standard deviation across three runs with different
+random seeds.
+Table 2: Best results in bits per dimension of our model compared to RealNVP.
+Model CIFAR-10 ImageNet 32x32 ImageNet 64x64 LSUN (bedroom) LSUN (tower) LSUN (church outdoor)
+RealNVP 3:49 4:28 3:98 2.72 2.81 3.08
+Glow 3:35 4:09 3:81 2:38 2:46 2:67
+our models on various natural images datasets. In particular, we compare on CIFAR-10, ImageNet
+(Russakovsky et al., 2015) and LSUN (Yu et al., 2015) datasets. We follow the same preprocessing
+as in (Dinh et al., 2016). For Imagenet, we use the 3232and6464downsampled version of
+ImageNet (Oord et al., 2016), and for LSUN we downsample to 9696and take random crops of
+6464. We also include the bits/dimension for our model trained on 256256CelebA HQ used in
+our qualitative experiments.3As we see in Table 2, our model achieves a signiﬁcant improvement on
+all the datasets.
+6 Qualitative Experiments
+We now study the qualitative aspects of the model on high-resolution datasets. We choose the
+CelebA-HQ dataset (Karras et al., 2017), which consists of 30000 high resolution images from the
+CelebA dataset, and train the same architecture as above but now for images at a resolution of 2562,
+K= 32 andL= 6. To improve visual quality at the cost of slight decrease in color ﬁdelity, we train
+our models on 5-bit images. We aim to study if our model can scale to high resolutions, produce
+realistic samples, and produce a meaningful latent space. Due to device memory constraints, at these
+resolutions we work with minibatch size 1 per PU, and use gradient checkpointing (Salimans and
+Bulatov, 2017). In the future, we could use a constant amount of memory independent of depth by
+utilizing the reversibility of the model (Gomez et al., 2017).
+Consistent with earlier work on likelihood-based generative models, we found that sampling from
+a reduced-temperature model (Parmar et al., 2018) often results in higher-quality samples. When
+sampling with temperature T, we sample from the distribution p;T(x)/(p(x))T2. In case of
+additive coupling layers, this can be achieved simply by multiplying the standard deviation of p(z)
+by a factor of T.
+Synthesis and Interpolation. Figure 4 shows the random samples obtained from our model. The
+images are of high quality for a non-autoregressive likelihood based model. To see how well we can
+interpolate, we take a pair of real images, encode them with the encoder, and linearly interpolate
+3Since the original CelebA HQ dataset didn’t have a validation set, we separated it into a training set of
+27000 images and a validation set of 3000 images.
+7Figure 4: Random samples from the model, with temperature 0:7.
+Figure 5: Linear interpolation in latent space between real images.
+between the latents to obtain samples. The results in Figure 5 show that the image manifold of the
+generator distribution is smooth and almost all intermediate samples look like realistic faces.
+Semantic Manipulation. We now consider modifying attributes of an image. To do so, we use the
+labels in the CelebA dataset. Each image has a binary label corresponding to presence or absence of
+attributes like smiling, blond hair, young, etc. This gives us 30000 binary labels for each attribute.
+We then calculate the average latent vector zposfor images with the attribute and znegfor images
+without, and then use the difference (zpos zneg)as a direction for manipulating. Note that this is a
+relatively small amount of supervision, and is done after the model is trained (no labels were used
+while training), making it extremely easy to do for a variety of different target attributes. The results
+are shown in Figure 6 (appendix).
+Effect of temperature and model depth. Figure 8 (appendix) shows how the sample quality and
+diversity varies with temperature. The highest temperatures have noisy images, possibly due to
+overestimating the entropy of the data distribution; we choose a temperature of 0:7as a sweet spot
+for diversity and quality of samples. Figure 9 (appendix) shows how model depth affects the ability
+of the model to learn long-range dependencies.
+7 Conclusion
+We propose a new type of generative ﬂow and demonstrate improved quantitative performance in
+terms of log-likelihood on standard image modeling benchmarks. In addition, we demonstrate that
+when trained on high-resolution faces, our model is able to synthesize realistic images.
+References
+Deco, G. and Brauer, W. (1995). Higher order statistical decorrelation without information loss.
+Advances in Neural Information Processing Systems , pages 247–254.
+3For128128and9696versions, we centre cropped the original image, and downsampled. For 6464
+version, we took random crops from the 9696downsampled image as done in Dinh et al. (2016)
+8Dinh, L., Krueger, D., and Bengio, Y . (2014). Nice: non-linear independent components estimation.
+arXiv preprint arXiv:1410.8516 .
+Dinh, L., Sohl-Dickstein, J., and Bengio, S. (2016). Density estimation using Real NVP. arXiv
+preprint arXiv:1605.08803 .
+Gomez, A. N., Ren, M., Urtasun, R., and Grosse, R. B. (2017). The reversible residual network:
+Backpropagation without storing activations. In Advances in Neural Information Processing
+Systems , pages 2211–2221.
+Goodfellow, I., Pouget-Abadie, J., Mirza, M., Xu, B., Warde-Farley, D., Ozair, S., Courville, A., and
+Bengio, Y . (2014). Generative adversarial nets. In Advances in Neural Information Processing
+Systems , pages 2672–2680.
+Graves, A. (2013). Generating sequences with recurrent neural networks. arXiv preprint
+arXiv:1308.0850 .
+Grover, A., Dhar, M., and Ermon, S. (2018). Flow-gan: Combining maximum likelihood and
+adversarial learning in generative models. In AAAI Conference on Artiﬁcial Intelligence .
+He, K., Zhang, X., Ren, S., and Sun, J. (2016). Identity mappings in deep residual networks. arXiv
+preprint arXiv:1603.05027 .
+Hochreiter, S. and Schmidhuber, J. (1997). Long Short-Term Memory. Neural computation ,
+9(8):1735–1780.
+Ioffe, S. and Szegedy, C. (2015). Batch normalization: Accelerating deep network training by
+reducing internal covariate shift. arXiv preprint arXiv:1502.03167 .
+Karras, T., Aila, T., Laine, S., and Lehtinen, J. (2017). Progressive growing of gans for improved
+quality, stability, and variation. arXiv preprint arXiv:1710.10196 .
+Kingma, D. and Ba, J. (2015). Adam: A method for stochastic optimization. Proceedings of the
+International Conference on Learning Representations 2015 .
+Kingma, D. P., Salimans, T., Jozefowicz, R., Chen, X., Sutskever, I., and Welling, M. (2016).
+Improved variational inference with inverse autoregressive ﬂow. In Advances in Neural Information
+Processing Systems , pages 4743–4751.
+Kingma, D. P. and Welling, M. (2013). Auto-encoding variational Bayes. Proceedings of the 2nd
+International Conference on Learning Representations .
+Kingma, D. P. and Welling, M. (2018). Variational autoencoders. Under Review .
+Krizhevsky, A. (2009). Learning multiple layers of features from tiny images.
+Oord, A. v. d., Kalchbrenner, N., and Kavukcuoglu, K. (2016). Pixel recurrent neural networks. arXiv
+preprint arXiv:1601.06759 .
+Oord, A. v. d., Li, Y ., Babuschkin, I., Simonyan, K., Vinyals, O., Kavukcuoglu, K., Driessche, G.
+v. d., Lockhart, E., Cobo, L. C., Stimberg, F., et al. (2017). Parallel wavenet: Fast high-ﬁdelity
+speech synthesis. arXiv preprint arXiv:1711.10433 .
+Papamakarios, G., Murray, I., and Pavlakou, T. (2017). Masked autoregressive ﬂow for density
+estimation. In Advances in Neural Information Processing Systems , pages 2335–2344.
+Parmar, N., Vaswani, A., Uszkoreit, J., Kaiser, Ł., Shazeer, N., and Ku, A. (2018). Image transformer.
+arXiv preprint arXiv:1802.05751 .
+Reed, S., Oord, A. v. d., Kalchbrenner, N., Colmenarejo, S. G., Wang, Z., Belov, D., and de Freitas,
+N. (2017). Parallel multiscale autoregressive density estimation. arXiv preprint arXiv:1703.03664 .
+Rezende, D. and Mohamed, S. (2015). Variational inference with normalizing ﬂows. In Proceedings
+of The 32nd International Conference on Machine Learning , pages 1530–1538.
+9Russakovsky, O., Deng, J., Su, H., Krause, J., Satheesh, S., Ma, S., Huang, Z., Karpathy, A., Khosla,
+A., Bernstein, M., et al. (2015). Imagenet large scale visual recognition challenge. International
+Journal of Computer Vision , 115(3):211–252.
+Salimans, T. and Bulatov, Y . (2017). Gradient checkpointing. https://github.com/openai/
+gradient-checkpointing .
+Salimans, T. and Kingma, D. P. (2016). Weight normalization: A simple reparameterization to
+accelerate training of deep neural networks. arXiv preprint arXiv:1602.07868 .
+Van Den Oord, A., Dieleman, S., Zen, H., Simonyan, K., Vinyals, O., Graves, A., Kalchbrenner,
+N., Senior, A., and Kavukcuoglu, K. (2016). Wavenet: A generative model for raw audio. arXiv
+preprint arXiv:1609.03499 .
+van den Oord, A., Kalchbrenner, N., and Kavukcuoglu, K. (2016a). Pixel recurrent neural networks.
+arXiv preprint arXiv:1601.06759 .
+van den Oord, A., Kalchbrenner, N., Vinyals, O., Espeholt, L., Graves, A., and Kavukcuoglu, K.
+(2016b). Conditional image generation with PixelCNN decoders. arXiv preprint arXiv:1606.05328 .
+Yu, F., Zhang, Y ., Song, S., Seff, A., and Xiao, J. (2015). Lsun: Construction of a large-scale image
+dataset using deep learning with humans in the loop. arXiv preprint arXiv:1506.03365 .
+10

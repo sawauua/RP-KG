@@ -1,0 +1,408 @@
+Privacy-preserving logistic regression
+
+Kamalika Chaudhuri
+Information Theory and Applications
+University of California, San Diego
+kamalika@soe.ucsd.eduClaire Monteleoni
+Center for Computational Learning Systems
+Columbia University
+cmontel@ccls.columbia.edu
+Abstract
+This paper addresses the important tradeoff between privacy and learnability,
+when designing algorithms for learning from private databases. We focus on
+privacy-preserving logistic regression. First we apply an idea of Dwork et al. [6]
+to design a privacy-preserving logistic regression algorithm. This involves bound-
+ing the sensitivity of regularized logistic regression, and perturbing the learned
+classiﬁer with noise proportional to the sensitivity.
+We then provide a privacy-preserving regularized logistic regression algorithm
+based on a new privacy-preserving technique: solving a perturbed optimization
+problem. We prove that our algorithm preserves privacy in the model due to [6].
+We provide learning guarantees for both algorithms, which are tighter for our new
+algorithm, in cases in which one would typically apply logistic regression. Ex-
+periments demonstrate improved learning performance of our method, versus the
+sensitivity method. Our privacy-preserving technique does not depend on the sen-
+sitivity of the function, and extends easily to a class of convex loss functions. Our
+work also reveals an interesting connection between regularization and privacy.
+1 Introduction
+Privacy-preserving machine learning is an emerging problem, due in part to the increased reliance on
+the internet for day-to-day tasks such as banking, shopping, and social networking. Moreover, pri-
+vate data such as medical and ﬁnancial records are increasingly being digitized, stored, and managed
+by independent companies. In the literature on cryptography and information security, data privacy
+deﬁnitions have been proposed, however designing machine learning algorithms that adhere to them
+has not been well-explored. On the other hand, data-mining algorithms have been introduced that
+aim to respect other notions of privacy that may be less formally justiﬁed.
+Our goal is to bridge the gap between approaches in the cryptography and information security com-
+munity, and those in the data-mining community. This is necessary, as there is a tradeoff between
+the privacy of a protocol, and the learnability of functions that respect the protocol. In addition to
+the speciﬁc contributions of our paper, we hope to encourage the machine learning community to
+embrace the goals of privacy-preserving machine learning, as it is still a ﬂedgling endeavor.
+In this work, we provide algorithms for learning in a privacy model introduced by Dwork et al. [6].
+The-differential privacy model limits how much information an adversary can gain about a par-
+ticular private value, by observing a function learned from a database containing that value, even if
+she knows every other value in the database. An initial positive result [6] in this setting depends on
+thesensitivity of the function to be learned, which is the maximum amount the function value can
+change due to an arbitrary change in one input. Using this method requires bounding the sensitivity
+of the function class to be learned, and then adding noise proportional to the sensitivity. This might
+be difﬁcult for some functions that are important for machine learning.
+The majority of this work was done while at UC San Diego.
+1The contributions of this paper are as follows. First we apply the sensitivity-based method of design-
+ing privacy-preserving algorithms [6] to a speciﬁc machine learning algorithm, logistic regression.
+Then we present a second privacy-preserving logistic regression algorithm. The second algorithm is
+based on solving a perturbed objective function, and does not depend on the sensitivity. We prove
+that the new method is private in the -differential privacy model. We provide learning performance
+guarantees for both algorithms, which are tighter for our new algorithm, in cases in which one would
+typically apply logistic regression. Finally, we provide experiments demonstrating superior learning
+performance of our new method, with respect to the algorithm based on [6]. Our technique may have
+broader applications, and we show that it can be applied to certain classes of optimization problems.
+1.1 Overview and related work
+At the ﬁrst glance, it may seem that anonymizing a data-set – namely, stripping it of identifying
+information about individuals, such as names, addresses, etc – is sufﬁcient to preserve privacy.
+However, this is problematic, because an adversary may have some auxiliary information, which
+may even be publicly available, and which can be used to breach privacy. For more details on such
+attacks, see [12].
+To formally address this issue, we need a deﬁnition of privacy which works in the presence of
+auxiliary knowledge by the adversary. The deﬁnition we use is due to Dwork et al. [6], and has been
+used in several applications [4, 11, 2]. We explain this deﬁnition and privacy model in more detail
+in Section 2.
+Privacy and learning. The work most related to ours is [8] and [3]. [8] shows how to ﬁnd classiﬁers
+that preserve -differential privacy; however, their algorithm takes time exponential in dfor inputs
+inRd. [3] provides a general method for publishing data-sets while preserving -differential privacy
+such that the answers to all queries of a certain type with low VC-dimension are approximately
+correct. However, their algorithm can also be computationally inefﬁcient.
+Additional related work. There has been a substantial amount of work on privacy in the literature,
+spanning several communities. Much work on privacy has been done in the data-mining community
+[1, 7], [14, 10], however the privacy deﬁnitions used in these papers are different, and some are sus-
+ceptible to attacks when the adversary has some prior information. In contrast, the privacy deﬁnition
+we use avoids these attacks, and is very strong.
+2 Sensitivity and the -differential privacy model
+Before we deﬁne the privacy model that we study, we will note a few preliminary points. Both in
+that model, and for our algorithm and analyses, we assume that each value in the database is a real
+vector with norm at most one. That is, a database contains values x1;:::;xn, wherexi2Rd,
+andkxik 1for alli2f1;:::;ng. This assumption is used in the privacy model. In addition,
+we assume that when learning linear separators, the best separator passes through the origin. Note
+that this is not an assumption that the data is separable, but instead an assumption that a vector’s
+classiﬁcation is based on its angle, regardless of its norm.
+In both privacy-preserving logistic regression algorithms that we state, the output is a parameter
+vector,w, which makes prediction SGN(wx), on a point x. For a vector x, we usejjxjjto denote
+its Euclidean norm. For a function G(x) deﬁned on Rd, we userGto denote its gradient and r2G
+to denote its Hessian.
+Privacy Deﬁnition. The privacy deﬁnition we use is due to Dwork et al. [6, 5]. In this model, users
+have access to private data about individuals through a sanitization mechanism, usually denoted by
+M. The interaction between the sanitization mechanism and an adversary is modelled as a sequence
+of queries, made by the adversary, and responses, made by the sanitizer. The sanitizer, which is
+typically a randomized algorithm, is said to preserve -differential privacy, if the private value of
+any one individual in the data set does not affect the likelihood of a speciﬁc answer by the sanitizer
+by more than .
+More formally, -differential privacy can be deﬁned as follows.
+2Deﬁnition 1 A randomized mechanism Mprovides-differential privacy, if, for all databases D1
+andD2which differ by at most one element, and for any t,
+Pr[M (D1) =t]
+Pr[M (D2) =t]e
+It was shown in [6] that if a mechanism satisﬁes -differential privacy, then an adversary who knows
+the private value of all the individuals in the data-set, except for one single individual, cannot ﬁgure
+out the private value of the unknown individual, with sufﬁcient conﬁdence, from the responses of
+the sanitizer. -differential privacy is therefore a very strong notion of privacy.
+[6] also provides a general method for computing an approximation to any function fwhile preserv-
+ing-differential privacy. Before we can describe their method, we need a deﬁnition.
+Deﬁnition 2 For any function fwithninputs, we deﬁne the sensitivity S(f)as the maximum, over
+all inputs, of the difference in the value of fwhen one input of fis changed. That is,
+S(f) = max
+(a;a0)jf(x1;:::;xn 1;xn=a) f(x1;:::;xn 1;xn=a0)j
+[6] shows that for any input x1;:::;xn, releasingf(x1;:::;xn) +, whereis a random variable
+drawn from a Laplace distribution with mean 0and standard deviationS(f)
+preserves-differential
+privacy.
+In [13], Nissim et al. showed that given any input xto a function, and a function f, it is sufﬁcient
+to drawfrom a Laplace distribution with standard deviationSS(f)
+, whereSS(f)is the smoothed-
+sensitivity offaroundx. Although this method sometimes requires adding a smaller amount of
+noise to preserve privacy, in general, smoothed sensitivity of a function can be hard to compute.
+3 A Simple Algorithm
+Based on [6], one can come up with a simple algorithm for privacy-preserving logistic regression,
+which adds noise to the classiﬁer obtained by logistic regression, proportional to its sensitivity. From
+Corollary 2, the sensitivity of logistic regression is at most2
+n. This leads to Algorithm 1, which
+obeys the privacy guarantees in Theorem 1.
+Algorithm 1:
+1. Compute w, the classiﬁer obtained by regularized logistic regression on the labelled ex-
+amples (x1;y1);:::; (xn;yn).
+2. Pick a noise vector according to the following density function: h()/e n
+2jjjj.
+To pick such a vector, we choose the norm of from the  (d;2
+n)distribution, and the
+direction of uniformly at random.
+3. Outputw+.
+Theorem 1 Let(x1;y1);:::; (xn;yn)be a set of labelled points over Rdsuch thatjjxijj1for
+alli. Then, Algorithm 1 preserves -differential privacy.
+PROOF : The proof follows by a combination of [6], and Corollary 2, which states that the sensitivity
+of logistic regression is at most2
+n.
+Lemma 1 LetG(w)andg(w)be two convex functions, which are continuous and differentiable at
+all points. If w1=argminwG(w)andw2=argminwG(w) +g(w), then,jjw1 w2jjg1
+G2. Here,
+g1= maxwjjrg(w)jjandG2= minvminwvTr2G(w)v, for any unit vector v.
+The main idea of the proof is to examine the gradient and the Hessian of the functions Gandg
+aroundw1andw2. Due to lack of space, the full proof appears in the full version of our paper.
+Corollary 2 Given a set of nexamplesx1;:::;xninRd, with labels y1;:::;yn, such that for all i,
+jjxijj1, the sensitivity of logistic regression with regularization parameter is at most2
+n.
+3PROOF : We use a triangle inequality and the fact that G2andg11
+n.
+Learning Performance. In order to assess the performance of Algorithm 1, we ﬁrst try to bound
+the performance of Algorithm 1 on the training data. To do this, we need to deﬁne some notation.
+For a classiﬁer w, we useL(w)to denote the expected loss of wover the data distribution, and
+^L(w)to denote the empirical average loss of wover the training data. In other words, ^L(w) =
+1
+nPn
+i=1log(1 +e yiwTxi), where, (xi;yi);i= 1;:::;n are the training examples.
+Further, for a classiﬁer w, we use the notation f(w)to denote the quantity1
+2jjwjj2+L(w)and
+^f(w)to denote the quantity1
+2jjwjj2+^L(w). Our guarantees on this algorithm can be summarized
+by the following lemma.
+Lemma 3 Given a logistic regression problem with regularization parameter , letw1be the classi-
+ﬁer that minimizes ^f, andw2be the classiﬁer output by Algorithm 1 respectively. Then, with prob-
+ability 1 over the randomness in the privacy mechanism, ^f(w2)^f(w1) +2d2(1+) log2(d=)
+2n22 .
+Due to lack of space, the proof is deferred to the full version.
+From Lemma 3, we see that performance of Algorithm 1 degrades with decreasing , and is poor in
+particular when is very small. One question is, can we get a privacy-preserving approximation to
+logistic regression, which has better performance bounds for small ? To explore this, in the next
+section, we look at a different algorithm.
+4 A New Algorithm
+In this section, we provide a new privacy-preserving algorithm for logistic regression. The input to
+our algorithm is a set of examples x1;:::;xnoverRdsuch thatjjxijj1for alli, a set of labels
+y1;:::;ynfor the examples, a regularization constant and a privacy parameter , and the output is
+a vectorwinRd. Our algorithm works as follows.
+Algorithm 2:
+1. We pick a random vector bfrom the density function h(b)/e 
+2jjbjj. To implement this,
+we pick the norm of bfrom the  (d;2
+)distribution, and the direction of buniformly at
+random.
+2. Given examples x1;:::;xn, with labels y1;:::;ynand a regularization constant , we
+computew=argminw1
+2wTw+bTw
+n+1
+nPn
+i=1log(1 +e yiwTxi). Outputw.
+We observe that our method solves a convex programming problem very similar to the logistic
+regression convex program, and therefore it has running time similar to that of logistic regression.
+In the sequel, we show that the output of Algorithm 2 is privacy preserving.
+Theorem 2 Given a set of nexamplesx1;:::;xnoverRd, with labels y1;:::;yn, where for each
+i,jjxijj1, the output of Algorithm 2 preserves -differential privacy.
+PROOF : Letaanda0be any two vectors over Rdwith norm at most 1, andy;y02
+f 1; 1g. For any such (a;y);(a0;y0), consider the inputs (x1;y1);:::; (xn 1;yn 1);(a;y)and
+(x1;y1):::;(xn 1;yn 1);(a0;y0). Then, for any woutput by our algorithm, there is a unique
+value ofbthat maps the input to the output. This uniqueness holds, because both the regularization
+function and the loss functions are differentiable everywhere.
+Let the values of bfor the ﬁrst and second cases respectively, be b1andb2.
+Sincewis the value that minimizes both the optimization problems, the derivative of both opti-
+mization functions at wis0.
+This implies that for every b1in the ﬁrst case, there exists a b2in the second case such that: b1 
+ya
+1+eywTa=b2 y0a0
+1+ey0wTa0. Sincejjajj 1,jja0jj1, and1
+1+eywTa1, and1
+1+ey0wTa01
+4for anyw,jjb1 b2jj2. Using the triangle inequality, jjb1jj 2jjb2jjjjb1jj+ 2. Therefore,
+for any pair (a;y);(a0;y0),
+Pr[wjx1;:::;xn 1;y1;:::;yn 1;xn=a;yn=y]
+Pr[wjx1;:::;xn 1;y1;:::;yn 1;xn=a0;yn=y0]=h(b1)
+h(b2)=e 
+2(jjb1jj jjb 2jj)
+whereh(bi)fori= 1;2is the density of bi. Since 2jjb 1jj jjb2jj2, this ratio is at most e.
+theorem follows. 
+We notice that the privacy guarantee for our algorithm does not depend on ; in other words, for any
+value of, our algorithm is private. On the other hand, as we show in Section 5, the performance of
+our algorithm does degrade with decreasing in the worst case, although the degradation is better
+than that of Algorithm 1 for <1.
+Other Applications. Our algorithm for privacy-preserving logistic regression can be generalized to
+provide privacy-preserving outputs for more general convex optimization problems, so long as the
+problems satisfy certain conditions. These conditions can be formalized in the theorem below.
+Theorem 3 LetX=fx1;:::;xngbe a database containing private data of individuals. Suppose
+we would like to compute a vector wthat minimizes the function F(w) =G(w) +Pn
+i=1l(w;xi),
+overw2Rdfor somed, such that all of the following hold:
+1.G(w)andl(w;xi)are differentiable everywhere, and have continuous derivatives
+2.G(w)is strongly convex and l(w;xi)are convex for all i
+3.jjrwl(w;x )jj, for anyx.
+Letb=B^b, whereBis drawn from  (d;2
+), and ^bis drawn uniformly from the surface of a d-
+dimensional unit sphere. Then, computing w, wherew=argminwG(w) +Pn
+i=1l(w;xi) +bTw,
+provides-differential privacy.
+5 Learning Guarantees
+In this section, we show theoretical bounds on the number of samples required by the algorithms to
+learn a linear classiﬁer. For the rest of the section, we use the same notation used in Section 3.
+First we show that, for Algorithm 2, the values of ^f(w2)and^f(w1)are close.
+Lemma 4 Given a logistic regression problem with regularization parameter , letw1be the clas-
+siﬁer that minimizes ^f, andw2be the classiﬁer output by Algorithm 2 respectively. Then, with
+probability 1 over the randomness in the privacy mechanism, ^f(w2)^f(w1) +8d2log2(d=)
+n22.
+The proof is in the full version of our paper. As desired, for <1, we have attained a tighter bound
+using Algorithm 2, than Lemma 3 for Algorithm 1.
+Now we give a performance guarantee for Algorithm 2.
+Theorem 4 Letw0be a classiﬁer with expected loss Lover the data distribution. If the training ex-
+amples are drawn independently from the data distribution, and if n>C max(jjw0jj2
+2
+g;dlog(d
+)jjw 0jj
+g),
+for some constant C, then, with probability 1 , the classiﬁer output by Algorithm 2 has loss at
+mostL+gover the data distribution.
+PROOF : Letwbe the classiﬁer that minimizes f(w)over the data distribution, and let w1andw2
+be the classiﬁers that minimize ^f(w)and^f(w) +bTw
+nover the data distribution respectively. We
+can use an analysis as in [15] to write that:
+L(w 2) =L(w 0) + (f(w2) f(w)) + (f(w) f(w0)) +
+2jjw0jj2 
+2jjw2jj2(1)
+5Notice that from Lemma 4, ^f(w2) ^f(w1)8d2log2(d=)
+n22. Using this and [16], we can bound
+the second quantity in equation 1 as f(w2) f(w)16d2log2(d=)
+n22 +O(1
+n). By deﬁnition of
+w, the third quantity in Equation 1 is non-positive. If is set to beg
+jjw0jj2, then, the fourth quantity
+in Equation 1 is at mostg
+2. Now, ifn>Cjjw0jj2
+2
+gfor a suitable constant C,1
+ng
+4. In addition,
+ifn > Cjjw0jjdlog(d
+)
+g, then,16d2log2(d
+)
+n22g
+4. In either case, the total loss of the classiﬁer w2
+output by Algorithm 2 is at most L(w 0) +g.
+
+The same technique can be used to analyze the sensitivity-based algorithm, using Lemma 3, which
+yields the following.
+Theorem 5 Letw0be a classiﬁer with expected loss Lover the data distribution. If
+the training examples are drawn independently from the data distribution, and if n >
+Cmax(jjw0jj2
+2
+g;dlog(d
+)jjw0jj
+g;dlog(d
+)jjw 0jj2
+3=2
+g), for some constant C, then, with probability 1 , the
+classiﬁer output by Algorithm 2 has loss at most L+gover the data distribution.
+It is clear that this bound is never lower than the bound for Algorithm 2. Note that for problems in
+which (non-private) logistic regression performs well, kw0k1ifw0has low loss, since otherwise
+one can show that the loss of w0would be lower bounded by log(1 +1
+e). Thus the performance
+guarantee for Algorithm 2 is signiﬁcantly stronger than for Algorithm 1, for problems in which one
+would typically apply logistic regression.
+6 Results in Simulation
+Uniform, margin=0.03 Unseparable (uniform with noise 0.2 in margin 0.1)
+Sensitivity method 0:2962 0:0617 0:3257 0:0536
+New method 0:1426 0:1284 0:1903 0:1105
+Standard LR 00:0016 0:0530 0:1105
+Figure 1: Test error: mean standard deviation over ﬁve folds. N=17,500.
+We include some simulations that compare the two privacy-preserving methods, and demonstrate
+that using our privacy-preserving approach to logistic regression does not degrade learning per-
+formance terribly, from that of standard logistic regression. Performance degradation is inevitable
+however, as in both cases, in order to address privacy concerns, we are adding noise, either to the
+learned classiﬁer, or to the objective.
+In order to obtain a clean comparison between the various logistic regression variants, we ﬁrst ex-
+perimented with artiﬁcial data that is separable through the origin. Because the classiﬁcation of a
+vector by a linear separator through the origin depends only its angle, not its norm, we sampled the
+data from the unit hypersphere. We used a uniform distribution on the hypersphere in 10dimensions
+with zero mass within a small margin (0:03) from the generating linear separator. Then we experi-
+mented on uniform data that is not linearly separable. We sampled data from the surface of the unit
+ball in 10dimensions, and labeled it with a classiﬁer through the origin. In the band of margin 0:1
+with respect to the perfect classiﬁer, we performed random label ﬂipping with probability 0:2. For
+our experiments, we used convex optimization software provided by [9].
+Figure 1 gives mean and standard deviation of test error over ﬁve-fold cross-validation, on 17,500
+points. In both simulations, our new method is superior to the sensitivity method, although incurs
+more error than standard (non-private) logistic regression. For both problems, we tuned the logistic
+regression parameter, , to minimize the test error of standard logistic regression, using ﬁve-fold
+cross-validation on a holdout set of 10,000 points (the tuned values are: = 0:01 in both cases).
+For each test error computation, the performance of each of the privacy-preserving algorithms was
+evaluated by averaging over 200 random restarts, since they are both randomized algorithms.
+In Figure 2a)-b) we provide learning curves. We graph the test error after each increment of 1000
+points, averaged over ﬁve-fold cross validation. The learning curves reveal that, not only does the
+62 4 6 8 10 12 1400.10.20.30.40.50.60.7
+N/1000. Learning curve for uniform data. d=10, epsilon=0.1, margin=0.03, lambda=0.01
+Avg test error over 5−fold cross−valid. 200 random restarts.
+  
+Our methodStandard LRSensitivity method
+2 4 6 8 10 12 140.050.10.150.20.250.30.350.40.450.50.55
+N/1000. Learning curve for unseparable data. d=10, epsilon=0.1, lambda=0.01Avg test error over 5−fold cross−valid. 200 random restarts.
+  
+Our methodStandard LRSensitivity method
+0 0.02 0.04 0.06 0.08 0.1 0.12 0.14 0.16 0.18 0.20.10.150.20.250.30.350.40.450.50.550.6
+Epsilon. Uniform data, d=10, n=10,000, margin=0.03, lambda=0.01Avg test error over 5 !fold cross !valid. 200 random restarts.
+  
+Our methodSensitivity method
+0 0.02 0.04 0.06 0.08 0.1 0.12 0.14 0.16 0.18 0.20.20.250.30.350.40.450.50.55
+Epsilon. Unseparable data, d=10, n=10,000, lambda=0.01Avg test error over 5−fold cross−valid. 200 random restarts.
+  
+Our methodSensitivity methodFigure 2: Learning curves: a) Uniform distribution, margin=0.03, b) Unseparable data.
+Epsilon curves: c) Uniform distribution, margin=0.03, d) Unseparable data.
+new method reach a lower ﬁnal error than the sensitivity method, but it also has better performance
+at most smaller training set sizes.
+In order to observe the effect of the level of privacy on the learning performance of the privacy-
+preserving learning algorithms, in Figure 2c)-d) we vary , the privacy parameter to the two algo-
+rithms, on both the uniform, low margin data, and the unseparable data. As per the deﬁnition of
+-differential privacy in Section 2, strengthening the privacy guarantee corresponds to reducing .
+Both algorithms’ learning performance degrades in this direction. For the majority of values of 
+that we tested, the new method is superior in managing the tradeoff between privacy and learning
+performance. For very small , corresponding to extremely stringent privacy requirements, the sen-
+sitivity method performs better but also has a predication accuracy close to chance, which is not
+useful for machine learning purposes.
+7 Conclusion
+In conclusion, we show two ways to construct a privacy-preserving linear classiﬁer through logistic
+regression. The ﬁrst one uses the methods of [6], and the second one is a new algorithm. Us-
+ing the-differential privacy deﬁnition of Dwork et al. [6], we prove that our new algorithm is
+privacy-preserving. We provide learning performance guarantees for the two algorithms, which are
+tighter for our new algorithm, in cases in which one would typically apply logistic regression. In
+simulations, our new algorithm outperforms the method based on [6].
+Our work reveals an interesting connection between regularization and privacy: the larger the reg-
+ularization constant, the less sensitive the logistic regression function is to any one individual ex-
+ample, and as a result, the less noise one needs to add to make it privacy-preserving. Therefore,
+regularization not only prevents overﬁtting, but also helps with privacy, by making the classiﬁer less
+7sensitive. An interesting future direction would be to explore whether other methods that prevent
+overﬁtting also have such properties.
+Other future directions would be to apply our techniques to other commonly used machine-learning
+algorithms, and to explore whether our techniques can be applied to more general optimization
+problems. Theorem 3 shows that our method can be applied to a class of optimization problems
+with certain restrictions. An open question would be to remove some of these restrictions.
+Acknowledgements. We thank Sanjoy Dasgupta and Daniel Hsu for several pointers.
+References
+[1] R. Agrawal and R. Srikant. Privacy-preserving data mining. SIGMOD Rec., 29(2):439–450, 2000.
+[2] B. Barak, K. Chaudhuri, C. Dwork, S. Kale, F. McSherry, and K. Talwar. Privacy, accuracy, and consis-
+tency too: a holistic solution to contingency table release. In PODS, pages 273–282, 2007.
+[3] A. Blum, K. Ligett, and A. Roth. A learning theory approach to non-interactive database privacy. In R. E.
+Ladner and C. Dwork, editors, STOC, pages 609–618. ACM, 2008.
+[4] K. Chaudhuri and N. Mishra. When random sampling preserves privacy. In C. Dwork, editor, CRYPTO,
+volume 4117 of Lecture Notes in Computer Science, pages 198–213. Springer, 2006.
+[5] C. Dwork. Differential privacy. In M. Bugliesi, B. Preneel, V . Sassone, and I. Wegener, editors, ICALP
+(2), volume 4052 of Lecture Notes in Computer Science, pages 1–12. Springer, 2006.
+[6] C. Dwork, F. McSherry, K. Nissim, and A. Smith. Calibrating noise to sensitivity in private data analysis.
+InTheory of Cryptography Conference, pages 265–284, 2006.
+[7] A. Evﬁmievski, J. Gehrke, and R. Srikant. Limiting privacy breaches in privacy preserving data mining.
+InPODS, pages 211–222, 2003.
+[8] S. P. Kasiviswanathan, H. K. Lee, K. Nissim, S. Raskhodnikova, and A. Smith. What can we learn
+privately? In Proc. of Foundations of Computer Science, 2008.
+[9] C. T. Kelley. Iterative Methods for Optimization. SIAM, 1999.
+[10] A. Machanavajjhala, J. Gehrke, D. Kifer, and M. Venkitasubramaniam. l-diversity: Privacy beyond k-
+anonymity. In ICDE, page 24, 2006.
+[11] F. McSherry and K. Talwar. Mechanism design via differential privacy. In FOCS, pages 94–103, 2007.
+[12] A. Narayanan and V . Shmatikov. Robust de-anonymization of large sparse datasets. In IEEE Symposium
+on Security and Privacy, pages 111–125. IEEE Computer Society, 2008.
+[13] K. Nissim, S. Raskhodnikova, and A. Smith. Smooth sensitivity and sampling in private data analysis. In
+D. S. Johnson and U. Feige, editors, STOC, pages 75–84. ACM, 2007.
+[14] P. Samarati and L. Sweeney. Protecting privacy when disclosing information: k-anonymity and its en-
+forcement through generalization and suppression. In Proc. of the IEEE Symposium on Research in
+Security and Privacy, 1998.
+[15] S. Shalev-Shwartz and N. Srebro. Svm optimization: Inverse dependence on training set size. In Interna-
+tional Conference on Machine Learning(ICML), 2008.
+[16] K. Sridharan, N. Srebro, and S. Shalev-Schwartz. Fast rates for regularized objectives. In Neural Infor-
+mation Processing Systems, 2008.
+8

@@ -1,0 +1,603 @@
+Rethinking LDA: Why Priors Matter
+
+Hanna M. Wallach David Mimno Andrew McCallum
+Department of Computer Science
+University of Massachusetts Amherst
+Amherst, MA 01003
+fwallach,mimno,mccallum g@cs.umass.edu
+Abstract
+Implementations of topic models typically use symmetric Dirichlet priors with
+ﬁxed concentration parameters, with the implicit assumption that such “smoothing
+parameters” have little practical effect. In this paper, we explore several classes
+of structured priors for topic models. We ﬁnd that an asymmetric Dirichlet prior
+over the document–topic distributions has substantial advantages over a symmet-
+ric prior, while an asymmetric prior over the topic–word distributions provides no
+real beneﬁt. Approximation of this prior structure through simple, efﬁcient hy-
+perparameter optimization steps is sufﬁcient to achieve these performance gains.
+The prior structure we advocate substantially increases the robustness of topic
+models to variations in the number of topics and to the highly skewed word fre-
+quency distributions common in natural language. Since this prior structure can be
+implemented using efﬁcient algorithms that add negligible cost beyond standard
+inference techniques, we recommend it as a new standard for topic modeling.
+1 Introduction
+Topic models such as latent Dirichlet allocation (LDA) [3] have been recognized as useful tools for
+analyzing large, unstructured collections of documents. There is a signiﬁcant body of work apply-
+ing LDA to an wide variety of tasks including analysis of news articles [14], study of the history of
+scientiﬁc ideas [2, 9], topic-based search interfaces1and navigation tools for digital libraries [12].
+In practice, users of topic models are typically faced with two immediate problems: First, extremely
+common words tend to dominate all topics. Second, there is relatively little guidance available on
+how to setT, the number of topics, or studies regarding the effects of using a suboptimal setting
+forT. Standard practice is to remove “stop words” before modeling using a manually constructed,
+corpus-speciﬁc stop word list and to optimize Tby either analyzing probabilities of held-out doc-
+uments or resorting to a more complicated nonparametric model. Additionally, there has been rel-
+atively little work in the machine learning literature on the structure of the prior distributions used
+in LDA: most researchers simply use symmetric Dirichlet priors with heuristically set concentration
+parameters. Asuncion et al. [1] recently advocated inferring the concentration parameters of these
+symmetric Dirichlets from data, but to date there has been no rigorous scientiﬁc study of the priors
+used in LDA—from the choice of prior (symmetric versus asymmetric Dirichlets) to the treatment
+of hyperparameters (optimize versus integrate out)—and the effects of these modeling choices on
+the probability of held-out documents and, more importantly, the quality of inferred topics. In this
+paper, we demonstrate that practical implementation issues (handling stop words, setting the number
+of topics) and theoretical issues involving the structure of Dirichlet priors are intimately related.
+We start by exploring the effects of classes of hierarchically structured Dirichlet priors over the
+document–topic distributions and topic–word distributions in LDA. Using MCMC simulations, we
+ﬁnd that using an asymmetric, hierarchical Dirichlet prior over the document–topic distributions and
+1http://rexa.info/
+1a symmetric Dirichlet prior over the topic–word distributions results in signiﬁcantly better model
+performance, measured both in terms of the probability of held-out documents and in the quality
+of inferred topics. Although this hierarchical Bayesian treatment of LDA produces good results,
+it is computationally intensive. We therefore demonstrate that optimizing the hyperparameters of
+asymmetric, nonhierarchical Dirichlets as part of an iterative inference algorithm results in similar
+performance to the full Bayesian model while adding negligible computational cost beyond standard
+inference techniques. Finally, we show that using optimized Dirichlet hyperparameters results in
+dramatically improved consistency in topic usage as Tis increased. By decreasing the sensitivity
+of the model to the number of topics, hyperparameter optimization results in robust, data-driven
+models with substantially less model complexity and computational cost than nonparametric models.
+Since the priors we advocate (an asymmetric Dirichlet over the document–topic distributions and a
+symmetric Dirichlet over the topic–word distributions) have signiﬁcant modeling beneﬁts and can
+be implemented using highly efﬁcient algorithms, we recommend them as a new standard for LDA.
+2 Latent Dirichlet Allocation
+LDA is a generative topic model for documents W=fw(1);w(2);:::;w(D)g. A “topic” tis a
+discrete distribution over words with probability vector t. A Dirichlet prior is placed over  =
+f1;:::Tg. In almost all previous work on LDA, this prior is assumed to be symmetric (i.e., the
+base measure is ﬁxed to a uniform distribution over words) with concentration parameter :
+P() =Q
+tDir(t;u) =Q
+t ()Q
+w (
+W)Q
+w
+W 1
+wjt P
+wwjt 1
+: (1)
+Each document, indexed by d, has a document-speciﬁc distribution over topics d. The prior over
+ =f1;:::Dgis also assumed to be a symmetric Dirichlet, this time with concentration param-
+eter
+. The tokens in every document w(d)=fw(d)
+ngNd
+n=1are associated with corresponding topic
+assignmentsz(d)=fz(d)
+ngNd
+n=1, drawn i.i.d. from the document-speciﬁc distribution over topics,
+while the tokens are drawn i.i.d. from the topics’ distributions over words  =f1;:::;Tg:
+P(z(d)jd) =Q
+nz(d)
+njdandP(w(d)jz(d);) =Q
+nw(d)
+njz(d)
+n: (2)
+Dirichlet–multinomial conjugacy allows andto be marginalized out.
+For real-world data, documents Ware observed, while the corresponding topic assignments Zare
+unobserved. Variational methods [3, 16] and MCMC methods [7] are both effective at inferring the
+latent topic assignments Z. Asuncion et al. [1] demonstrated that the choice of inference method
+has negligible effect on the probability of held-out documents or inferred topics. We use MCMC
+methods throughout this paper—speciﬁcally Gibbs sampling [5]—since the internal structure of
+hierarchical Dirichlet priors are typically inferred using a Gibbs sampling algorithm, which can be
+easily interleaved with Gibbs updates for ZgivenW. The latter is accomplished by sequentially
+resampling each topic assignment z(d)
+nfrom its conditional posterior given W,
+u,uandZnd;n
+(the current topic assignments for all tokens other than the token at position nin document d):
+P(z(d)
+njW;Znd;n;
+u;u)/P(w(d)
+njz(d)
+n;Wnd;n;Znd;n;u)P(z(d)
+njZnd;n;
+u)
+/Nnd;n
+w(d)
+njz(d)
+n+
+W
+Nnd;n
+z(d)
+n+Nnd;n
+z(d)
+njd+
+
+T
+Nd 1 +
+; (3)
+where sub- or super-script “ nd;n” denotes a quantity excluding data from position nin document d.
+3 Priors for LDA
+The previous section outlined LDA as it is most commonly used—namely with symmetric Dirich-
+let priors over andwith ﬁxed concentration parameters 
+and, respectively. The simplest
+way to vary this choice of prior for either oris to infer the relevant concentration parameter
+from data, either by computing a MAP estimate [1] or by using an MCMC algorithm such as slice
+sampling [13]. A broad Gamma distribution is an appropriate choice of prior for both 
+and.
+2u
+
+
+td
+zn
+wn
+uTD
+N(a)
+u
+
+
+td
+zn
+wn
+un0
+TD
+N (b)
+tjd t0jd t jd t jd
+1=t 
+2=t0
+3=tm (c)
+u
+
+m
+0
+td
+zn
+wn
+uTD
+N
+(d)
+u
+
+m
+0
+td
+zn
+wn
+un0
+TD
+N (e)
+tjd t0jd t jd t jd
+1=t 
+2=t0
+3=t
+t0jd0t0jd0t0jd0t0jd0
+1=t0
+2=t0
+1=t 
+2=t0
+3=t0u (f)
+Figure 1: (a)-(e): LDA with (a) symmetric Dirichlet priors over and, (b) a symmetric Dirichlet prior over
+and an asymmetric Dirichlet prior over , (d) an asymmetric Dirichlet prior over and a symmetric Dirichlet
+prior over , (e) asymmetric Dirichlet priors over and. (c) Generatingfz(d)
+ng4
+n=1= (t;t0;t;t)from the
+asymmetric, predictive distribution for document d; (f) generatingfz(d)
+ng4
+n=1= (t;t0;t;t)andfz(d0)
+ng4
+n=1=
+(t0;t0;t0;t0)from the asymmetric, hierarchical predictive distributions for documents dandd0, respectively.
+Alternatively, the uniform base measures in the Dirichlet priors over andcan be replaced with
+nonuniform base measures mandn, respectively. Throughout this section we use the prior over 
+as a running example, however the same construction and arguments also apply to the prior over .
+In section 3.1, we describe the effects on the document-speciﬁc conditional posterior distributions,
+or predictive distributions, of replacing uwith a ﬁxed asymmetric (i.e., nonuniform) base measure
+m. In section 3.2, we then treat mas unknown, and take a fully Bayesian approach, giving ma
+Dirichlet prior (with a uniform base measure and concentration parameter 
+0) and integrating it out.
+3.1 Asymmetric Dirichlet Priors
+Ifis given an asymmetric Dirichlet prior with concentration parameter 
+and an known (nonuni-
+form) base measure m, the predictive probability of topic toccurring in document dgivenZis
+P(z(d)
+Nd+1=tjZ;
+m) =Z
+ddP(tjd)P(djZ;
+m) =Ntjd+
+mt
+Nd+
+: (4)
+If topictdoes not occur in z(d), thenNtjdwill be zero, and the probability of generating z(d)
+Nd+1=t
+will bemt. In other words, under an asymmetric prior, Ntjdis smoothed with a topic-speciﬁc
+quantity
+mt. Consequently, different topics can be a priori more or less probable in all documents.
+One way of describing the process of generating from (4) is to say that generating a topic assignment
+z(d)
+nis equivalent to setting the value of z(d)
+nto the the value of some document-speciﬁc draw from
+m. While this interpretation provides little beneﬁt in the case of ﬁxed m, it is useful for describing
+the effects of marginalizing over mon the predictive distributions (see section 3.2). Figure 1c
+depicts the process of drawing fz(d)
+ng4
+n=1using this interpretation. When drawing z(d)
+1, there are no
+existing document-speciﬁc draws from m, so a new draw 
+1must be generated, and z(d)
+1assigned
+the value of this draw ( tin ﬁgure 1c). Next, z(d)
+2is drawn by either selecting 
+1, with probability
+proportional to the number of topic assignments that have been previously “matched” to 
+1, or a
+new draw from m, with probability proportional to 
+. In ﬁgure 1c, a new draw is selected, so 
+2is
+drawn frommandz(d)
+2assigned its value, in this case t0. The next topic assignment is drawn in the
+same way: existing draws 
+1and
+2are selected with probabilities proportional to the numbers of
+topic assignments to which they have previously been matched, while with probability proportional
+to
+,z(d)
+3is matched to a new draw from m. In ﬁgure 1c, 
+1is selected and z(d)
+3is assigned the
+value of
+1. In general, the probability of a new topic assignment being assigned the value of an
+existing document-speciﬁc draw 
+ifrommis proportional to N(i)
+d, the number of topic assignments
+3previously matched to 
+i. The predictive probability of topic tin document dis therefore
+P(z(d)
+Nd+1=tjZ;
+m) =PI
+i=1N(i)
+d(
+i t) +
+mt
+Nd+
+; (5)
+whereIis the current number of draws from mfor document d. Since every topic assignment is
+matched to a draw from m,PI
+i=1N(i)
+d(
+i t) =Ntjd. Consequently, (4) and (5) are equivalent.
+3.2 Integrating out m
+In practice, the base measure mis not ﬁxed a priori and must therefore be treated as an unknown
+quantity. We take a fully Bayesian approach, and give ma symmetric Dirichlet prior with concentra-
+tion parameter 
+0(as shown in ﬁgures 1d and 1e). This prior over minduces a hierarchical Dirichlet
+prior over . Furthermore, Dirichlet–multinomial conjugacy then allows mto be integrated out.
+Givingma symmetric Dirichlet prior and integrating it out has the effect of replacing min (5) with
+a “global” P ´olya conditional distribution, shared by the document-speciﬁc predictive distributions.
+Figure 1f depicts the process of drawing eight topic assignments—four for document dand four
+for document d0. As before, when a topic assignment is drawn from the predictive distribution
+for document d, it is assigned the value of an existing (document-speciﬁc) internal draw 
+iwith
+probability proportional to the number of topic assignments previously matched to that draw, and to
+the value of a new draw 
+i0with probability proportional to 
+. However, since mhas been integrated
+out, the new draw must be obtained from the “global” distribution. At this level, 
+i0treated as if
+it were a topic assignment, and assigned the value of an existing global draw
+jwith probability
+proportional to the number of document-level draws previously matched to 
+j, and to a new global
+draw, fromu, with probability proportional to 
+0. Since the internal draws at the document level are
+treated as topic assignments the global level, there is a path from every topic assignment to u, via
+the internal draws. The predictive probability of topic tin document dgivenZis now
+P(z(d)
+Nd+1=tjZ;
+;
+0u) =Z
+dmP(z(d)
+Nd+1=tjZ;
+m)P(mjZ;
+0u)
+=Ntjd+
+^Nt+
+0
+TP
+t^Nt+
+0
+Nd+
+; (6)
+whereIandJare the current numbers of document-level and global internal draws, respectively,
+Ntjd=PI
+i=1N(i)
+d(
+i t)as before and ^Nt=PJ
+j=1N(j)(
+j t). The quantity N(j)is the
+total number of document-level internal draws matched to global internal draw 
+j. Since some topic
+assignments will be matched to existing document-level draws,P
+d(Ntjd>0)^NtNt,
+whereP
+d(Ntjd>0)is the number of unique documents in Zin which topic toccurs.
+An important property of (6) is that if concentration parameter 
+0is large relative toP
+t^Nt, then
+counts ^NtandP
+t^Ntare effectively ignored. In other words, as 
+0!1 the hierarchical, asym-
+metric Dirichlet prior approaches a symmetric Dirichlet prior with concentration parameter 
+.
+For any givenZfor real-world documents W, the internal draws and the paths from Ztouare
+unknown. Only the value of each topic assignment is known, and hence Ntjdfor each topic tand
+documentd. In order to compute the conditional posterior distribution for each topic assignment
+(needed to resample Z) it is necessary to infer ^Ntfor each topic t. These values can be inferred by
+Gibbs sampling the paths from Ztou[4, 15]. Resampling the paths from Ztoucan be interleaved
+with resamplingZitself. Removing z(d)
+n=tfrom the model prior to resampling its value consists
+of decrementing Ntjdand removing its current path to u. Similarly, adding a newly sampled value
+z(d)
+n=t0into the model consists of incrementing Nt0jdand sampling a new path from z(d)
+ntou.
+4 Comparing Priors for LDA
+To investigate the effects of the priors over and, we compared the four combinations of sym-
+metric and asymmetric Dirichlets shown in ﬁgure 1: symmetric priors over both and(denoted
+401000 3000 5000−760000 −720000 −68000050 topics
+IterationLog Probability(a)
+αFrequency3.54.55.5050150α'Frequency050100150050150βFrequency607080900200400log β'Frequency1030507004080140 (b)
+-6.90-6.85-6.80-6.75-6.70-6.65Patent abstracts
+patents[, 1]-9.28-9.27-9.26-9.25-9.24-9.23-9.22NYT
+nyt[, 1]-8.33-8.32-8.31-8.30-8.29-8.2820News (c)
+Figure 2: (a)logP(W;Zj
+)(patent abstracts) for SS, SA, AS and AS, computed every 20 iterations and
+averaged over 5 Gibbs sampling runs. AS (red) and AA (black) perform similarly and converge to higher
+values of logP(W;Zj
+)than SS (blue) and SA (green). (b) Histograms of 4000 (iterations 1000-5000)
+concentration parameter values for AA (patent abstracts). Note the log scale for 0: the prior over approaches
+a symmetric Dirichlet, making AA equivalent to AS. (c) logP(W;Zj
+)for all three data sets at T= 50 . AS
+is consistently better than SS. SA is poor (not shown). AA is capable of matching AS, but does not always.
+Data set D NdN W Stop
+Patent abstracts 1016 101.87 103499 6068 yes
+20 Newsgroups 540 148.17 80012 14492 no
+NYT articles 1768 270.06 477465 41961 no
+Table 1: Data set statistics. Dis the number of documents, Ndis the mean document length, Nis the number
+of tokens,Wis the vocabulary size. “Stop” indicates whether stop words were present (yes) or not (no).
+SS), a symmetric prior over and an asymmetric prior over (denoted SA), an asymmetric prior
+overand a symmetric prior over (denoted AS), and asymmetric priors over both and(de-
+noted AA). Each combination was used to model three collections of documents: patent abstracts
+about carbon nanotechnology, New York Times articles, and 20 Newsgroups postings. Due to the
+computationally intensive nature of the fully Bayesian inference procedure, only a subset of each
+collection was used (see table 1). In order to stress each combination of priors with respect to skewed
+distributions over word frequencies, stop words were not removed from the patent abstracts.
+The four models (SS, SA, AS, AA) were implemented in Java, with integrated-out base measures,
+where appropriate. Each model was run with T2f25;50;75;100gfor ﬁve runs of 5000 Gibbs
+sampling iterations, using different random initializations. The concentration parameters for each
+model (denoted by 
+) were given broad Gamma priors and inferred using slice sampling [13].
+During inference, logP(W;Zj
+)was recorded every twenty iterations. These values, averaged
+over the ﬁve runs for T= 50 , are shown in ﬁgure 2a. (Results for other values of Tare similar.)
+There are two distinct patterns: models with an asymmetric prior over (AS and AA; red and
+black, respectively) perform very similarly, while models with a symmetric prior over (SS and
+SA; blue and green, respectively) also perform similarly, with signiﬁcantly worse performance than
+AS and AA. Results for all three data sets are summarized in ﬁgure 2c, with the log probability
+divided by the number of tokens in the collection. SA performs extremely poorly on NYT and 20
+Newsgroups, and is not therefore shown. AS consistently achieves better likelihood than SS. The
+fully asymmetric model, AA, is inconsistent, matching AS on the patents and 20 Newsgroups but
+doing poorly on NYT. This is most likely due to the fact that although AA can match AS, it has
+many more degrees of freedom and therefore a much larger space of possibilities to explore.
+We also calculated the probability of held-out documents using the “left-to-right” evaluation method
+described by Wallach et al. [17]. These results are shown in ﬁgure 3a, and exhibit a similar pattern
+to the results in ﬁgure 2a—the best-performing models are those with an asymmetric priors over .
+We can gain intuition about the similarity between AS and AA by examining the values of the sam-
+pled concentration parameters. As explained in section 3.2, as 
+0or0grows large relative toP
+t^Nt
+orP
+w^Nw, an asymmetric Dirichlet prior approaches a symmetric Dirichlet with concentration pa-
+rameter
+or. Histograms of 4000 concentration parameter values (from iterations 1000-4000)
+from the ﬁve Gibbs runs of AA with T= 50 are shown in ﬁgure 2b. The values for 
+,
+0and
+5-6.18-6.16-6.14-6.12-6.10Held-out probability
+TopicsNats / token255075100(a)
+0.080  a ﬁeld emission an electron the0.080  a the carbon and gas to an0.080  the of a to and about at0.080  of a surface the with in contact0.080  the a and to is of liquid0.895  the a of to and is in0.187  carbon nanotubes nanotube catalyst0.043  sub is c or and n sup0.061  fullerene compound fullerenes0.044  material particles coating inorganic0.042  a ﬁeld the emission and carbon is0.042  the carbon catalyst a nanotubes 0.042  a the of substrate to material on0.042  carbon single wall the nanotubes0.042  the a probe tip and of to1.300  the a of to and is in0.257  and are of for in as such0.135  a carbon material as structure nanotube0.065  diameter swnt about nm than ﬁber swnts0.029  compositions polymers polymer containAsymmetric αSymmetric αAsymmetric βSymmetric β (b)
+Figure 3: (a) Log probability of held-out documents (patent abstracts). These results mirror those in ﬁgure 2a.
+AS (red) and AA (black) again perform similarly, while SS (blue) and SA (green) are also similar, but exhibit
+much worse performance. (b) 
+m tvalues and the most probable words for topics obtained with T= 50 . For
+each model, topics were ranked according to usage and the topics at ranks 1, 5, 10, 20 and 30 are shown. AS
+and AA are robust to skewed word frequency distributions and tend to sequester stop words in their own topics.
+are all relatively small, while the values for 0are extremely large, with a median around exp 30 . In
+other words, given the values of 0, the prior over iseffectively a symmetric prior over with con-
+centration parameter . These results demonstrate that even when the model can use an asymmetric
+prior over , a symmetric prior gives better performance. We therefore advocate using model AS.
+It is worth noting the robustness of AS to stop words. Unlike SS and SA, AS effectively sequesters
+stop words in a small number of more frequently used topics. The remaining topics are relatively
+unaffected by stop words. Creating corpus-speciﬁc stop word lists is seen as an unpleasant but nec-
+essary chore in topic modeling. Also, for many specialized corpora, once standard stop words have
+been removed, there are still other words that occur with very high probability, such as “model,”
+“data,” and “results” in machine learning literature, but are not technically stop words. If LDA
+cannot handle such words in an appropriate fashion then they must be treated as stop words and re-
+moved, despite the fact that they play meaningful semantic roles. The robustness of AS to stop words
+has implications for HMM-LDA [8] which models stop words using a hidden Markov model and
+“content” words using LDA, at considerable computational cost. AS achieves the same robustness
+to stop words much more efﬁciently. Although there is empirical evidence that topic models that
+use asymmetric Dirichlet priors with optimized hyperparameters, such as Pachinko allocation [10]
+and Wallach’s topic-based language model [18], are robust to the presence of extremely common
+words, these studies did not establish whether the robustness was a function of a more complicated
+model structure or if careful consideration of hyperparameters alone was sufﬁcient. We demonstrate
+that AS is capable of learning meaningful topics even with no stop word removal. For efﬁciency,
+we do not necessarily advocate doing away with stop word lists entirely, but we argue that using
+an asymmetric prior over allows practitioners to use a standard, conservative list of determiners,
+prepositions and conjunctions that is applicable to any document collection in a given language,
+rather than hand-curated corpus-speciﬁc lists that risk removing common but meaningful terms.
+5 Efﬁciency: Optimizing rather than Integrating Out
+Inference in the full Bayesian formulation of AS is expensive because of the additional complexity
+in sampling the paths from Ztouand maintaining hierarchical data structures. It is possible to
+retain the theoretical and practical advantages of using AS without sacriﬁcing the advantages of
+simple, efﬁcient models by directly optimizing m, rather than integrating it out. The concentration
+parameters
+andmay also be optimized (along with mfor
+and by itself for ). In this section,
+we therefore compare the fully Bayesian version of AS with optimized AS, using SS as a baseline.
+Wallach [19] compared several methods for jointly the maximum likelihood concentration parameter
+and asymmetric base measure for a Dirichlet–multinomial model. We use the most efﬁcient of
+these methods. The advantage of optimizing mis considerable: although it is likely that further
+optimizations would reduce the difference, 5000 Gibbs sampling iterations (including sampling 
+,
+6Patents NYT 20 NG
+ASO -6.650.04 -9.240.01 -8.270.01
+AS -6.620.03 -9.230.01 -8.280.01
+SS -6.910.01 -9.260.01 -8.310.0125 50 75 100
+ASO -6.18 -6.12 -6.12 -6.08
+AS -6.15 -6.13 -6.11 -6.10
+SS -6.18 -6.18 -6.16 -6.13
+Table 2: logP(W;Zj
+)=N forT= 50 (left) and logP(WtestjW;Z;
+)=Ntestfor varying values of T
+(right) for the patent abstracts. AS and ASO (optimized hyperparameters) consistently outperform SS except
+for ASO with T= 25 . Differences between AS and ASO are inconsistent and within standard deviations.
+ASO AS SS
+ASO 4.370.08 4.340.09 5.430.05
+AS — 4.18 0.09 5.390.06
+SS — — 5.93 0.03ASO AS SS
+ASO 3.360.03 3.430.05 3.500.07
+AS — 3.36 0.02 3.560.07
+SS — — 3.49 0.04
+Table 3: Average VI distances between multiple runs of each model with T= 50 on (left) patent abstracts and
+(right) 20 newsgroups. ASO partitions are approximately as similar to AS partitions as they are to other ASO
+partitions. ASO and AS partitions are both are further from SS partitions, which tend to be more dispersed.
+
+0and) for the patent abstracts using fully Bayesian AS with T= 25 took over four hours, while
+5000 Gibbs sampling iterations (including hyperparameter optimization) took under 30 minutes.
+In order to establish that optimizing mis a good approximation to integrating it out, we computed
+logP(W;Zj
+)and the log probability of held-out documents for fully Bayesian AS, optimized
+AS (denoted ASO) and as a baseline SS (see table 2). AS and ASO consistently outperformed SS,
+except for ASO when T= 25 . Since twenty-ﬁve is a very small number of topics, this is not a cause
+for concern. Differences between AS and ASO are inconsistent and within standard deviations.
+From a point of view of log probabilities, ASO therefore provides a good approximation to AS.
+We can also compare topic assignments. Any set of topic assignments can be thought of as partition
+of the corresponding tokens into Ttopics. In order to measure similarity between two sets of topic
+assignmentsZandZ0forW, we can compute the distance between these partitions using variation
+of information (VI) [11, 6] (see suppl. mat. for a deﬁnition of VI for topic models). VI has several
+attractive properties: it is a proper distance metric, it is invariant to permutations of the topic labels,
+and it can be computed in O(N+TT0)time, i.e., time that is linear in the number of tokens and
+the product of the numbers of topics in ZandZ0. For each model (AS, ASO and SS), we calculated
+the average VI distance between all 10 unique pairs of topic assignments from the 5 Gibbs runs for
+that model, giving a measure of within-model consistency. We also calculated the between-model
+VI distance for each pair of models, averaged over all 25 unique pairs of topic assignments for that
+pair. Table 3 indicates that ASO partitions are approximately as similar to AS partitions as they are
+to other ASO partitions. ASO and AS partitions are both further away from SS partitions, which
+tend to be more dispersed. These results conﬁrm that ASO is indeed a good approximation to AS.
+6 Effect on Selecting the Number of Topics
+Selecting the number of topics Tis one of the most problematic modeling choices in ﬁnite topic
+modeling. Not only is there no clear method for choosing T(other than evaluating the probability of
+held-out data for various values of T), but degree to which LDA is robust to a poor setting of Tis not
+well-understood. Although nonparametric models provide an alternative, they lose the substantial
+computational efﬁciency advantages of ﬁnite models. We explore whether the combination of priors
+advocated in the previous sections (model AS) can improve the stability of LDA to different values of
+T, while retaining the static memory management and simple inference algorithms of ﬁnite models.
+Ideally, if LDA has sufﬁcient topics to model Wwell, the assignments of tokens to topics should be
+relatively invariant to an increase in T—i.e., the additional topics should be seldom used. For exam-
+ple, if ten topics is sufﬁcient to accurately model the data, then increasing the number of topics to
+twenty shouldn’t signiﬁcantly affect inferred topic assignments. If this is the case, then using large
+Tshould not have a signiﬁcant impact on either Zor the speed of inference, especially as recently-
+introduced sparse sampling methods allow models with large Tto be trained efﬁciently [20]. Fig-
+ure 4a shows the average VI distance between topic assignments (for the patent abstracts) inferred
+by models with T= 25 and models with T2f50;75;100g. AS and AA, the bottom two lines, are
+74.04.55.05.56.06.5Clustering distance from T=25
+TopicsVariation of Information5075100(a)
+50 topics75 topics100 topicsAS prior0.00.20.40.60.81.0
+50 topics75 topics100 topicsSS prior0.00.20.40.60.81.0 (b)
+Figure 4: (a) Topic consistency measured by average VI distance from models with T= 25 . AsTincreases,
+AS (red) and AA (black) produce Zs that stay signiﬁcantly closer to those obtained with T= 25 than SA
+(green) and SS (blue). (b) Assignments of tokens (patent abstracts) allocated to the largest topic in a 25 topic
+model, asTincreases. For AS, the topic is relatively intact, even at T= 100 : 80% of tokens assigned to the
+topic atT= 25 are assigned to seven topics. For SS, the topic has been subdivided across many more topics.
+much more stable (smaller average VI distances) than SS and SA at 50 topics and remain so as T
+increases: even at 100 topics, AS has a smaller VI distance to a 25 topic model than SS at 50 topics.
+Figure 4b provides intuition for this difference: for AS, the tokens assigned to the largest topic at
+T= 25 remain within a small number of topics as Tis increased, while for SS, topic usage is more
+uniform and increasing Tcauses the tokens to be divided among many more topics. These results
+suggest that for AS, new topics effectively “nibble away” at existing topics, rather than splitting
+them more uniformly. We therefore argue that the risk of using too many topics is lower than the
+risk of using too few, and that practitioners should be comfortable using larger values of T.
+7 Discussion
+The previous sections demonstrated that AS results in the best performance over AA, SA and SS,
+measured in several ways. However, it is worth examining why this combination of priors results
+in superior performance. The primary assumption underlying topic modeling is that a topic should
+capture semantically-related word co-occurrences. Topics must also be distinct in order to convey
+information: knowing only a few co-occurring words should be sufﬁcient to resolve semantic ambi-
+guities. A priori, we therefore do not expect that a particular topic’s distribution over words will be
+like that of any other topic. An asymmetric prior over is therefore a bad idea: the base measure
+will reﬂect corpus-wide word usage statistics, and a priori, all topics will exhibit those statistics too.
+A symmetric prior over only makes a prior statement (determined by the concentration param-
+eter) about whether topics will have more sparse or more uniform distributions over words, so
+the topics are free to be as distinct and specialized as is necessary. However, it is still necessary to
+account for power-law word usage. A natural way of doing this is to expect that certain groups of
+words will occur more frequently than others in every document in a given corpus. For example, the
+words “model,” “data,” and “algorithm” are likely to appear in every paper published in a machine
+learning conference. These assumptions lead naturally to the combination of priors that we have
+empirically identiﬁed as superior: an asymmetric Dirichlet prior over that serves to share com-
+monalities across documents and a symmetric Dirichlet prior over that serves to avoid conﬂicts
+between topics. Since these priors can be implemented using efﬁcient algorithms that add negligible
+cost beyond standard inference techniques, we recommend them as a new standard for LDA.
+8 Acknowledgments
+This work was supported in part by the Center for Intelligent Information Retrieval, in part by
+CIA, NSA and NSF under NSF grant number IIS-0326249, and in part by subcontract number
+B582467 from Lawrence Livermore National Security, LLC under prime contract number DE-
+AC52-07NA27344 from DOE/NNSA. Any opinions, ﬁndings and conclusions or recommendations
+expressed in this material are the authors’ and do not necessarily reﬂect those of the sponsor.
+8References
+[1] A. Asuncion, M. Welling, P. Smyth, and Y . W. Teh. On smoothing and inference for topic
+models. In Proceedings of the 25th Conference on Uncertainty in Artiﬁcial Intelligence , 2009.
+[2] D. Blei and J. Lafferty. A correlated topic model of Science. Annals of Applied Statistics ,
+1(1):17–35, 2007.
+[3] D. M. Blei, A. Y . Ng, and M. I. Jordan. Latent Dirichlet allocation. Journal of Machine
+Learning Research , 3:993–1022, January 2003.
+[4] P. J. Cowans. Probabilistic Document Modelling . PhD thesis, University of Cambridge, 2006.
+[5] S. Geman and D. Geman. Stochastic relaxation, Gibbs distributions, and the Bayesian restora-
+tion of images. IEEE Transaction on Pattern Analysis and Machine Intelligence 6 , pages
+721–741, 1984.
+[6] S. Goldwater and T. L. Grifﬁths. A fully Bayesian approach to unsupervised part-of-speech
+tagging. In Association for Computational Linguistics , 2007.
+[7] T. L. Grifﬁths and M. Steyvers. Finding scientiﬁc topics. Proceedings of the National Academy
+of Sciences , 101(suppl. 1):5228–5235, 2004.
+[8] T. L. Grifﬁths, M. Steyvers, D. M. Blei, and J. B. Tenenbaum. Integrating topics and syntax.
+In L. K. Saul, Y . Weiss, and L. Bottou, editors, Advances in Neural Information Processing
+Systems 17 , pages 536–544. The MIT Press, 2005.
+[9] D. Hall, D. Jurafsky, and C. D. Manning. Studying the history of ideas using topic models. In
+Proceedings of EMNLP 2008 , pages 363–371.
+[10] W. Li and A. McCallum. Mixtures of hierarchical topics with pachinko allocation. In Proceed-
+ings of the 24th International Conference on Machine learning , pages 633–640, 2007.
+[11] M. Meil ˘a. Comparing clusterings by the variation of information. In Conference on Learning
+Theory , 2003.
+[12] D. Mimno and A. McCallum. Organizing the OCA: Learning faceted subjects from a library
+of digital books. In Proceedings of the 7th ACM/IEEE joint conference on Digital libraries ,
+pages 376–385, Vancouver, BC, Canada, 2007.
+[13] R. M. Neal. Slice sampling. Annals of Statistics , 31:705–767, 2003.
+[14] D. Newman, C. Chemudugunta, P. Smyth, and M. Steyvers. Analyzing entities and topics in
+news articles using statistical topic models. In Intelligence and Security Informatics , Lecture
+Notes in Computer Science. 2006.
+[15] Y . W. Teh, M. I. Jordan, M. J. Beal, and D. M. Blei. Hierarchical Dirichlet processes. Journal
+of the American Statistical Association , 101:1566–1581, 2006.
+[16] Y . W. Teh, D. Newman, and M. Welling. A collapsed variational Bayesian inference algorithm
+for latent Dirichlet allocation. In Advances in Neural Information Processing Systems 18 ,
+2006.
+[17] H. Wallach, I. Murray, R. Salakhutdinov, and D. Mimno. Evaluation methods for topic models.
+InProceedings of the 26th Interational Conference on Machine Learning , 2009.
+[18] H. M. Wallach. Topic modeling: Beyond bag-of-words. In Proceedings of the 23rd Interna-
+tional Conference on Machine Learning , pages 977–984, Pittsburgh, Pennsylvania, 2006.
+[19] H. M. Wallach. Structured Topic Models for Language . Ph.D. thesis, University of Cambridge,
+2008.
+[20] L. Yao, D. Mimno, and A. McCallum. Efﬁcient methods for topic model inference on stream-
+ing document collections. In Proceedings of KDD 2009 , 2009.
+9

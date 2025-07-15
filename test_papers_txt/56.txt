@@ -1,0 +1,2071 @@
+Certified Adversarial Robustness via Randomized Smoothing
+
+Jeremy Cohen1Elan Rosenfeld1J. Zico Kolter1 2
+Abstract
+We show how to turn any classiﬁer that classi-
+ﬁes well under Gaussian noise into a new classi-
+ﬁer that is certiﬁably robust to adversarial per-
+turbations under the `2norm. This “random-
+ized smoothing” technique has been proposed re-
+cently in the literature, but existing guarantees are
+loose. We prove a tight robustness guarantee in
+`2norm for smoothing with Gaussian noise. We
+use randomized smoothing to obtain an ImageNet
+classiﬁer with e.g. a certiﬁed top-1 accuracy of
+49% under adversarial perturbations with `2norm
+less than 0.5 (=127/255). No certiﬁed defense
+has been shown feasible on ImageNet except for
+smoothing. On smaller-scale datasets where com-
+peting approaches to certiﬁed `2robustness are
+viable, smoothing delivers higher certiﬁed accu-
+racies. Our strong empirical results suggest that
+randomized smoothing is a promising direction
+for future research into adversarially robust classi-
+ﬁcation. Code and models are available at http:
+//github.com/locuslab/smoothing .
+1. Introduction
+Modern image classiﬁers achieve high accuracy on i.i.d.
+test sets but are not robust to small, adversarially-chosen
+perturbations of their inputs (Szegedy et al., 2014; Biggio
+et al., 2013). Given an image xcorrectly classiﬁed by, say,
+a neural network, an adversary can usually engineer an ad-
+versarial perturbation so small that x+looks just like
+xto the human eye, yet the network classiﬁes x+as a
+different, incorrect class. Many works have proposed heuris-
+tic methods for training classiﬁers intended to be robust to
+adversarial perturbations. However, most of these heuristics
+have been subsequently shown to fail against suitably pow-
+erful adversaries (Carlini & Wagner, 2017; Athalye et al.,
+2018; Uesato et al., 2018). In response, a line of work on
+1Carnegie Mellon University2Bosch Center for AI. Correspon-
+dence to: Jeremy Cohen <jeremycohen@cmu.edu >.
+Proceedings of the 36thInternational Conference on Machine
+Learning , Long Beach, California, PMLR 97, 2019. Copyright
+2019 by the author(s).
+xpA
+pB
+Figure 1. Evaluating the smoothed classiﬁer at an input x.Left:
+the decision regions of the base classiﬁer fare drawn in differ-
+ent colors. The dotted lines are the level sets of the distribution
+N(x;2I).Right : the distribution f(N(x;2I)). As discussed
+below,pAis a lower bound on the probability of the top class and
+pBis an upper bound on the probability of each other class. Here,
+g(x)is “blue.”
+.
+certiﬁable robustness studies classiﬁers whose prediction at
+any pointxis veriﬁably constant within some set around x
+(Wong & Kolter, 2018; Raghunathan et al., 2018a, e.g.). In
+most of these works, the robust classiﬁer takes the form of a
+neural network. Unfortunately, all existing approaches for
+certifying the robustness of neural networks have trouble
+scaling to networks that are large and expressive enough to
+solve problems like ImageNet.
+One workaround is to look for robust classiﬁers that are not
+neural networks. Recently, two papers (Lecuyer et al., 2019;
+Li et al., 2018) showed that an operation we call randomized
+smoothing1can transform any arbitrary base classiﬁer finto
+a new “smoothed classiﬁer” gthat is certiﬁably robust in
+`2norm. Letfbe an arbitrary classiﬁer which maps inputs
+Rdto classesY. For any input x, the smoothed classiﬁer’s
+predictiong(x)is deﬁned to be the class which fis most
+likely to classify the random variable N(x;2I)as. That is,
+g(x)returns the most probable prediction by fof random
+Gaussian corruptions of x.
+If the base classiﬁer fis most likely to classify N(x;2I)
+asx’s correct class, then the smoothed classiﬁer gwill be
+1Smoothing was proposed under the name “PixelDP” (for dif-
+ferential privacy). We use a different name since our improved
+analysis does not involve differential privacy.arXiv:1902.02918v2  [cs.LG]  15 Jun 2019Certiﬁed Adversarial Robustness via Randomized Smoothing
+correct atx. But the smoothed classiﬁer gwill also possess
+a desirable property that the base classiﬁer may lack: one
+can verify that g’s prediction is constant within an `2ball
+around any input x, simply by estimating the probabilities
+with whichfclassiﬁesN(x;2I)as each class. The higher
+the probability with which fclassiﬁesN(x;2I)as the
+most probable class, the larger the `2radius around xin
+whichgprovably returns that class.
+Lecuyer et al. (2019) proposed randomized smoothing as
+a provable adversarial defense, and used it to train the ﬁrst
+certiﬁably robust classiﬁer for ImageNet. Subsequently, Li
+et al. (2018) proved a stronger robustness guarantee. How-
+ever, both of these guarantees are loose, in the sense that
+the smoothed classiﬁer gisprovably always more robust
+than the guarantee indicates. In this paper, we prove the
+ﬁrst tight robustness guarantee for randomized smoothing.
+Our analysis reveals that smoothing with Gaussian noise
+naturally induces certiﬁable robustness under the `2norm.
+We suspect that other, as-yet-unknown noise distributions
+might induce robustness to other perturbation sets such as
+general`pnorm balls.
+Randomized smoothing has one major drawback. If fis
+a neural network, it is not possible to exactly compute the
+probabilities with which fclassiﬁesN(x;2I)as each
+class. Therefore, it is not possible to exactly evaluate g’s
+prediction at any input x, or to exactly compute the radius
+in which this prediction is certiﬁably robust. Instead, we
+present Monte Carlo algorithms for both tasks that are guar-
+anteed to succeed with arbitrarily high probability.
+Despite this drawback, randomized smoothing enjoys sev-
+eral compelling advantages over other certiﬁably robust
+classiﬁers proposed in the literature: it makes no assump-
+tions about the base classiﬁer’s architecture, it is simple to
+implement and understand, and, most importantly, it per-
+mits the use of arbitrarily large neural networks as the base
+classiﬁer. In contrast, other certiﬁed defenses do not cur-
+Table 1. Approximate certiﬁed accuracy on ImageNet. Each row
+shows a radius r, the best hyperparameter for that radius, the
+approximate certiﬁed accuracy at radius rof the corresponding
+smoothed classiﬁer, and the standard accuracy of the corresponding
+smoothed classiﬁer. To give a sense of scale, a perturbation with
+`2radius 1.0 could change one pixel by 255, ten pixels by 80, 100
+pixels by 25, or 1000 pixels by 8. Random guessing on ImageNet
+would attain 0.1% accuracy.
+`2RADIUS BEST  CERT. ACC(%) S TD. ACC(%)
+0.5 0.25 49 67
+1.0 0.50 37 57
+2.0 0.50 19 57
+3.0 1.00 12 44
+Figure 2. The smoothed classiﬁer’s prediction at an input x(left)
+is deﬁned as the most likely prediction by the base classiﬁer on
+random Gaussian corruptions of x(right;= 0:5). Note that this
+Gaussian noise is much larger in magnitude than the adversarial
+perturbations to which gis provably robust. One interpretation of
+randomized smoothing is that these large random perturbations
+“drown out” small adversarial perturbations.
+rently scale to large networks. Indeed, smoothing is the only
+certiﬁed adversarial defense which has been shown feasible
+on the full-resolution ImageNet classiﬁcation task.
+We use randomized smoothing to train state-of-the-art certi-
+ﬁably`2-robust ImageNet classiﬁers; for example, one of
+them achieves 49% provable top-1 accuracy under adver-
+sarial perturbations with `2norm less than 127/255 (Table
+1). We also demonstrate that on smaller-scale datasets like
+CIFAR-10 and SHVN, where competing approaches to cer-
+tiﬁed`2robustness are feasible, randomized smoothing can
+deliver better certiﬁed accuracies, both because it enables
+the use of larger networks and because it does not constrain
+the expressivity of the base classiﬁer.
+2. Related Work
+Many works have proposed classiﬁers intended to be ro-
+bust to adversarial perturbations. These approaches can
+be broadly divided into empirical defenses, which empiri-
+cally seem robust to known adversarial attacks, and certiﬁed
+defenses, which are provably robust to certain kinds of ad-
+versarial perturbations.
+Empirical defenses The most successful empirical de-
+fense to date is adversarial training (Goodfellow et al.,
+2015; Kurakin et al., 2017; Madry et al., 2018), in which
+adversarial examples are found during training (often using
+projected gradient descent) and added to the training set.
+Unfortunately, it is typically impossible to tell whether a
+prediction by an empirically robust classiﬁer is truly robust
+to adversarial perturbations; the most that can be said is that
+a speciﬁc attack was unable to ﬁnd any. In fact, many heuris-
+tic defenses proposed in the literature were later “broken”
+by stronger adversaries (Carlini & Wagner, 2017; Athalye
+et al., 2018; Uesato et al., 2018; Athalye & Carlini, 2018).Certiﬁed Adversarial Robustness via Randomized Smoothing
+Aiming to escape this cat-and-mouse game, a growing body
+of work has focused on defenses with formal guarantees.
+Certiﬁed defenses A classiﬁer is said to be certiﬁably ro-
+bustif for any input x, one can easily obtain a guarantee that
+the classiﬁer’s prediction is constant within some set around
+x, often an`2or`1ball. In most work in this area, the
+certiﬁably robust classiﬁer is a neural network. Some works
+propose algorithms for certifying the robustness of generi-
+cally trained networks, while others (Wong & Kolter, 2018;
+Raghunathan et al., 2018a) propose both a robust training
+method and a complementary certiﬁcation mechanism.
+Certiﬁcation methods are either exact (a.k.a “complete”) or
+conservative (a.k.a “sound but incomplete”). In the context
+of`pnorm-bounded perturbations, exact methods take a
+classiﬁerg, inputx, and radius r, and report whether or
+not there exists a perturbation withinkkrfor which
+g(x)6=g(x+). In contrast, conservative methods either
+certify that no such perturbation exists or decline to make a
+certiﬁcation; they may decline even when it is true that no
+such perturbation exists. Exact methods are usually based
+on Satisﬁability Modulo Theories (Katz et al., 2017; Carlini
+et al., 2017; Ehlers, 2017; Huang et al., 2017) or mixed
+integer linear programming (Cheng et al., 2017; Lomuscio
+& Maganti, 2017; Dutta et al., 2017; Fischetti & Jo, 2018;
+Bunel et al., 2018). Unfortunately, no exact methods have
+been shown to scale beyond moderate-sized (100,000 acti-
+vations) networks (Tjeng et al., 2019), and networks of that
+size can only be veriﬁed when they are trained in a manner
+that impairs their expressivity.
+Conservative certiﬁcation is more scalable. Some conser-
+vative methods bound the global Lipschitz constant of the
+neural network (Gouk et al., 2018; Tsuzuku et al., 2018;
+Anil et al., 2019; Cisse et al., 2017), but these approaches
+tend to be very loose on expressive networks. Others mea-
+sure the local smoothness of the network in the vicinity of a
+particular input x. In theory, one could obtain a robustness
+guarantee via an upper bound on the local Lipschitz con-
+stant of the network (Hein & Andriushchenko, 2017), but
+computing this quantity is intractable for general neural net-
+works. Instead, a panoply of practical solutions have been
+proposed in the literature (Wong & Kolter, 2018; Wang et al.,
+2018a;b; Raghunathan et al., 2018a;b; Wong et al., 2018;
+Dvijotham et al., 2018b;a; Croce et al., 2019; Gehr et al.,
+2018; Mirman et al., 2018; Singh et al., 2018; Gowal et al.,
+2018; Weng et al., 2018a; Zhang et al., 2018). Two themes
+stand out. Some approaches cast veriﬁcation as an opti-
+mization problem and import tools such as relaxation and
+duality from the optimization literature to provide conserva-
+tive guarantees (Wong & Kolter, 2018; Wong et al., 2018;
+Raghunathan et al., 2018a;b; Dvijotham et al., 2018b;a).
+Others step through the network layer by layer, maintaining
+at each layer an outer approximation of the set of activationsreachable by a perturbed input (Mirman et al., 2018; Singh
+et al., 2018; Gowal et al., 2018; Weng et al., 2018a; Zhang
+et al., 2018). None of these local certiﬁcation methods have
+been shown to be feasible on networks that are large and
+expressive enough to solve modern machine learning prob-
+lems like the ImageNet classiﬁcation task. Also, all either
+assume speciﬁc network architectures (e.g. ReLU activa-
+tions or a layered feedforward structure) or require extensive
+customization for new network architectures.
+Related work involving noise Prior works have proposed
+using a network’s robustness to Gaussian noise as a proxy
+for its robustness to adversarial perturbations (Weng et al.,
+2018b; Ford et al., 2019), and have suggested that Gaussian
+data augmentation could supplement or replace adversar-
+ial training (Zantedeschi et al., 2017; Kannan et al., 2018).
+Smilkov et al. (2017) observed that averaging a classiﬁer’s
+input gradients over Gaussian corruptions of an image yields
+very interpretable saliency maps. The robustness of neural
+networks to random noise has been analyzed both theo-
+retically (Fawzi et al., 2016; Franceschi et al., 2018) and
+empirically (Dodge & Karam, 2017). Finally, Webb et al.
+(2019) proposed a statistical technique for estimating the
+noise robustness of a classiﬁer more efﬁciently than naive
+Monte Carlo simulation; we did not use this technique since
+it appears to lack formal high-probability guarantees. While
+these works hypothesized relationships between a neural net-
+work’s robustness to random noise and the same network’s
+robustness to adversarial perturbations, randomized smooth-
+ing instead uses a classiﬁer’s robustness to random noise to
+create a new classiﬁer robust to adversarial perturbations.
+Randomized smoothing Randomized smoothing has
+been studied previously for adversarial robustness. Sev-
+eral works (Liu et al., 2018; Cao & Gong, 2017) proposed
+similar techniques as heuristic defenses, but did not prove
+any guarantees. Lecuyer et al. (2019) used inequalities
+from the differential privacy literature to prove an `2and
+`1robustness guarantee for smoothing with Gaussian and
+Laplace noise, respectively. Subsequently, Li et al. (2018)
+used tools from information theory to prove a stronger `2ro-
+bustness guarantee for Gaussian noise. However, all of these
+robustness guarantees are loose. In contrast, we prove a tight
+robustness guarantee in `2norm for randomized smoothing
+with Gaussian noise.
+3. Randomized smoothing
+Consider a classiﬁcation problem from Rdto classesY.
+As discussed above, randomized smoothing is a method for
+constructing a new, “smoothed” classiﬁer gfrom an arbitrary
+base classiﬁer f. When queried at x, the smoothed classiﬁer
+greturns whichever class the base classiﬁer fis most likelyCertiﬁed Adversarial Robustness via Randomized Smoothing
+to return when xis perturbed by isotropic Gaussian noise:
+g(x) = arg max
+c2YP(f(x+") =c) (1)
+where"N(0;2I)
+An equivalent deﬁnition is that g(x)returns the class c
+whose pre-imagefx02Rd:f(x0) =cghas the largest
+probability measure under the distribution N(x;2I). The
+noise levelis a hyperparameter of the smoothed classiﬁer
+gwhich controls a robustness/accuracy tradeoff; it does not
+change with the input x. We leave undeﬁned the behavior
+ofgwhen the argmax is not unique.
+We will ﬁrst present our robustness guarantee for the
+smoothed classiﬁer g. Then, since it is not possible to
+exactly evaluate the prediction of gatxor to certify the ro-
+bustness ofgaroundx, we will give Monte Carlo algorithms
+for both tasks that succeed with arbitrarily high probability.
+3.1. Robustness guarantee
+Suppose that when the base classiﬁer fclassiﬁesN(x;2I),
+the most probable class cAis returned with probability pA,
+and the “runner-up” class is returned with probability pB.
+Our main result is that smoothed classiﬁer gis robust around
+xwithin the`2radiusR=
+2( 1(pA)  1(pB)), where
+ 1is the inverse of the standard Gaussian CDF. This result
+also holds if we replace pAwith a lower bound pAand we
+replacepBwith an upper bound pB.
+Theorem 1. Letf:Rd! Y be any deterministic or
+random function, and let "N(0;2I). Letgbe deﬁned
+as in (1). Suppose cA2Y andpA;pB2[0;1]satisfy:
+P(f(x+") =cA)pApBmax
+c6=cAP(f(x+") =c)(2)
+Theng(x+) =cAfor allkk2<R, where
+R=
+2( 1(pA)  1(pB)) (3)
+We now make several observations about Theorem 12
+Theorem 1 assumes nothing about f. This is crucial
+since it is unclear which well-behavedness assump-
+tions, if any, are satisﬁed by modern deep architectures.
+The certiﬁed radius Ris large when: (1) the noise level
+is high, (2) the probability of the top class cAis high,
+and (3) the probability of each other class is low.
+2After the dissemination of this work, a more general result
+was published in Levine et al. (2019); Salman et al. (2019): if h:
+Rd![0;1]is a function and ^his the “smoothed” version ^h(x) =
+E"N (0;2I)[h(x+")], then the function x7! 1(^h(x))is
+1=-Lipschitz. Theorem 1 can be proved by applying this result to
+the functions fc(x) =1[f(x) =c]for each class c.The certiﬁed radius Rgoes to1aspA!1and
+pB!0. This should sound reasonable: the Gaussian
+distribution is supported on all of Rd, so the only way
+thatf(x+") =cAwith probability 1 is if f=cA
+almost everywhere.
+Both Lecuyer et al. (2019) and Li et al. (2018) proved `2
+robustness guarantees for the same setting as Theorem 1, but
+with different, smaller expressions for the certiﬁed radius.
+However, our `2robustness guarantee is tight: if (2) is all
+that is known about f, then it is impossible to certify an `2
+ball with radius larger than R. In fact, it is impossible to
+certify any superset of the `2ball with radius R:
+Theorem 2. AssumepA+pB1. For any perturbation
+withkk2>R, there exists a base classiﬁer fconsistent
+with the class probabilities (2) for which g(x+)6=cA.
+Theorem 2 shows that Gaussian smoothing naturally in-
+duces`2robustness: if we make no assumptions on the base
+classiﬁer beyond the class probabilities (2), then the set of
+perturbations to which a Gaussian-smoothed classiﬁer is
+provably robust is exactly an`2ball.
+The complete proofs of Theorems 1 and 2 are in Appendix
+A. We now sketch the proofs in the special case when there
+are only two classes.
+Theorem 1 (binary case). SupposepA2(1
+2;1]satisﬁes
+P(f(x+") =cA)pA. Theng(x+) =cAfor all
+kk2< 1(pA).
+Proof sketch. Fix a perturbation 2Rd. To guarantee
+thatg(x+) =cA, we need to show that fclassiﬁes the
+translated Gaussian N(x+;2I)ascAwith probability
+>1
+2. However, all we know about fis thatfclassiﬁes
+N(x;2I)ascAwith probabilitypA. This raises the
+question: out of all possible base classiﬁers fwhich classify
+N(x;2I)ascAwith probabilitypA, which one f
+classiﬁesN(x+;2I)ascAwith the smallest probability?
+One can show using an argument similar to the Neyman-
+Pearson lemma (Neyman & Pearson, 1933) that this “worst-
+case”fis a linear classiﬁer whose decision boundary is
+normal to the perturbation (Figure 3):
+f(x0) =(
+cA ifT(x0 x)kk2 1(pA)
+cB otherwise(4)
+This “worst-case” fclassiﬁesN(x+;2I)ascAwith
+probability 
+ 1(pA) kk2
+
+. Therefore, to ensure that
+even the “worst-case” fclassiﬁesN(x+;2I)ascAwith
+probability>1
+2, we solve for those for which
+
+ 1(pA) kk2
+
+>1
+2
+which is equivalent to the condition kk2< 1(pA).Certiﬁed Adversarial Robustness via Randomized Smoothing
+x+
+x
+x+
+x
+Figure 3. Illustration of fin two dimensions. The concentric
+circles are the density contours of N(x;2I)andN(x+;2I).
+Out of all base classiﬁers fwhich classifyN(x;2I)ascA(blue)
+with probabilitypA, such as both classiﬁers depicted above,
+the “worst-case” f— the one which classiﬁes N(x+;2I)as
+cAwith minimal probability — is depicted on the right: a linear
+classiﬁer with decision boundary normal to the perturbation .
+Theorem 2 is a simple consequence: for any withkk2>
+R, the base classiﬁer fdeﬁned in (4) is consistent with (2);
+yet iffis the base classiﬁer, then g(x+) =cB.
+Figure 5 (left) plots our `2robustness guarantee against
+the guarantees derived in prior work. Observe that our
+Ris much larger than that of Lecuyer et al. (2019) and
+moderately larger than that of Li et al. (2018). Appendix I
+derives the other two guarantees using this paper’s notation.
+Linear base classiﬁer A two-class linear classiﬁer
+f(x) = sign(wTx+b)is already certiﬁable: the dis-
+tance from any input xto the decision boundary is jwTx+
+bj=kwk2, and no perturbation with`2norm less than this
+distance can possibly change f’s prediction. In Appendix B
+we show that if fis linear, then the smoothed classiﬁer gis
+identical to the base classiﬁer f. Moreover, we show that our
+bound (3) will certify the true robust radius jwTx+bj=kwk,
+rather than a smaller, overconservative radius. Therefore,
+whenfis linear, there always exists a perturbation just
+beyond the certiﬁed radius which changes g’s prediction.
+Noise level can scale with image resolution Since our
+expression (3) for the certiﬁed radius does not depend ex-
+plicitly on the data dimension d, one might worry that ran-
+domized smoothing is less effective for images of higher
+resolution — certifying a ﬁxed `2radius is “less impressive”
+for, say, a 224224image than for a 5656image. How-
+ever, as illustrated by Figure 4, images in higher resolution
+can tolerate higher levels of isotropic Gaussian noise be-
+fore their class-distinguishing content gets destroyed. As
+a consequence, in high resolution, smoothing can be per-
+formed with a larger , leading to larger certiﬁed radii. See
+Appendix G for a more rigorous version of this argument.3.2. Practical algorithms
+We now present practical Monte Carlo algorithms for eval-
+uatingg(x)and certifying the robustness of garoundx.
+More details can be found in Appendix C.
+3.2.1. P REDICTION
+Evaluating the smoothed classiﬁer’s prediction g(x)re-
+quires identifying the class cAwith maximal weight in the
+categorical distribution f(x+"). The procedure described
+in pseudocode as PREDICT drawsnsamples off(x+")
+by runningnnoise-corrupted copies of xthrough the base
+classiﬁer. Let ^cAbe the class which appeared the largest
+number of times. If ^cAappeared much more often than any
+other class, then PREDICT returns ^cA. Otherwise, it abstains
+from making a prediction. We use the hypothesis test from
+Hung & Fithian (2019) to calibrate the abstention threshold
+so as to bound by 
+the probability of returning an incorrect
+answer. P REDICT satisﬁes the following guarantee:
+Proposition 1. With probability at least 1 
+over the
+randomness in PREDICT ,PREDICT will either abstain or
+returng(x). (Equivalently: the probability that PREDICT
+returns a class other than g(x)is at most
+.)
+The function SAMPLE UNDER NOISE (f,x, num,) in the
+pseudocode draws num samples of noise, "1:::" num
+N(0;2I), runs eachx+"ithrough the base classiﬁer f,
+and returns a vector of class counts. BINOM PVALUE (nA,
+nA+nB,p) returns the p-value of the two-sided hypothesis
+test thatnABinomial (nA+nB;p).
+Even if the true smoothed classiﬁer gis robust at radius R,
+PREDICT will be vulnerable in a certain sense to adversarial
+perturbations with `2norm slightly less than R. By engi-
+neering a perturbation for whichf(x++")puts mass
+just over1
+2on classcAand mass just under1
+2on classcB,
+an adversary can force PREDICT to abstain at a high rate. If
+this scenario is of concern, a variant of Theorem 1 could be
+proved to certify a radius in which P(f(x++") =cA)is
+larger by some margin than maxc6=cAP(f(x++") =c).
+3.2.2. C ERTIFICATION
+Evaluating and certifying the robustness of garound an
+inputxrequires not only identifying the class cAwith maxi-
+mal weight in f(x+"), but also estimating a lower bound
+Figure 4. Left to right: clean 56 x 56 image, clean 224 x 224 image,
+noisy 56 x 56 image ( = 0:5), noisy 224 x 224 image ( = 0:5).Certiﬁed Adversarial Robustness via Randomized Smoothing
+Pseudocode for certiﬁcation and prediction
+# evaluategatx
+function PREDICT (f,,x,n,
+)
+counts SAMPLE UNDER NOISE (f,x,n,)
+^cA;^cB top two indices in counts
+nA;nB counts [^cA],counts [^cB]
+ifBINOM PVALUE (nA,nA+nB, 0.5)
+return ^cA
+else return ABSTAIN
+# certify the robustness of garoundx
+function CERTIFY (f,,x,n0,n,
+)
+counts0 SAMPLE UNDER NOISE(f;x;n 0;)
+^cA top index in counts0
+counts SAMPLE UNDER NOISE(f;x;n; )
+pA LOWER CONFBOUND (counts [^cA],n,1 
+)
+ifpA>1
+2return prediction ^cAand radius 1(pA)
+else return ABSTAIN
+pAon the probability that f(x+") =cAand an upper
+boundpBon the probability that f(x+")equals any other
+class. Doing all three of these at the same time in a sta-
+tistically correct manner requires some care. One simple
+solution is presented in pseudocode as CERTIFY : ﬁrst, use
+a small number of samples from f(x+")to take a guess
+atcA; then use a larger number of samples to estimate pA;
+then simply take pB= 1 pA.
+Proposition 2. With probability at least 1 
+over the
+randomness in CERTIFY , ifCERTIFY returns a class ^cA
+and a radius R(i.e. does not abstain), then gpredicts ^cA
+within radius Raroundx:g(x+) = ^cA8kk2<R.
+The function LOWER CONFBOUND (k,n,1 
+) in the pseu-
+docode returns a one-sided (1 
+)lower conﬁdence in-
+terval for the Binomial parameter pgiven a sample k
+Binomial (n;p).
+Certifying large radii requires many samples Recall
+from Theorem 1 that Rapproaches1aspAapproaches 1.
+Unfortunately, it turns out that pAapproaches 1 so slowly
+withnthatRalso approaches1very slowly with n. Con-
+sider the most favorable situation: f(x) =cAeverywhere.
+This means that gis robust at radius1. But after observing
+nsamples off(x+")which all equal cA, the tightest (to
+our knowledge) lower bound would say that with probabil-
+ity least 1 
+,pA
+(1=n). PluggingpA=
+(1=n)and
+pB= 1 pAinto (3) yields an expression for the certiﬁed
+radius as a function of n:R= 1(
+1=n). Figure 5
+(right) plots this function for 
+= 0:001;= 1. Observe
+that certifying a radius of 4with 99.9% conﬁdence would
+require105samples.
+0.5 0.6 0.7 0.8 0.9 1.0
+pA0123radiusours
+(Lecuyer et al, 2018)
+(Li et al, 2018)
+102
+104
+106
+number of samples012345radiusFigure 5. Left: Certiﬁed radius Ras a function of pA(withpB=
+1 pAand= 1) under all three randomized smoothing bounds.
+Right : A plot ofR= 1(
+1=n)for
+= 0:001and= 1.
+The radius we can certify with high probability grows slowly with
+the number of samples, even in the best case wheref(x) =cA
+everywhere.
+3.3. Training the base classiﬁer
+Theorem 1 holds regardless of how the base classiﬁer fis
+trained. However, in order for gto classify the labeled ex-
+ample (x;c)correctly and robustly, fneeds to consistently
+classifyN(x;2I)asc. In high dimension, the Gaussian
+distributionN(x;2I)places almost no mass near its mode
+x. As a consequence, when is moderately high, the distri-
+bution of natural images has virtually disjoint support from
+the distribution of natural images corrupted by N(0;2I);
+see Figure 2 for a visual demonstration. Therefore, if the
+base classiﬁer fis trained via standard supervised learning
+on the data distribution, it will see no noisy images during
+training, and hence will not necessarily learn to classify
+N(x;2I)withx’s true label. Therefore, in this paper we
+follow Lecuyer et al. (2019) and train the base classiﬁer
+with Gaussian data augmentation at variance 2. A justiﬁca-
+tion for this procedure is provided in Appendix F. However,
+we suspect that there may be room to improve upon this
+training scheme, perhaps by training the base classiﬁer so
+as to maximize the smoothed classiﬁer’s certiﬁed accuracy
+at some tunable radius r.
+4. Experiments
+In adversarially robust classiﬁcation, one metric of interest
+is the certiﬁed test set accuracy at radiusr, deﬁned as the
+fraction of the test set which gclassiﬁes correctly with a pre-
+diction that is certiﬁably robust within an `2ball of radius r.
+However, ifgis a randomized smoothing classiﬁer, comput-
+ing this quantity exactly is not possible, so we instead report
+theapproximate certiﬁed test set accuracy , deﬁned as the
+fraction of the test set which CERTIFY classiﬁes correctly
+(without abstaining) and certiﬁes robust with a radius Rr.
+Appendix D shows how to convert the approximate certiﬁed
+accuracy into a lower bound on the true certiﬁed accuracy
+that holds with high probability over the randomness in
+CERTIFY . However Appendix H.2 demonstrates that whenCertiﬁed Adversarial Robustness via Randomized Smoothing
+0.0 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+radius0.00.20.40.60.81.0certified accuracy=0.12
+=0.25
+=0.50
+=1.00
+undefended
+0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+radius0.00.20.40.60.81.0certified accuracy=0.25
+=0.50
+=1.00
+undefended
+Figure 6. Approximate certiﬁed accuracy attained by randomized
+smoothing on CIFAR-10 ( top) and ImageNet ( bottom ). The hyper-
+parametercontrols a robustness/accuracy tradeoff. The dashed
+black line is an upper bound on the empirical robust accuracy of
+an undefended classiﬁer with the base classiﬁer’s architecture.
+
+is small, the difference between these two quantities is
+negligible. Therefore, in our experiments we omit the step
+for simplicity and report approximate certiﬁed accuracies.
+In all experiments, unless otherwise stated, we ran CERTIFY
+with
+= 0:001, so there was at most a 0.1% chance that
+CERTIFY returned a radius in which gwas not truly robust.
+Unless otherwise stated, when running CERTIFY we used
+n0=100 Monte Carlo samples for selection and n=
+100,000 samples for estimation.
+In the ﬁgures above that plot certiﬁed accuracy as a function
+of radiusr, the certiﬁed accuracy always decreases gradually
+withruntil reaching some point where it plummets to zero.
+This drop occurs because for each noise level and number
+of samplesn, there is a hard upper limit to the radius we can
+certify with high probability, achieved when all nsamples
+are classiﬁed by fas the same class.
+ImageNet and CIFAR-10 results We applied random-
+ized smoothing to CIFAR-10 (Krizhevsky, 2009) and Im-
+ageNet (Deng et al., 2009). On each dataset we trained
+several smoothed classiﬁers, each with a different . On
+CIFAR-10 our base classiﬁer was a 110-layer residual
+network; certifying each example took 15 seconds on an
+NVIDIA RTX 2080 Ti. On ImageNet our base classiﬁer
+was a ResNet-50; certifying each example took 110 seconds.
+We also trained a neural network with the base classiﬁer’s
+architecture on clean data, and subjected it to a DeepFool `2
+adversarial attack (Moosavi-Dezfooli et al., 2016), in order
+0.0 0.5 1.0 1.5 2.0 2.5 3.0
+radius0.00.20.40.60.81.0certified accuracysmoothing, large network 
+smoothing, small network
+(Wong et al, 2018) 1
+(Wong et al, 2018) 2
+(Wong et al, 2018) 3Figure 7. Comparison betwen randomized smoothing and Wong
+et al. (2018). Each green line is a small resnet classiﬁer trained and
+certiﬁed using the method of Wong et al. (2018) with a different
+setting of its hyperparameter . The purple line is our method
+using the same small resnet architecture as the base classiﬁer;
+the blue line is our method with a larger neural network as the
+base classiﬁer. Wong et al. (2018) gives deterministic robustness
+guarantees, whereas smoothing gives high-probability guaranatees;
+therefore, we plot here the certiﬁed accuracy of Wong et al. (2018)
+against the “approximate” certiﬁed accuracy of smoothing.
+to obtain an empirical upper bound on its robust accuracy.
+We certiﬁed the full CIFAR-10 test set and a subsample of
+500 examples from the ImageNet test set.
+Figure 6 plots the certiﬁed accuracy attained by smoothing
+with each. The dashed black line is the empirical upper
+bound on the robust accuracy of the base classiﬁer architec-
+ture; observe that smoothing improves substantially upon
+the robustness of the undefended base classiﬁer architecture.
+We see thatcontrols a robustness/accuracy tradeoff. When
+is low, small radii can be certiﬁed with high accuracy, but
+large radii cannot be certiﬁed. When is high, larger radii
+can be certiﬁed, but smaller radii are certiﬁed at a lower ac-
+curacy. This observation echoes the ﬁnding in Tsipras et al.
+(2019) that adversarially trained networks with higher ro-
+bust accuracy tend to have lower standard accuracy. Tables
+of these results are in Appendix E.
+Figure 8 ( left) plots the certiﬁed accuracy obtained using our
+Theorem 1 guarantee alongside the certiﬁed accuracy ob-
+tained using the analogous bounds of Lecuyer et al. (2019)
+and Li et al. (2018). Since our expression for the certiﬁed
+radiusRis greater (and, in fact, tight), our bound delivers
+higher certiﬁed accuracies. Figure 8 ( middle ) projects how
+the certiﬁed accuracy would have changed had CERTIFY
+used more or fewer samples n(under the assumption that the
+relative class proportions in counts would have remained
+constant). Finally, Figure 8 ( right ) plots the certiﬁed accu-
+racy as the conﬁdence parameter 
+is varied. Observe that
+the certiﬁed accuracy is not very sensitive to 
+.Certiﬁed Adversarial Robustness via Randomized Smoothing
+0.0 0.2 0.4 0.6 0.8 1.0
+radius0.00.20.40.60.81.0certified accuracyours
+(Lecuyer et al, 2018)
+(Li et al, 2018)
+0.0 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+radius0.00.20.40.60.81.0certified accuracyn = 1,000
+n = 10,000
+n = 100,000
+n = 1,000,000
+n = 10,000,000
+0.0 0.2 0.4 0.6 0.8 1.0
+radius0.00.20.40.60.81.0certified accuracy99.999% confidence
+99.99% confidence
+99.9% confidence
+99% confidence
+Figure 8. Experiments with randomized smoothing on ImageNet with = 0:25.Left: certiﬁed accuracies obtained using our Theorem 1
+versus those obtained using the robustness guarantees derived in prior work. Middle : projections for the certiﬁed accuracy if the number
+of samplesnused by C ERTIFY had been larger or smaller. Right : certiﬁed accuracy as the failure probability 
+of C ERTIFY is varied.
+Comparison to baselines We compared randomized
+smoothing to three baseline approaches for certiﬁed `2ro-
+bustness: the duality approach from Wong et al. (2018),
+the Lipschitz approach from Tsuzuku et al. (2018), and the
+approach from Weng et al. (2018a); Zhang et al. (2018).
+The strongest baseline was Wong et al. (2018); we defer the
+comparison to the other two baselines to Appendix H.
+In Figure 7, we compare the largest publicly released model
+from Wong et al. (2018), a small resnet, to two randomized
+smoothing classiﬁers: one which used the same small resnet
+architecture for its base classiﬁer, and one which used a
+larger 110-layer resnet for its base classiﬁer. First, observe
+that smoothing with the large 110-layer resnet substantially
+outperforms the baseline (across all hyperparameter set-
+tings) at all radii. Second, observe that smoothing with the
+small resnet also outperformed the method of Wong et al.
+(2018) at all but the smallest radii. We attribute this latter re-
+sult to the fact that neural networks trained using the method
+of Wong et al. (2018) are “typically overregularized to the
+point that many ﬁlters/weights become identically zero,” per
+that paper. In contrast, the base classiﬁer in randomized
+smoothing is a fully expressive neural network.
+Prediction It is computationally expensive to certify the
+robustness of garound a point x, since the value of nin
+CERTIFY must be very large. However, it is far cheaper
+to evaluategatxusing PREDICT , sincencan be small.
+For example, when we ran PREDICT on ImageNet ( =
+0:25) usingn=100, making each prediction only took
+0.15 seconds, and we attained a top-1 test accuracy of 65%
+(Appendix E).
+As discussed earlier, an adversary can potentially force PRE-
+DICT to abstain with high probability. However, it is rela-
+tively rare for PREDICT to abstain on the actual data dis-
+tribution. On ImageNet ( = 0:25),PREDICT with failure
+probability
+= 0:001abstained 12% of the time when n=
+100, 4% when n=1000, and 1% when n=10,000.Empirical tightness of bound Whenfis linear, there al-
+ways exists a class-changing perturbation just beyond the
+certiﬁed radius. Since neural networks are not linear, we em-
+pirically assessed the tightness of our bound by subjecting
+an ImageNet smoothed classiﬁer ( = 0:25) to a projected
+gradient descent-style adversarial attack (Appendix J.3). For
+each example, we ran CERTIFY with
+= 0:01, and, if the
+example was correctly classiﬁed and certiﬁed robust at ra-
+diusR, we tried ﬁnding an adversarial example for gwithin
+radius 1:5Rand within radius 2R. We succeeded 17% of
+the time at radius 1:5Rand 53% of the time at radius 2R.
+5. Conclusion
+Theorem 2 establishes that smoothing with Gaussian noise
+naturally confers adversarial robustness in `2norm: if we
+have no knowledge about the base classiﬁer beyond the dis-
+tribution off(x+"), then the set of perturbations to which
+the smoothed classiﬁer is provably robust is precisely an `2
+ball. We suspect that smoothing with other noise distribu-
+tions may lead to similarly natural robustness guarantees for
+other perturbation sets such as general `pnorm balls.
+Our strong empirical results suggest that randomized
+smoothing is a promising direction for future research
+into adversarially robust classiﬁcation. Many empirical
+approaches have been “broken,” and provable approaches
+based on certifying neural network classiﬁers have not been
+shown to scale to networks of modern size. It seems to be
+computationally infeasible to reason in any sophisticated
+way about the decision boundaries of a large, expressive neu-
+ral network. Randomized smoothing circumvents this prob-
+lem: the smoothed classiﬁer is not itself a neural network,
+though it leverages the discriminative ability of a neural
+network base classiﬁer. To make the smoothed classiﬁer ro-
+bust, one need simply make the base classiﬁer classify well
+under noise. In this way, randomized smoothing reduces the
+unsolved problem of adversarially robust classiﬁcation to
+the comparably solved domain of supervised learning.Certiﬁed Adversarial Robustness via Randomized Smoothing
+6. Acknowledgements
+We thank Mateusz Kwa ´snicki for help with Lemma 4 in the
+appendix, Aaditya Ramdas for pointing us toward the work
+of Hung & Fithian (2019), and Siva Balakrishnan for helpful
+discussions regarding the conﬁdence interval in Appendix
+D. We thank Tolani Olarinre, Adarsh Prasad, Ben Cousins,
+Ramon Van Handel, Matthias Lecuyer, and Bai Li for useful
+conversations. Finally, we are very grateful to Vaishnavh
+Nagarajan, Arun Sai Suggala, Shaojie Bai, Mikhail Khodak,
+Han Zhao, and Zachary Lipton for reviewing drafts of this
+work. Jeremy Cohen is supported by a grant from the Bosch
+Center for AI.
+References
+Anil, C., Lucas, J., and Grosse, R. B. Sorting out lips-
+chitz function approximation. In Proceedings of the 36th
+International Conference on Machine Learning , 2019.
+Athalye, A. and Carlini, N. On the robustness of the cvpr
+2018 white-box adversarial example defenses. The Bright
+and Dark Sides of Computer Vision: Challenges and
+Opportunities for Privacy and Security , 2018.
+Athalye, A., Carlini, N., and Wagner, D. Obfuscated gra-
+dients give a false sense of security: Circumventing de-
+fenses to adversarial examples. In Proceedings of the 35th
+International Conference on Machine Learning , 2018.
+Biggio, B., Corona, I., Maiorca, D., Nelson, B., rndi, N.,
+Laskov, P., Giacinto, G., and Roli, F. Evasion attacks
+against machine learning at test time. Joint European
+Conference on Machine Learning and Knowledge Dis-
+covery in Database , 2013.
+Blanchard, G. Lecture Notes, 2007. URL
+http://www.math.uni-potsdam.de/
+˜blanchard/lectures/lect_2.pdf .
+Bunel, R. R., Turkaslan, I., Torr, P., Kohli, P., and
+Mudigonda, P. K. A uniﬁed view of piecewise linear
+neural network veriﬁcation. In Advances in Neural Infor-
+mation Processing Systems 31 . 2018.
+Cao, X. and Gong, N. Z. Mitigating evasion attacks to deep
+neural networks via region-based classiﬁcation. 33rd An-
+nual Computer Security Applications Conference , 2017.
+Carlini, N. and Wagner, D. Adversarial examples are not
+easily detected: Bypassing ten detection methods. In
+Proceedings of the 10th ACM Workshop on Artiﬁcial
+Intelligence and Security , 2017.
+Carlini, N., Katz, G., Barrett, C., and Dill, D. L. Provably
+minimally-distorted adversarial examples. arXiv preprint
+arXiv: 1709.10207 , 2017.Cheng, C.-H., Nhrenberg, G., and Ruess, H. Maximum
+resilience of artiﬁcial neural networks. International
+Symposium on Automated Technology for Veriﬁcation
+and Analysis , 2017.
+Cisse, M., Bojanowski, P., Grave, E., Dauphin, Y ., and
+Usunier, N. Parseval networks: Improving robustness to
+adversarial examples. In Proceedings of the 34th Interna-
+tional Conference on Machine Learning , 2017.
+Clopper, C. J. and Pearson, E. S. The use of conﬁdence
+or ﬁducial limits illustrated in the case of the binomial.
+Biometrika , 26(4):pp. 404–413, 1934. ISSN 00063444.
+Croce, F., Andriushchenko, M., and Hein, M. Provable
+robustness of relu networks via maximization of linear
+regions. In Proceedings of the 22nd International Con-
+ference on Artiﬁcial Intelligence and Statistics , 2019.
+Deng, J., Dong, W., Socher, R., Li, L.-J., Li, K., and Fei-
+Fei, L. ImageNet: A Large-Scale Hierarchical Image
+Database. In IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR) , 2009.
+Dodge, S. and Karam, L. A study and comparison of hu-
+man and deep learning recognition performance under
+visual distortions. 2017 26th International Conference on
+Computer Communication and Networks (ICCCN) , 2017.
+Dutta, S., Jha, S., Sanakaranarayanan, S., and Tiwari, A.
+Output range analysis for deep neural networks. arXiv
+preprint arXiv:1709.09130 , 2017.
+Dvijotham, K., Gowal, S., Stanforth, R., Arandjelovic, R.,
+O’Donoghue, B., Uesato, J., and Kohli, P. Training
+veriﬁed learners with learned veriﬁers. arXiv preprint
+arXiv:1805.10265 , 2018a.
+Dvijotham, K., Stanforth, R., Gowal, S., Mann, T., and
+Kohli, P. A dual approach to scalable veriﬁcation of
+deep networks. Proceedings of the Thirty-Fourth Con-
+ference Annual Conference on Uncertainty in Artiﬁcial
+Intelligence (UAI-18) , 2018b.
+Ehlers, R. Formal veriﬁcation of piece-wise linear feed-
+forward neural networks. In Automated Technology for
+Veriﬁcation and Analysis , 2017.
+Fawzi, A., Moosavi-Dezfooli, S.-M., and Frossard, P. Ro-
+bustness of classiﬁers: from adversarial to random noise.
+InAdvances in Neural Information Processing Systems
+29. 2016.
+Fischetti, M. and Jo, J. Deep neural networks and mixed
+integer linear optimization. Constraints , 23(3):296–309,
+July 2018.Certiﬁed Adversarial Robustness via Randomized Smoothing
+Ford, N., Gilmer, J., and Cubuk, E. D. Adversarial ex-
+amples are a natural consequence of test error in noise.
+InProceedings of the 36th International Conference on
+Machine Learning , 2019.
+Franceschi, J.-Y ., Fawzi, A., and Fawzi, O. Robustness
+of classiﬁers to uniform `pand gaussian noise. In 21st
+International Conference on Artiﬁcial Intelligence and
+Statistics (AISTATS) . 2018.
+Gehr, T., Mirman, M., Drachsler-Cohen, D., Tsankov, P.,
+Chaudhuri, S., and Vechev, M. T. AI2: safety and ro-
+bustness certiﬁcation of neural networks with abstract
+interpretation. In 2018 IEEE Symposium on Security and
+Privacy, SP 2018, Proceedings, 21-23 May 2018, San
+Francisco, California, USA , pp. 3–18, 2018.
+Goodfellow, I. J., Shlens, J., and Szegedy, C. Explaining
+and harnessing adversarial examples. In International
+Conference on Learning Representations , 2015.
+Gouk, H., Frank, E., Pfahringer, B., and Cree, M. Regulari-
+sation of neural networks by enforcing lipschitz continu-
+ity.arXiv preprint arXiv:1804.04368 , 2018.
+Gowal, S., Dvijotham, K., Stanforth, R., Bunel, R., Qin,
+C., Uesato, J., Arandjelovic, R., Mann, T., and Kohli, P.
+On the effectiveness of interval bound propagation for
+training veriﬁably robust models, 2018.
+Hein, M. and Andriushchenko, M. Formal guarantees on the
+robustness of a classiﬁer against adversarial manipulation.
+InAdvances in Neural Information Processing Systems
+30. 2017.
+Huang, X., Kwiatkowska, M., Wang, S., and Wu, M. Safety
+veriﬁcation of deep neural networks. Computer Aided
+Veriﬁcation , 2017.
+Hung, K. and Fithian, W. Rank veriﬁcation for exponential
+families. The Annals of Statistics , (2):758–782, 04 2019.
+Kannan, H., Kurakin, A., and Goodfellow, I. Adversarial
+logit pairing. arXiv preprint arXiv:1803.06373 , 2018.
+Katz, G., Barrett, C., Dill, D. L., Julian, K., and Kochender-
+fer, M. J. Reluplex: An efﬁcient smt solver for verifying
+deep neural networks. Lecture Notes in Computer Sci-
+ence, pp. 97117, 2017. ISSN 1611-3349.
+Kolter, J. Z. and Madry, A. Adversarial ro-
+bustness: Theory and practice. https:
+//adversarial-ml-tutorial.org/
+adversarial_examples/ , 2018.
+Krizhevsky, A. Learning multiple layers of features from
+tiny images. Technical report, 2009.Kurakin, A., Goodfellow, I. J., and Bengio, S. Adver-
+sarial machine learning at scale. 2017. URL https:
+//arxiv.org/abs/1611.01236 .
+Lecuyer, M., Atlidakis, V ., Geambasu, R., Hsu, D., and
+Jana, S. Certiﬁed robustness to adversarial examples with
+differential privacy. In IEEE Symposium on Security and
+Privacy (SP) , 2019.
+Levine, A., Singla, S., and Feizi, S. Certiﬁably ro-
+bust interpretation in deep learning. arXiv preprint
+arXiv:1905.12105 , 2019.
+Li, B., Chen, C., Wang, W., and Carin, L. Second-order ad-
+versarial attack and certiﬁable robustness. arXiv preprint
+arXiv:1809.03113 , 2018.
+Liu, X., Cheng, M., Zhang, H., and Hsieh, C.-J. Towards
+robust neural networks via random self-ensemble. In
+The European Conference on Computer Vision (ECCV) ,
+September 2018.
+Lomuscio, A. and Maganti, L. An approach to reachability
+analysis for feed-forward relu neural networks, 2017.
+Madry, A., Makelov, A., Schmidt, L., Tsipras, D., and
+Vladu, A. Towards deep learning models resistant to
+adversarial attacks. In International Conference on Learn-
+ing Representations , 2018.
+Mirman, M., Gehr, T., and Vechev, M. Differentiable ab-
+stract interpretation for provably robust neural networks.
+InProceedings of the 35th International Conference on
+Machine Learning , 2018.
+Moosavi-Dezfooli, S.-M., Fawzi, A., and Frossard, P. Deep-
+fool: A simple and accurate method to fool deep neural
+networks. 2016 IEEE Conference on Computer Vision
+and Pattern Recognition (CVPR) , 2016.
+Neyman, J. and Pearson, E. S. On the problem of the most
+efﬁcient tests of statistical hypotheses. Philosophical
+Transactions of the Royal Society of London. Series A,
+Containing Papers of a Mathematical or Physical Char-
+acter , 231:289–337, 1933.
+Raghunathan, A., Steinhardt, J., and Liang, P. Certiﬁed
+defenses against adversarial examples. In International
+Conference on Learning Representations , 2018a.
+Raghunathan, A., Steinhardt, J., and Liang, P. Semideﬁ-
+nite relaxations for certifying robustness to adversarial
+examples. In Advances in Neural Information Processing
+Systems 31 , 2018b.
+Salman, H., Yang, G., Li, J., Zhang, P., Zhang, H., Razen-
+shteyn, I., and Bubeck, S. Provably robust deep learn-
+ing via adversarially trained smoothed classiﬁers. arXiv
+preprint arXiv:1906.04584 , 2019.Certiﬁed Adversarial Robustness via Randomized Smoothing
+Singh, G., Gehr, T., Mirman, M., P ¨uschel, M., and Vechev,
+M. Fast and effective robustness certiﬁcation. In Ad-
+vances in Neural Information Processing Systems 31 .
+2018.
+Smilkov, D., Thorat, N., Kim, B., Vigas, F., and Wattenberg,
+M. Smoothgrad: removing noise by adding noise. arXiv
+preprint arXiv:1706.03825 , 2017.
+Szegedy, C., Zaremba, W., Sutskever, I., Bruna, J., Erhan,
+D., Goodfellow, I., and Fergus, R. Intriguing proper-
+ties of neural networks. In International Conference on
+Learning Representations , 2014.
+Tjeng, V ., Xiao, K. Y ., and Tedrake, R. Evaluating robust-
+ness of neural networks with mixed integer programming.
+InInternational Conference on Learning Representations ,
+2019. URL https://openreview.net/forum?
+id=HyGIdiRqtm .
+Tsipras, D., Santurkar, S., Engstrom, L., Turner, A., and
+Madry, A. Robustness may be at odds with accuracy. In
+International Conference on Learning Representations ,
+2019. URL https://openreview.net/forum?
+id=SyxAb30cY7 .
+Tsuzuku, Y ., Sato, I., and Sugiyama, M. Lipschitz-margin
+training: Scalable certiﬁcation of perturbation invariance
+for deep neural networks. In Advances in Neural Infor-
+mation Processing Systems 31 . 2018.
+Uesato, J., O’Donoghue, B., Kohli, P., and van den Oord,
+A. Adversarial risk and the dangers of evaluating against
+weak attacks. In Proceedings of the 35th International
+Conference on Machine Learning , 2018.
+Wang, S., Chen, Y ., Abdou, A., and Jana, S. Mixtrain: Scal-
+able training of formally robust neural networks. arXiv
+preprint arXiv:1811.02625 , 2018a.
+Wang, S., Pei, K., Whitehouse, J., Yang, J., and Jana, S.
+Efﬁcient formal safety analysis of neural networks. In
+Advances in Neural Information Processing Systems 31 .
+2018b.
+Webb, S., Rainforth, T., Teh, Y . W., and Kumar, M. P.
+Statistical veriﬁcation of neural networks. In In-
+ternational Conference on Learning Representations ,
+2019. URL https://openreview.net/forum?
+id=S1xcx3C5FX .
+Weng, L., Zhang, H., Chen, H., Song, Z., Hsieh, C.-J.,
+Daniel, L., Boning, D., and Dhillon, I. Towards fast
+computation of certiﬁed robustness for ReLU networks.
+InProceedings of the 35th International Conference on
+Machine Learning , 2018a.Weng, T.-W., Zhang, H., Chen, P.-Y ., Yi, J., Su, D., Gao, Y .,
+Hsieh, C.-J., and Daniel, L. Evaluating the robustness of
+neural networks: An extreme value theory approach. In
+International Conference on Learning Representations ,
+2018b.
+Wong, E. and Kolter, J. Z. Provable defenses against adver-
+sarial examples via the convex outer adversarial polytope.
+InProceedings of the 35th International Conference on
+Machine Learning , 2018.
+Wong, E., Schmidt, F., Metzen, J. H., and Kolter, J. Z.
+Scaling provable adversarial defenses. In Advances in
+Neural Information Processing Systems 31 , 2018.
+Zantedeschi, V ., Nicolae, M.-I., and Rawat, A. Efﬁcient de-
+fenses against adversarial attacks. Proceedings of the 10th
+ACM Workshop on Artiﬁcial Intelligence and Security -
+AISec 17 , 2017.
+Zhang, H., Weng, T.-W., Chen, P.-Y ., Hsieh, C.-J., and
+Daniel, L. Efﬁcient neural network robustness certiﬁca-
+tion with general activation functions. In Advances in
+Neural Information Processing Systems 31 . 2018.Certiﬁed Adversarial Robustness via Randomized Smoothing
+A. Proofs of Theorems 1 and 2
+Here we provide the complete proofs for Theorem 1 and Theorem 2. We ﬁst prove the following lemma, which is essentially
+a restatement of the Neyman-Pearson lemma (Neyman & Pearson, 1933) from statistical hypothesis testing.
+Lemma 3 (Neyman-Pearson ).LetXandYbe random variables in Rdwith densities XandY. Leth:Rd!f0;1g
+be a random or deterministic function. Then:
+1. IfS=n
+z2Rd:Y(z)
+X(z)to
+for somet>0andP(h(X) = 1)P(X2S), thenP(h(Y) = 1)P(Y2S).
+2. IfS=n
+z2Rd:Y(z)
+X(z)to
+for somet>0andP(h(X) = 1)P(X2S), thenP(h(Y) = 1)P(Y2S).
+Proof. Without loss of generality, we assume that his random and write h(1jx)for the probability that h(x) = 1 .
+First we prove part 1. We denote the complement of SasSc.
+P(h(Y) = 1) P(Y2S) =Z
+Rdh(1jz)Y(z)dz Z
+SY(z)dz
+=Z
+Sch(1jz)Y(z)dz+Z
+Sh(1jz)Y(z)dz
+ Z
+Sh(1jz)Y(z)dz+Z
+Sh(0jz)Y(z)dz
+=Z
+Sch(1jz)Y(z)dz Z
+Sh(0jz)Y(z)dz
+tZ
+Sch(1jz)X(z)dz Z
+Sh(0jz)X(z)
+=tZ
+Sch(1jz)X(z)dz+Z
+Sh(1jz)X(z)dz Z
+Sh(1jz)X(z)dz Z
+Sh(0jz)X(z)
+=tZ
+Rdh(1jz)X(z)dz Z
+SX(z)dz
+=t[P(h(X) = 1) P(X2S)]
+0
+The inequality in the middle is due to the fact that Y(z)tX(z)8z2SandY(z)>tX(z)8z2Sc. The inequality
+at the end is because both terms in the product are non-negative by assumption.
+The proof for part 2 is virtually identical, except both “ ” become “.”
+Remark: connection to statistical hypothesis testing. Part 2 of Lemma 3 is known in the ﬁeld of statistical hypothesis
+testing as the Neyman-Pearson Lemma (Neyman & Pearson, 1933). The hypothesis testing problem is this: we are given a
+sample that comes from one of two distributions over Rd: either the null distribution Xor the alternative distribution Y.
+We would like to identify which distribution the sample came from. It is worse to say “ Y” when the true answer is “ X”
+than to say “ X” when the true answer is “ Y.” Therefore we seek a (potentially randomized) procedure h:Rd!f0;1g
+which returns “ Y” when the sample really came from Xwith probability no greater than some failure rate 
+. In particular,
+out of all such rules h, we would like the uniformly most powerful oneh, i.e. the rule which is most likely to correctly
+say “Y” when the sample really came from Y. Neyman & Pearson (1933) showed that his the rule which returns “ Y”
+deterministically on the set S=fz2Rd:Y(z)
+X(z)tgfor whichever tmakes P(X2S) =
+. In other words, to state
+this in a form that looks like Part 2 of Lemma 3: if his a different rule with P(h(X) = 1)
+, thenhis more powerful
+thanh, i.e.P(h(Y) = 1)P(Y2S).
+Now we state the special case of Lemma 3 for when XandYare isotropic Gaussians.
+Lemma 4 (Neyman-Pearson for Gaussians with different means ).LetXN(x;2I)andYN(x+;2I). Let
+h:Rd!f0;1gbe any deterministic or random function. Then:
+1. IfS=
+z2Rd:Tz	
+for someandP(h(X) = 1)P(X2S), thenP(h(Y) = 1)P(Y2S)Certiﬁed Adversarial Robustness via Randomized Smoothing
+2. IfS=
+z2Rd:Tz	
+for someandP(h(X) = 1)P(X2S), thenP(h(Y) = 1)P(Y2S)
+Proof. This lemma is the special case of Lemma 3 when XandYare isotropic Gaussians with means xandx+.
+By Lemma 3 it sufﬁces to simply show that for any , there is some t>0for which:
+fz:Tzg=
+z:Y(z)
+X(z)t
+andfz:Tzg=
+z:Y(z)
+X(z)t
+(5)
+The likelihood ratio for this choice of XandYturns out to be:
+Y(z)
+X(z)=exp
+ 1
+22Pd
+i=1(zi (xi+i))2)
+exp
+ 1
+22Pd
+i=1(zi xi)2
+= exp 
+1
+22dX
+i=12zii 2
+i 2xii!
+= exp(aTz+b)
+wherea>0andbare constants w.r.t z, speciﬁcally a=1
+2andb= (2Tx+kk2)
+22 .
+Therefore, given any we may take t= exp(a+b), noticing that
+Tz() exp(aTz+b)t
+Tz() exp(aTz+b)t
+Finally, we prove Theorem 1 and Theorem 2.
+Theorem 1 (restated). Letf:Rd!Y be any deterministic or random function. Let "N (0;2I). Letg(x) =
+arg maxcP(f(x+") =c). Suppose that for a speciﬁc x2Rd, there existcA2Y andpA;pB2[0;1]such that:
+P(f(x+") =cA)pApBmax
+c6=cAP(f(x+") =c) (6)
+Theng(x+) =cAfor allkk2<R, where
+R=
+2( 1(pA)  1(pB)) (7)
+Proof. To show that g(x+) =cA, it follows from the deﬁnition of gthat we need to show that
+P(f(x++") =cA)>max
+cB6=cAP(f(x++") =cB)
+We will prove that P(f(x++") =cA)>P(f(x++") =cB)for every class cB6=cA. Fix one such class cBwithout
+loss of generality.
+For brevity, deﬁne the random variables
+X:=x+"=N(x;2I)
+Y:=x++"=N(x+;2I)
+In this notation, we know from (6) that
+P(f(X) =cA)pAandP(f(X) =cB)pB (8)Certiﬁed Adversarial Robustness via Randomized Smoothing
+x+
+xx+
+x
+Figure 9. Illustration of the proof of Theorem 1. The solid line concentric circles are the density level sets of X:=x+"; the dashed
+line concentric circles are the level sets of Y:=x++". The setAis in blue and the set Bis in red. The ﬁgure on the left depicts
+a situation where P(Y2A)>P(Y2B), and hence g(x+)may equalcA. The ﬁgure on the right depicts a situation where
+P(Y2A)<P(Y2B)and henceg(x+)6=cA.
+and our goal is to show that
+P(f(Y) =cA)>P(f(Y) =cB) (9)
+Deﬁne the half-spaces:
+A:=fz:T(z x)kk 1(pA)g
+B:=fz:T(z x)kk 1(1 pB)g
+Algebra (deferred to the end) shows that P(X2A) =pA. Therefore, by (8) we know that P(f(X) =cA)P(X2A).
+Hence we may apply Lemma 4 with h(z) :=1[f(z) =cA]to conclude:
+P(f(Y) =cA)P(Y2A) (10)
+Similarly, algebra shows that P(X2B) =pB. Therefore, by (8) we know that P(f(X) =cB)P(X2B). Hence we
+may apply Lemma 4 with h(z) :=1[f(z) =cB]to conclude:
+P(f(Y) =cB)P(Y2B) (11)
+To guarantee (9), we see from (10, 11) that it sufﬁces to show that P(Y2A)>P(Y2B), as this step completes the chain
+of inequalities
+P(f(Y) =cA)P(Y2A)>P(Y2B)P(f(Y) =cB) (12)
+We can compute the following:
+P(Y2A) = 
+ 1(pA) kk
+
+(13)
+P(Y2B) = 
+ 1(pB) +kk
+
+(14)
+Finally, algebra shows that P(Y2A)>P(Y2B)if and only if:
+kk<
+2( 1(pA)  1(pB)) (15)
+which recovers the theorem statement.Certiﬁed Adversarial Robustness via Randomized Smoothing
+We now restate and prove Theorem 2, which shows that the bound in Theorem 1 is tight. The assumption below in Theorem
+2 thatpA+pB1is mild: given any pAandpBwhich do not satisfy this condition, one could have always redeﬁned
+pB 1 pAto obtain a Theorem 1 guarantee with a larger certiﬁed radius, so there is no reason to invoke Theorem 1
+unlesspA+pB1.
+Theorem 2 (restated). AssunepA+pB1. For any perturbation 2Rdwithkk2>R, there exists a base classiﬁer f
+consistent with the observed class probabilities (6) such that if fis the base classiﬁer for g, theng(x+)6=cA.
+Proof. We re-use notation from the preceding proof.
+Pick any class cBarbitrarily. Deﬁne AandBas above, and consider the function
+f(x) :=8
+><
+>:cA ifx2A
+cB ifx2B
+other classes otherwise
+This function is well-deﬁned, since A\B=;provided that pA+pB1.
+By construction, the function fsatisﬁes (6) with equalities, since
+P(f(x+") =cA) =P(X2A) =pA P(f(x+") =cB) =P(X2B) =pB
+It follows from (13) and (14) that
+P(Y2A)<P(Y2B)() kk2>R
+By assumption,kk2>R, soP(Y2A)<P(Y2B), or equivalently,
+P(f(x++") =cA)<P(f(x++") =cB)
+Therefore, if fis the base classiﬁer for g, theng(x+)6=cA.
+A.0.1. D EFERRED ALGEBRA
+Claim. P(X2A) =pA
+Proof. Recall thatXN(x;2I)andA=fz:T(z x)kk 1(pA)g.
+P(X2A) =P(T(X x)kk 1(pA))
+=P(TN(0;2I)kk 1(pA))
+=P(kkZkk 1(pA)) (ZN(0;1))
+= ( 1(pA))
+=pA
+Claim. P(X2B) =pB
+Proof. Recall thatXN(x;2I)andB=fz:T(z x)kk 1(1 pB)g.
+P(X2A) =P(T(X x)kk 1(1 pB))
+=P(TN(0;2I)kk 1(1 pB))
+=P(kkZkk 1(1 pB)) (ZN(0;1))
+=P(Z 1(1 pB))
+= 1 ( 1(1 pB))
+=pBCertiﬁed Adversarial Robustness via Randomized Smoothing
+Claim. P(Y2A) = 
+ 1(pA) kk
+
+Proof. Recall thatYN(x+;2I)andA=fz:T(z x)kk 1(pA)g.
+P(Y2A) =P(T(Y x)kk 1(pA))
+=P(TN(0;2I) +kk2kk 1(pA))
+=P(kkZkk 1(pA) kk2) (ZN(0;1))
+=P
+Z 1(pA) kk
+
+= 
+ 1(pA) kk
+
+Claim. P(Y2B) = 
+ 1(pB) +kk
+
+Proof. Recall thatYN(x+;2I)andB=fz:T(z x)kk 1(1 pB)g.
+P(Y2B) =P(T(Y x)kk 1(1 pB))
+=P(TN(0;2I) +kk2kk 1(1 pB))
+=P(kkZ+kk2kk 1(1 pB)) (ZN(0;1))
+=P
+Z 1(1 pB) kk
+
+=P
+Z 1(pB) +kk
+
+= 
+ 1(pB) +kk
+Certiﬁed Adversarial Robustness via Randomized Smoothing
+B. Smoothing a two-class linear classiﬁer
+In this appendix, we analyze what happens when the base classiﬁer fis a two-class linear classiﬁer f(x) =sign(wTx+b).
+To match the deﬁnition of g, we take sign ()to be undeﬁned when its argument is zero.
+xx
+Figure 10. Illustration of Proposition 3. A binary linear classiﬁer f(x) =sign(wTx+b)partitions Rdinto two half-spaces, drawn here
+in blue and red. An isotropic Gaussian N(x;2I)will put more mass on whichever half-space its center xlies in: in the ﬁgure on
+the left,xis in the blue half-space and N(x;2I)puts more mass on the blue than on red. In the ﬁgure on the right, xis in the red
+half-space andN(x;2I)puts more mass on red than on blue. Since the smoothed classiﬁer’s prediction g(x)is deﬁned to be whichever
+half-spaceN(x;2I)puts more mass in, and the base classiﬁer’s prediction f(x)is deﬁned to be whichever half-space xis in, we have
+thatg(x) =f(x)for allx.
+Our ﬁrst result is that when fis a two-class linear classiﬁer, the smoothed classiﬁer gis identical to the base classiﬁer f.
+Proposition 3. Iffis a two-class linear classiﬁer f(x) =sign(wTx+b), andgis the smoothed version of fwith any,
+theng(x) =f(x)for anyx(wherefis deﬁned).
+Proof. From the deﬁnition of g,
+g(x) = 1()P"(f(x+") = 1)>1
+2("N(0;2I))
+()P" 
+sign(wT(x+") +b) = 1
+>1
+2
+()P" 
+wTx+wT"+b0
+>1
+2
+()P 
+kwkZ wTx b
+>1
+2(ZN(0;1))
+()P
+ZwTx+b
+kwk
+>1
+2
+()wTx+b
+kwk>0
+()wTx+b>0
+()f(x) = 1
+A similar calculation shows that g(x) = 1()f(x) = 1.
+A two-class linear classiﬁer f(x) =sign(wTx+b)is already certiﬁable: the distance from any point xto the decision
+boundary is (wTx+b)=kwk2, and no distance with `2norm strictly less than this distance can possibly change f’s prediction.
+Letgbe a smoothed version of f. By Proposition 3, gis identical to f, so it follows that gis truly robust around any
+inputxwithin the`2radius (wTx+b)=kwk2. We now show that Theorem 1 will certify this radius, rather than a smaller,
+over-conservative radius.Certiﬁed Adversarial Robustness via Randomized Smoothing
+Proposition 4. Iffis a two-class linear classiﬁer f(x) =sign(wTx+b), andgis the smoothed version of fwith any
+, then invoking Theorem 1 at any x(wherefis deﬁned) with pA=pAandpB=pBwill yield the certiﬁed radius
+R=jwTx+bj
+kwk.
+Proof. In binary classiﬁcation, pA= 1 pB, so Theorem 1 returns R= 1(pA).
+We have:
+pA=P"(f(x+") =g(x))
+=P"(sign(wT(x+") +b) =sign(wTx+b)) (By Proposition 3, g(x) =f(x))
+=P"(sign(wTx+kwkZ+b) =sign(wTx+b))
+There are two cases: if wTx+b>0, then
+pA=P"(wTx+kwkZ+b>0)
+=P"
+Z > wTx b
+kwk
+=P"
+Z <wTx+b
+kwk
+= wTx+b
+kwk
+On the other hand, if wTx+b<0, then
+pA=P"(wTx+kwkZ+b<0)
+=P"
+Z < wTx b
+kwk
+=  wTx b
+kwk
+In either case, we have:
+pA= jwTx+bj
+kwk
+Therefore, the bound in Theorem 1 returns a radius of
+R= 1(pA)
+=jwTx+bj
+kwk
+The previous two propositions imply that when fis a two-class linear classiﬁer, the Theorem 1 bound is “tight” in the sense
+that there always exists a class-changing perturbation just beyond the certiﬁed radius.3
+Proposition 5. Letfbe a two-class linear classiﬁer f(x) =sign(wTx+b), letgbe the smoothed version of ffor some,
+letxbe any point (where fis deﬁned), and let Rbe the radius certiﬁed around xby Theorem 1. Then for any radius r>R ,
+there exists a perturbation withkk2=rfor whichg(x+)6=g(x).
+3Note that this is a different sense of “tight” than the sense in which Theorem 2 proves that Theorem 1 is tight. Theorem 2 proves that
+for any ﬁxed perturbation outside the radius certiﬁed by Theorem 1, there exists a base classiﬁer ffor whichg(x+)6=g(x). In
+contrast, Proposition 5 proves that for any ﬁxed binary linear base classiﬁer f, there exists a perturbation just outside the radius certiﬁed
+by Theorem 1 for which g(x+)6=g(x).Certiﬁed Adversarial Robustness via Randomized Smoothing
+Proof. By Proposition 3 it sufﬁces to show that there exists some perturbation withkk2=rfor whichf(x+)6=f(x).
+By Proposition 4, we know that R=jwTx+bj
+kwk2.
+IfwTx+b>0, consider the perturbation = w
+kwk2r. This perturbation satisﬁes kk2=rand
+wT(x+) +b=wTx+b+wT
+=wTx+b kwk2r
+<wTx+b kwk2R
+=wTx+b jwTx+bj
+=wTx+b (wTx+b)
+= 0
+implying that f(x+) = 1.
+Likewise, ifwTx+b<0, then consider the perturbation =w
+kwk2r. This perturbation satisﬁes kk2=randf(x+) = 1.
+x xx+
+Figure 11. Left: Illustration of of Proposition 4. The red/blue half-spaces are the decision regions of both the base classiﬁer fand the
+smoothed classiﬁer g. (Since the base classiﬁer is binary linear, g=feverywhere.) The black circle is the robustness radius Rcertiﬁed by
+Theorem 1. Right : Illustration of Proposition 5. For any r>R , there exists a perturbation withkk2=rfor whichg(x+)6=g(x).
+This special property of two-class linear classiﬁers is not true in general. In fact, it is possible to construct situations where
+g’s prediction around some point x0is robust at radius1, yet Theorem 1 only certiﬁes a radius of , whereis arbitrarily
+close to zero.
+Proposition 6. For any > 0, there exists a base classiﬁer fand an input x0for which the corresponding smoothed
+classiﬁergis robust around x0at radius1, yet Theorem 1 only certiﬁes a radius of aroundx0.
+Proof. Lett=  1(1
+2())and consider the following base classiﬁer:
+f(x) =8
+><
+>:1 ifx< t
+ 1if txt
+1 ifx>t
+Letgbe the smoothed version of fwith= 1. We will show that g(x) = 1 everywhere, implying that g’s prediction is
+robust around x0= 0with radius1. Yet Theorem 1 only certiﬁes a radius of aroundx0.Certiﬁed Adversarial Robustness via Randomized Smoothing
+LetZN(0;1). For anyx, we have:
+P(f(x+") = 1) =P( tx+"t)
+=P[ t xZt x]
+P[ tZt] (apply Lemma 5 below with `= t x)
+= 1 2( t)
+= 1 ()
+<1
+2:
+Therefore,g(x) = 1 for allx.
+Meanwhile, at x0= 0, we have:
+P(f(x0+") = 1) = P(f(") = 1)
+=P(Z < torZ >t )
+= 2( t)
+= ();
+so by Theorem 1, the certiﬁed radius around x0isR=.
+The proof of Proposition 6 employed the following lemma, which formalizes the visually obvious fact that out of all intervals
+of some ﬁxed width 2t, the interval with maximal mass under the standard normal distribution Zis the interval [ t;t].
+Lemma 5. LetZN(0;1). For any`2R,t>0, we have P(`Z`+ 2t)P( tZt).
+Proof. Letbe the PDF of the standard normal distribution. Since is symmetric about the origin (i.e. (x) =( x)8x),
+P( tZt) = 2Zt
+0(x)dx:
+There are two cases to consider:
+Case 1: The interval [`;`+ 2t]is entirely positive, i.e. `0, or[`;`+ 2t]is entirely negative, i.e. `+ 2t0.
+First, we use the fact that is symmetric about the origin to rewrite P(`Z`+ 2t)as the probability that Zfalls in a
+non-negative interval [a;a+ 2t]for somea.
+Speciﬁcally, if `0, then leta=`. Else, if`+ 2t0, then leta= (`+ 2t). We therefore have:
+P(`Z`+ 2t) =P(aZa+ 2t):
+Therefore:
+P( tZt) P(`Z`+ 2t) =Zt
+0(x)dx Za+t
+a(x)dx+Zt
+0(x)dx Za+2t
+a+t(x)dx
+=Za+t
+a(x a)dx Za+t
+a(x)dx+Za+2t
+a+t(x a t)dx Za+2t
+a+t(x)dx
+=Za+t
+a[(x a) (x)]dx+Za+2t
+a+t[(x a t) (x)]dx
+Za+t
+a0dx+Za+2t
+a+t0dx
+= 0Certiﬁed Adversarial Robustness via Randomized Smoothing
+where the inequality is because is monotonically decreasing on [0;1).
+Case 2:Iis partly positive, partly negative, i.e. `<0<`+ 2t.
+First, we use the fact that is symmetric about the origin to rewrite P(`Z`+ 2t)as the sum of the probabilities that
+Zfalls in two non-negative intervals [0;a]and[0;b]for somea;b.
+Speciﬁcally, let a= min( `;`+ 2t)andb= max( `;`+ 2t). We therefore have:
+P(`Z`+ 2t) =P(0Za) +P(0Zb):
+Note that by construction, a+b= 2t, and 0atandtb2t.
+We have:
+P( tZt) P(`Z`+ 2t) =Zt
+0(x)dx Za
+0(x)dx
+ "Zb
+0(x)dx Zt
+0(x)dx!
+=Zt
+a(x)dx Zb
+t(x)dx
+=Zt
+a(x)dx Z2t a
+t(x)dx
+=Zt
+a(x)dx Zt
+a(x a+t)dx
+=Zt
+a((x) (x a+t))dx
+Zt
+a0dx
+= 0
+where the inequality is again because is monotonically decreasing on [0;1).Certiﬁed Adversarial Robustness via Randomized Smoothing
+C. Practical algorithms
+In this appendix, we elaborate on the prediction and certiﬁcation algorithms described in Section 3.2. The pseudocode in
+Section 3.2 makes use of several helper functions:
+SAMPLE UNDER NOISE (f,x, num,) works as follows:
+1. Draw num samples of noise, "1:::" numN(0;2I).
+2. Run the noisy images through the base classiﬁer fto obtain the predictions f(x+"1);:::;f (x+"num).
+3. Return the counts for each class, where the count for class cis deﬁned asPnum
+i=11[f(x+"i) =c].
+BINOM PVALUE (nA,nA+nB,p) returns the p-value of the two-sided hypothesis test that nABinomial (nA+nB;p).
+Using scipy.stats.binom test , this can be implemented as: binom test(nA, nA + nB, p) .
+LOWER CONFBOUND (k,n,1 
+) returns a one-sided (1 
+)lower conﬁdence interval for the Binomial pa-
+rameterpgiven thatkBinomial (n;p). In other words, it returns some number pfor whichppwith prob-
+ability at least 1 
+over the sampling of kBinomial (n;p). Following Lecuyer et al. (2019), we chose to
+use the Clopper-Pearson conﬁdence interval, which inverts the Binomial CDF (Clopper & Pearson, 1934). Using
+statsmodels.stats.proportion.proportion confint , this can be implemented as
+proportion_confint(k, n, alpha=2 *alpha, method="beta")[0]
+C.1. Prediction
+The randomized algorithm given in pseudocode as PREDICT leverages the hypothesis test given in Hung & Fithian (2019)
+for identifying the top category of a multinomial distribution. PREDICT has one tunable hyperparameter, 
+. When
+is small,
+PREDICT abstains frequently but rarely returns the wrong class. When 
+is large, PREDICT usually makes a prediction, but
+may often return the wrong class.
+We now prove that with high probability, P REDICT will either return g(x)or abstain.
+Proposition 1 (restated). With probability at least 1 
+over the randomness in PREDICT ,PREDICT will either abstain
+or returng(x). (Equivalently: the probability that PREDICT returns a class other than g(x)is at most
+.)
+Proof. For notational convenience, deﬁne pc=P(f(x+") =c). LetcA= maxcpc. Notice that by deﬁnition, g(x) =cA.
+We can describe the randomized procedure P REDICT as follows:
+1. Sample a vector of class counts fncgc2Yfrom Multinomial (fpcgc2Y;n).
+2.Let^cA= arg maxcncbe the class whose count is largest. Let nAandnBbe the largest count and the second-largest
+count, respectively.
+3.If the p-value of the two-sided hypothesis test that nAis drawn from Binom 
+nA+nB;1
+2
+is less than
+, then return
+^cA. Else, abstain.
+The quantities cAand thepc’s are ﬁxed but unknown, while the quantities ^cA, thenc’s,nA, andnBare random.
+We’d like to prove that the probability that PREDICT returns a class other than cAis at most
+.PREDICT returns a class
+other thancAif and only if (1) ^cA6=cAand (2) P REDICT does not abstain.
+We have:
+P(PREDICT returns class6=cA) =P(^cA6=cA;PREDICT does not abstain )
+=P(^cA6=cA)P(PREDICT does not abstainj^cA6=cA)
+P(PREDICT does not abstainj^cA6=cA)Certiﬁed Adversarial Robustness via Randomized Smoothing
+Recall that PREDICT does not abstain if and only if the p-value of the two-sided hypothesis test that nAis drawn from
+Binom (nA+nB;1
+2)is less than
+. Theorem 1 in Hung & Fithian (2019) proves that the conditional probability that this
+event occurs given that ^cA6=cAis exactly
+. That is,
+P(PREDICT does not abstainj^cA6=cA) =
+
+Therefore, we have:
+P(PREDICT returns class6=cA)
+
+C.2. Certiﬁcation
+The certiﬁcation task is: given some input xand a randomized smoothing classiﬁer described by (f;), return both (1) the
+predictiong(x)and (2) a radius Rin which this prediction is certiﬁed robust. This task requires identifying the class cA
+with maximal weight in f(x+"), estimating a lower bound pAonpA:=P(f(x+") =cA)and estimating an upper bound
+pBonpB:= maxc6=cAP(f(x+") =c)(Figure 1).
+Suppose for simplicity that we already knew cAand needed to obtain pA. We could collect nsamples off(x+"), count
+how many times f(x+") =cA, and use a Binomial conﬁdence interval to obtain a lower bound on pAthat holds with
+probability at least 1 
+over thensamples.
+However, estimating pAandpBwhile simultaneously identifying the top class cAis a little bit tricky, statistically speaking.
+We propose a simple two-step procedure. First, use n0samples from f(x+")to take a guess ^cAat the identity of the top
+classcA. In practice we observed that f(x+")tends to put most of its weight on the top class, so n0can be set very small.
+Second, use nsamples from f(x+")to obtain some pAandpBfor whichpApAandpBpBwith probability at least
+1 
+. We observed that it is much more typical for the mass of f(x+")not allocated to cAto be allocated entirely to one
+runner-up class than to be allocated uniformly over all remaining classes. Therefore, the quantity 1 pAis a reasonably
+tight upper bound on pB. Hence, we simply set pB= 1 pA, so our bound becomes
+R=
+2( 1(pA)  1(1 pA))
+=
+2( 1(pA) +  1(pA))
+= 1(pA)
+The full procedure is described in pseudocode as CERTIFY . IfpA<1
+2, we abstain from making a certiﬁcation; this can
+occur especially if ^cA6=g(x), i.e. if we misidentify the top class using the ﬁrst n0samples off(x+").
+Proposition 2 (restated). With probability at least 1 
+over the randomness in CERTIFY , ifCERTIFY returns a class ^cA
+and a radius R(i.e. does not abstain), then we have the robustness guarantee
+g(x+) = ^cAwheneverkk2<R
+Proof. From the contract of LOWER CONFBOUND , we know that with probability at least 1 
+over the sampling of
+"1:::"n, we havepAP[f(x+") = ^cA]. Notice that CERTIFY returns a class and radius only if pA>1
+2(otherwise it
+abstains). If pAP[f(x+") = ^cA]and1
+2<pA, then we can invoke Theorem 1 with pB= 1 pAto obtain the desired
+guarantee.Certiﬁed Adversarial Robustness via Randomized Smoothing
+D. Estimating the certiﬁed test-set accuracy
+In this appendix, we show how to convert the “approximate certiﬁed test accuracy” considered in the main paper into a
+lower bound on the true certiﬁed test accuracy that holds with high probability over the randomness in C ERTIFY .
+Consider a classiﬁer g, a test setS=f(x1;c1):::(xm;cm)g, and a radius r. For each example i2[m], letziindicate
+whetherg’s prediction at xiis both correct and robust at radius r, i.e.
+zi=1[g(xi+) =ci8kk2<r]
+The certiﬁed test set accuracy of gat radiusris deﬁned as1
+mPm
+i=1zi. Ifgis a randomized smoothing classiﬁer, we cannot
+compute this quantity exactly, but we can estimate a lower bound that holds with arbitrarily high probability over the
+randomness in CERTIFY . In particular, suppose that we run CERTIFY with failure rate 
+on each example xiin the test set.
+Let the Bernoulli random variable Yidenote the event that on example i,CERTIFY returns the correct label cA=ciand a
+certiﬁed radius Rwhich is greater than r. LetY=Pm
+i=1Yi. In the main paper, we referred to Y=m as the “approximate
+certiﬁed accuracy.” It is “approximate” because Yi= 1does not mean that zi= 1. Rather, from Proposition 2, we know
+the following: if zi= 0, thenP(Yi= 1)
+. We now show how to exploit this fact to construct a one-sided conﬁdence
+interval for the unobserved quantity1
+mPm
+i=1ziusing the observed quantities Yandm.
+Theorem 6. For any>0, with probability at least 1 over the randomness in CERTIFY ,
+1
+mmX
+i=1zi1
+1 
+ 
+Y
+m 
+ r
+2
+(1 
+) log(1=)
+m log(1=)
+3m!
+(16)
+Proof. Letmgood=Pm
+i=1ziandmbad=Pm
+i=1(1 zi)be the number of test examples on which zi= 1 orzi= 0,
+respectively. We model YiBernoulli (pi), wherepiis in general unknown. Let Ygood=P
+i:zi=1YiandYbad=P
+i:zi=0Yi.
+The quantity of interest, the certiﬁed accuracy1
+mPm
+i=1zi, is equal tomgood=m. However, we only observe Y=Ygood+Ybad.
+Note that ifzi= 0, thenpi
+, so we have E[Yi] =pi
+and assuming 
+1
+2, we have Var[Yi] =pi(1 pi)
+(1 
+).
+SinceYbadis a sum ofmbadindependent random variables each bounded between zero and one, with E[Ybad]
+m badand
+Var(Ybad)mbad
+(1 
+), Bernstein’s inequality (Blanchard, 2007) guarantees that with probability at least 1 over the
+randomness in C ERTIFY ,
+Ybad
+m bad+p
+2mbad
+(1 
+) log(1=) +log(1=)
+3
+From now on, we manipulate this inequality — remember that it holds with probability at least 1 .
+SinceY=Ygood+Ybad, may write
+YgoodY 
+m bad p
+2mbad
+(1 
+) log(1=) log(1=)
+3
+SincemgoodYgood, we may write
+mgoodY 
+m bad p
+2mbad
+(1 
+) log(1=) log(1=)
+3
+Sincemgood+mbad=m, we may write
+mgood1
+1 
+
+Y 
+m p
+2mbad
+(1 
+) log(1=) log(1=)
+3
+Finally, in order to make this conﬁdence interval depend only on observables, we use mbadmto write
+mgood1
+1 
+
+Y 
+m p
+2m
+(1 
+) log(1=) log(1=)
+3
+Dividing both sides of the inequality by mrecovers the theorem statement.Certiﬁed Adversarial Robustness via Randomized Smoothing
+E. ImageNet and CIFAR-10 Results
+E.1. Certiﬁcation
+Tables 2 and 3 show the approximate certiﬁed top-1 test set accuracy of randomized smoothing on ImageNet and CIFAR-10
+with various noise levels . By “approximate certiﬁed accuracy,” we mean that we ran CERTIFY on a subsample of the
+test set, and for each rwe report the fraction of examples on which CERTIFY (a) did not abstain, (b) returned the correct
+class, and (c) returned a radius Rgreater than r. There is some probability (at most 
+) that any example’s certiﬁcation is
+inaccurate. We used 
+= 0:001andn= 100000 . On CIFAR-10 our base classiﬁer was a 110-layer residual network and
+we certiﬁed the full test set; on ImageNet our base classiﬁer was a ResNet-50 and we certiﬁed a subsample of 500 points.
+Note that the certiﬁed accuracy at r= 0is just the standard accuracy of the smoothed classiﬁer. See Appendix J for more
+experimental details.
+r= 0:0r= 0:5r= 1:0r= 1:5r= 2:0r= 2:5r= 3:0
+= 0:25 0.67 0.49 0.00 0.00 0.00 0.00 0.00
+= 0:50 0.57 0.46 0.37 0.29 0.00 0.00 0.00
+= 1:00 0.44 0.38 0.33 0.26 0.19 0.15 0.12
+Table 2. Approximate certiﬁed test accuracy on ImageNet. Each row is a setting of the hyperparameter , each column is an `2radius.
+The entry of the best for each radius is bolded. For comparison, random guessing would attain 0.001 accuracy.
+r= 0:0r= 0:25r= 0:5r= 0:75r= 1:0r= 1:25r= 1:5
+= 0:12 0.83 0.60 0.00 0.00 0.00 0.00 0.00
+= 0:25 0.77 0.61 0.42 0.25 0.00 0.00 0.00
+= 0:50 0.66 0.55 0.43 0.32 0.22 0.14 0.08
+= 1:00 0.47 0.41 0.34 0.28 0.22 0.17 0.14
+Table 3. Approximate certiﬁed test accuracy on CIFAR-10. Each row is a setting of the hyperparameter , each column is an `2radius.
+The entry of the best for each radius is bolded. For comparison, random guessing would attain 0.1 accuracy.
+E.2. Prediction
+Table 4 shows the performance of PREDICT as the number of Monte Carlo samples nis varied between 100 and 10,000.
+Suppose that for some test example (x;c),PREDICT returns the label ^cA. We say that this prediction was correct if^cA=c
+and we say that this prediction was accurate if^cA=g(x). For example, a prediction could be correct but inaccurate if gis
+wrong atx, yet PREDICT accidentally returns the correct class. Ideally, we’d like PREDICT to be both correct and accurate.
+Withn=100 Monte Carlo samples and a failure rate of 
+= 0:001,PREDICT is cheap to evaluate (0.15 seconds on our
+hardware) yet it attains relatively high top-1 accuracy of 65% on the ImageNet test set, and only abstains 12% of the time.
+When we use n=10,000 Monte Carlo samples, PREDICT takes longer to evaluate (15 seconds), yet only abstains 4% of the
+time. Interestingly, we observe from Table 4 that most of the abstentions when n= 100 were for examples on which gwas
+wrong, so in practice we would lose little accuracy by taking nto be as small as 100.
+CORRECT ,ACCURATE CORRECT ,INACCURATE INCORRECT ,ACCURATE INCORRECT ,INACCURATE ABSTAIN
+N
+100 0.65 0.00 0.23 0.00 0.12
+1000 0.68 0.00 0.28 0.00 0.04
+10000 0.69 0.00 0.30 0.00 0.01
+Table 4. Performance of PRECICT asnis varied. The dataset was ImageNet and = 0:25,
+= 0:001. Each column shows the fraction
+of test examples which ended up in one of ﬁve categories; the prediction at xis “correct” if PREDICT returned the true label, while the
+prediction is “accurate” if PREDICT returnedg(x). Computing g(x)exactly is not possible, so in order to determine whether PREDICT
+was accurate, we took the gold standard to be the top class over n=100,000 Monte Carlo samples.Certiﬁed Adversarial Robustness via Randomized Smoothing
+F. Training with Noise
+As mentioned in section 3.3, in the experiments for this paper, we followed Lecuyer et al. (2019) and trained the base
+classiﬁer by minimizing the cross-entropy loss with Gaussian data augmentation. We now provide some justiﬁcation for this
+idea.
+Letf(x1;c1);:::; (xn;cn)gbe a training dataset. We assume that the base classiﬁer takes the form f(x) =
+arg maxc2Yfc(x), where each fcis the scoring function for class c.
+Suppose that our goal is to maximize the sum of of the log-probabilities that fwill classify each xi+"asci:
+nX
+i=1logP"(f(xi+") =ci) =nX
+i=1logE"1
+arg max
+cfc(xi+") =ci
+(17)
+Recall that the softmax function can be interpreted as a continuous, differentiable approximation to arg max :
+1
+arg max
+cfc(xi+") =ci
+exp(fci(xi+"))P
+c2Yexp(fc(xi+"))
+Therefore, our objective is approximately equal to:
+nX
+i=1logE"exp(fci(xi+"))P
+c2Yexp(fc(xi+"))
+(18)
+By Jensen’s inequality and the concavity of log, this quantity is lower-bounded by:
+nX
+i=1E"
+logexp(fci(xi+"))P
+c2Yexp(fc(xi+"))
+which is the negative of the cross-entropy loss under Gaussian data augmentation.
+Therefore, minimizing the cross-entropy loss under Gaussian data augmentation will maximize (18), which will approxi-
+mately maximize (17).Certiﬁed Adversarial Robustness via Randomized Smoothing
+G. Noise Level can Scale with Input Resolution
+Since our robustness guarantee (3)in Theorem 1 does not explicitly depend on the data dimension d, one might worry that
+randomized smoothing is less effective for images in high resolution — certifying a ﬁxed `2radius is “less impressive” for,
+say,224224image than for a 5656image. However, it turns out that in high resolution, images can be corrupted
+with larger levels of isotropic Gaussian noise while still preserving their content. This fact is made clear by Figure 12,
+which shows an image at high and low resolution corrupted by Gaussian noise with the same variance.full The class
+(“hummingbird”) is easy to discern from the high-resolution noisy image, but not from the low-resolution noisy image. As a
+consequence, in high resolution one can take to be larger while still being able to obtain a base classiﬁer that classiﬁes
+noisy images accurately. Since our Theorem 1 robustness guarantee scales linearly with , this means that in high resolution
+one can certify larger radii.
+Figure 12. Top: An ImageNet image from class “hummingbird” in resolutions 56x56 (left) and 224x224 (right). Bottom : the same
+images corrupted by isotropic Gaussian noise at = 0:5. On noiseless images the class is easy to distinguish no matter the resolution, but
+on noisy data the class is much easier to distinguish when the resolution is high.
+The argument above can be made rigorous, though we ﬁrst need to decide what it means for two images to be high- and
+low-resolution versions of each other. Here we present one solution:
+LetXdenote the space of “high-resolution” images in dimension 2k2k3, and letX0denote the space of “low-resolution”
+images in dimension kk3. Let AVGPOOL:X!X0be the function which takes as input an image xin dimension
+2k2k3, averages together every 2x2 square of pixels, and outputs an image in dimension kk3.
+Equipped with these deﬁnitions, we can say that (x;x0)2XX0are a high/low resolution image pair if x0=AVGPOOL(x).
+Proposition 7. Given any smoothing classiﬁer g0:X0!Y , one can construct a smoothing classiﬁer g:X!Y with
+the following property: for any x2X andx0=AVGPOOL(x),gpredicts the same class at xthatg0predicts atx0, but is
+certiﬁably robust at twice the radius.
+Proof. Given some smoothing classiﬁer g0= (f0;0)fromX0toY, deﬁnegto be the smoothing classiﬁer (f;)fromX
+toYwith noise level = 20and base classiﬁer f(x) =f0(AVGPOOL(x)). Note that the average of four independent
+copies ofN(0;(2)2)is distributed asN(0;2). Therefore, for any high/low-resolution image pair x0=AVGPOOL(x),
+the random variable AVGPOOL(x+"), where"N(0;(2)2I2k2k3), is equal in distribution to the random variable
+x0+"0, where"0N(0;2Ikk3). Hence,f(x+") =f0(AVGPOOL(x+"))has the same distribution as f0(x0+"0).
+By the deﬁnition of g, this means that g(x) =g0(x0), Additionally, by Theorem 1, since = 20, this means that g’s
+prediction at xis certiﬁably robust at twice the radius as g0’s prediction at x0.Certiﬁed Adversarial Robustness via Randomized Smoothing
+H. Additional Experiments
+H.1. Comparisons to baselines
+Figure 13 compares the certiﬁed accuracy of a smoothed 20-layer resnet to that of the released models from two recent works
+on certiﬁed`2robustness: the Lipschitz approach from Tsuzuku et al. (2018) and the approach from Zhang et al. (2018).
+Note that in these experiments, the base classiﬁer for smoothing was larger than the networks of competing approaches. The
+comparison to Zhang et al. (2018) is on CIFAR-10, while the comparison to Tsuzuku et al. (2018) is on SVHN. Note that
+for each comparison, we preprocessed the dataset to follow the preprocessing used when the baseline was trained; therefore,
+the radii reported for CIFAR-10 here are not comparable to the radii reported elsewhere in this paper. Full experimental
+details are in Appendix J.
+0.00 0.05 0.10 0.15 0.20 0.25 0.30 0.35 0.40
+radius0.00.20.40.60.81.0certified accuracyours
+(Tsuzuku et al)
+(a) Tsuzuku et al. (2018)
+0.0 0.1 0.2 0.3 0.4 0.5
+radius0.00.20.40.60.81.0certified accuracyours
+(Zhang et al) (b) Zhang et al. (2018)
+Figure 13. Randomized smoothing with a 20-layer resnet base classiﬁer attains higher certiﬁed accuracy than the released models from
+two recent works on certiﬁed `2robustness.
+H.2. High-probability guarantees
+Appendix D details how to use CERTIFY to obtain a lower bound on the certiﬁed test accuracy at radius rof a randomized
+smoothing classiﬁer that holds with high probability over the randomness in CERTIFY . In the main paper, we declined to do
+this and simply reported the approximate certiﬁed test accuracy, deﬁned as the fraction of test examples for which CERTIFY
+gives the correct prediction and certiﬁes it at radius r. Of course, with some probability (guaranteed to be less than 
+), each
+of these certiﬁcations is wrong.
+However, we now demonstrate empirically that there is a negligible difference between a proper high-probability lower
+bound on the certiﬁed accuracy and the approximate version that we reported in the paper. We created a randomized
+smoothing classiﬁer gon ImageNet with a ResNet-50 base classiﬁer and noise level = 0:25. We used CERTIFY with
+
+= 0:001to certify a subsample of 500 examples from the ImageNet test set. From this we computed the approximate
+certiﬁed test accuracy at each radius r. Then we used the correction from Appendix D with = 0:001to obtain a lower
+bound on the certiﬁed test accuracy at rthat holds pointwise with probability at least 1 over the randomness in CERTIFY .
+Figure 14 plots both quantities as a function of r. Observe that the difference is so negligible that the lines almost overlap.
+H.3. How much noise to use when training the base classiﬁer?
+In the main paper, whenever we created a randomized smoothing classiﬁer gat noise level , we always trained the
+corresponding base classiﬁer fwith Gaussian data augmentation at noise level . In Figure 15, we show the effects of
+training the base classiﬁer with a different level of Gaussian noise. Observe that ghas a lower certiﬁed accuracy if fwas
+trained using a different noise level. It seems to be worse to train with noise < than to train with noise >.Certiﬁed Adversarial Robustness via Randomized Smoothing
+0.00 0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00
+radius0.00.20.40.60.81.0certified accuracyApproximate
+High-Prob
+Figure 14. The difference between the approximate certiﬁed accuracy, and a high-probability lower bound on the certiﬁed accuracy, is
+negligible.
+0.0 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+radius0.00.20.40.60.81.0certified accuracytrain =0.25
+train =0.50
+train =1.00
+(a) CIFAR-10
+0.0 0.2 0.4 0.6 0.8 1.0 1.2 1.4
+radius0.00.20.40.60.81.0certified accuracytrain =0.25
+train =0.50
+train =1.00
+ (b) ImageNet
+Figure 15. Vary training noise while holding prediction noise ﬁxed at = 0:50.
+I. Derivation of Prior Randomized Smoothing Guarantees
+In this appendix, we derive the randomized smoothing guarantees of Lecuyer et al. (2019) and Li et al. (2018) using the
+notation of our paper. Both guarantees take same general form as ours, except with a different expression for R:
+Theorem (generic guarantee): Letf:Rd!Y be any deterministic or random function, and let "N(0;2I). Letg
+be deﬁned as in (1). Suppose cA2Y andpA;pB2[0;1]satisfy:
+P(f(x+") =cA)pApBmax
+c6=cAP(f(x+") =c) (19)
+Theng(x+) =cAfor allkk2<R.
+For convenience, deﬁne the notation XN(x;2I)andYN(x+;2I).
+I.1. Lecuyer et al. (2019)
+Lecuyer et al. (2019) proved a version of the generic robustness guarantee in which
+R= sup
+0<min
+1;1
+2logpA
+pBr
+2 log
+1:25(1+exp())
+pA exp(2)pB
+Proof. In order to avoid notation that conﬂicts with the rest of this paper, we use and
+where Lecuyer et al. (2019) used 
+and.Certiﬁed Adversarial Robustness via Randomized Smoothing
+Suppose that we have some 0<1and
+ >0such that
+2=kk2
+22 log1:25
+
+(20)
+The “Gaussian mechanism” from differential privacy guarantees that:
+P(f(X) =cA)exp()P(f(Y) =cA) +
+ (21)
+and, symmetrically,
+P(f(Y) =cB)exp()P(f(X) =cB) +
+ (22)
+See Lecuyer et al. (2019), Lemma 2 for how to obtain this form from the standard form of the (;
+)DP deﬁnition.
+Fix a perturbation . To guarantee that g(x+) =cA, we need to show that P(f(Y) =cA)>P(f(Y) =cB)for each
+cB6=cA.
+Together, (21) and (22) imply that to guarantee P(f(Y) =cA)>P(f(Y) =cB)for anycB, it sufﬁces to show that:
+P(f(X) =cA)>exp(2)P(f(X) =cB) +
+(1 + exp()) (23)
+Therefore, in order to guarantee that P(f(Y) =cA)>P(f(Y) =cB)for eachcB6=cA, by (19) it sufﬁces to show:
+pA>exp(2)pB+
+(1 + exp()) (24)
+Now, inverting (20), we obtain:
+
+= 1:25 exp
+ 22
+2kk2
+(25)
+Plugging (25) into (24), we see that to guarantee P(f(Y) =cA)P(f(Y) =cB)it sufﬁces to show that:
+pA>exp(2)pB+ 1:25 exp
+ 22
+2kk2
+(1 + exp()) (26)
+which rearranges to:
+pA exp(2)pB
+1:25(1 + exp( ))>exp
+ 22
+2kk2
+(27)
+Since the RHS is always positive, and the denominator on the LHS is always positive, this condition can only possibly hold
+if the numerator on the LHS is positive. Therefore, we need to restrict to
+0<min
+1;1
+2logpA
+pB
+(28)
+The condition (27) is equivalent to:
+kk2log1:25(1 + exp( ))
+pA exp(2)pB<22
+2(29)
+SincepA1andpB0, the denominator in the LHS is 1which is in turnthe numerator on the LHS. Therefore, the
+term inside the log in the LHS is greater than 1, so the log term on the LHS is greater than zero. Therefore, we may divide
+both sides of the inequality by the log term on the LHS to obtain:
+kk2<22
+2 log
+1:25(1+exp())
+pA exp(2)pB (30)
+Finally, we take the square root and maximize the bound over all valid (28) to yield:
+kk< sup
+0<min
+1;1
+2logpA
+pBr
+2 log
+1:25(1+exp())
+pA exp(2)pB(31)Certiﬁed Adversarial Robustness via Randomized Smoothing
+Figure 16a plots this bound at varying settings of the tuning parameter , while Figure 16c plots how the bound varies with
+for a ﬁxedpAandpB.
+I.2. Li et al. (2018)
+Li et al. (2018) proved a version of the generic robustness guarantee in which
+R= sup
+
+>0s
+ 2
+
+log
+1 pA pB+ 21
+2(pA1 
++pB1 
+)1 
+
+Proof. A generalization of KL divergence, the 
+-Renyi divergence is an information theoretic measure of distance between
+two distributions. It is parameterized by some 
+>0. The
+-Renyi divergence between two discrete distributions PandQ
+is deﬁned as:
+D
+(PjjQ) :=1
+
+ 1log kX
+i=1p
+
+i
+q
+ 1
+i!
+(32)
+In the continuous case, this sum is replaced with an integral. The divergence is undeﬁned when 
+= 1since a division by
+zero occurs, but the limit of D
+(PjjQ)as
+!1is the KL divergence between PandQ.
+Li et al. (2018) prove that if Pis a discrete distribution for which the highest probability class has probability pAand all
+other classes have probability pB, then for any other discrete distribution Qfor which
+D
+(PjjQ)< log
+1 pA pB+ 21
+2(pA1 
++pB1 
+)1 
+
+(33)
+the highest-probability class in Qis guaranteed to be the same as the highest-probability class in P.
+We now apply this result to the discrete distributions P=f(X)andQ=f(Y). IfD
+(f(X)jjf(Y))satisﬁes (33), then it
+is guaranteed that g(x) =g(x+).
+The data processing inequality states that applying a function to two random variables can only decrease the 
+-Renyi
+divergence between them. In particular,
+D
+(f(X)jjf(Y))D
+(XjjY) (34)
+There is a closed-form expression for the 
+-Renyi divergence between two Gaussians:
+D
+(XjjY) =
+kk2
+22(35)
+Therefore, we can guarantee that g(x+) =cAso long as
+
+kk2
+22< log
+1 pA pB+ 21
+2(pA1 
++pB1 
+)1 
+
+(36)
+which simpliﬁes to
+kk<s
+ 2
+
+log
+1 pA pB+ 21
+2(pA1 
++pB1 
+)1 
+
+(37)
+Finally, since this result holds for any 
+>0, we may maximize over 
+to obtain the largest possible certiﬁed radius:
+kk<sup
+
+>0s
+ 2
+
+log
+1 pA pB+ 21
+2(pA1 
++pB1 
+)1 
+
+(38)
+Figure 16b plots this bound at varying settings of the tuning parameter 
+, while ﬁgure 16d plots how the bound varies with
+
+for a ﬁxedpAandpB.Certiﬁed Adversarial Robustness via Randomized Smoothing
+(a) The Lecuyer et al. (2019) bound over several settings of . The
+brown line is the pointwise supremum over all eligible , computed
+numerically.
+(b) The Li et al. (2018) bound over several settings of 
+. The
+purple line is the pointwise supremum over all eligible 
+, computed
+numerically.
+(c) Tuning the Lecuyer et al. (2019) bound wrt whenpA=
+0:8;pB= 0:2
+(d) Tuning the Li et al. (2018) bound wrt 
+whenpA= 0:999;pB=
+0:0001
+J. Experiment Details
+J.1. Comparison to baselines
+We compared randomized smoothing against three recent approaches for `2-robust classiﬁcation (Tsuzuku et al., 2018;
+Wong et al., 2018; Zhang et al., 2018). Tsuzuku et al. (2018) and Wong et al. (2018) propose both a robust training method
+and a complementary certiﬁcation mechanism, while Zhang et al. (2018) propose a method to certify generically trained
+networks. In all cases we compared against networks provided by the authors. We compared against Wong et al. (2018) and
+Zhang et al. (2018) on CIFAR-10, and we compared against Tsuzuku et al. (2018) on SVHN.
+In image classiﬁcation it is common practice to preprocess a dataset by subtracting from each channel the mean over the
+dataset, and dividing each channel by the standard deviation over the dataset. However, we wanted to report certiﬁed radii
+in the original image coordinates rather than in the standardized coordinates. Therefore, throughout most of this work we
+ﬁrstadded the Gaussian noise, and then standardized the channels, before feeding the image to the base classiﬁer. (In the
+practical PyTorch implementation, the ﬁrst layer of the base classiﬁer was a layer that standardized the input.) However, all
+of the baselines we compared against provided pre-trained networks which assumed that the dataset was ﬁrst preprocessed
+in a speciﬁc way. Therefore, when comparing against the baselines we also preprocessed the datasets ﬁrst, so that we could
+report certiﬁed radii that were directly comparable to the radii reported by the baseline methods.
+Comparison to Wong et al. (2018) Following Wong et al. (2018), the CIFAR-10 dataset was preprocessed by subtracting
+(0:485;0:456;0:406) and dividing by (0:225;0:225;0:225) .
+While the body of the Wong et al. (2018) paper focuses on `1certiﬁed robustness, their algorithm naturally extends to
+`2certiﬁed robustness, as developed in the appendix of the paper. We used three `2-trained residual networks publicly
+released by the authors, each trained with a different setting of their hyperparameter 2f0:157;0:628;2:51g. We used code
+publicly released by the authors at https://github.com/locuslab/convex_adversarial/blob/master/Certiﬁed Adversarial Robustness via Randomized Smoothing
+examples/cifar_evaluate.py to compute the robustness radius of test images. The code accepts a radius and
+returns TRUE (robust) or FALSE (not robust); we incorporated this subroutine into a binary search procedure to ﬁnd the
+largest radius for which the code returned TRUE.
+For randomized smoothing we used = 0:6and a 20-layer residual network base classiﬁer. We ran CERTIFY withn0= 100 ,
+n=100,000 and 
+= 0:001.
+For both methods, we certiﬁed the full CIFAR-10 test set.
+Comparison to Tsuzuku et al. (2018) Following Tsuzuku et al. (2018), the SVHN dataset was not preprocessed except
+that pixels were divided by 255 so as to lie within [0, 1].
+We compared against a pretrained network provided to us by the authors in which the hyperparameter of their method was
+set toc= 0:1. The network was a wide residual network with 16 layers and a width factor of 4. We used the authors’ code
+athttps://github.com/ytsmiling/lmt to compute the robustness radius of test images.
+For randomized smoothing we used = 0:1and a 20-layer residual network base classiﬁer. We ran CERTIFY withn0= 100 ,
+n=100,000 and 
+= 0:001.
+For both methods, we certiﬁed the whole SVHN test set.
+Comparison to Zhang et al. (2018) Following Zhang et al. (2018), the CIFAR-10 dataset was preprocessed by subtracting
+0.5 from each pixel.
+We compared against the cifar 71024 vanilla network released by the authors, which is a 7-layer MLP. We used the
+authors’ code at https://github.com/IBM/CROWN-Robustness-Certification to compute the robustness
+radius of test images.
+For randomized smoothing we used = 1:2and a 20-layer residual network base classiﬁer. We ran CERTIFY withn0= 100 ,
+n=100,000 and 
+= 0:001.
+For randomized smoothing, we certiﬁed the whole CIFAR-10 test set. For Zhang et al. (2018), we certiﬁed every fourth
+image in the CIFAR-10 test set.
+J.2. ImageNet and CIFAR-10 Experiments
+Our code is available at http://github.com/locuslab/smoothing .
+In order to report certiﬁed radii in the original coordinates, we ﬁrstadded Gaussian noise, and then standardized the data.
+Speciﬁcally, in our PyTorch implementation, the ﬁrst layer of the base classiﬁer was a normalization layer that performed
+a channel-wise standardization of its input. For CIFAR-10 we subtracted the dataset mean (0:4914;0:4822;0:4465)
+and divided by the dataset standard deviation (0:2023;0:1994;0:2010) . For ImageNet we subtracted the dataset mean
+(0:485;0:456;0:406) and divided by the standard deviation (0:229;0:224;0:225) .
+For both ImageNet and CIFAR-10, we trained the base classiﬁer with random horizontal ﬂips and random crops (in addition
+to the Gaussian data augmentation discussed explicitly in the paper). On ImageNet we trained with synchronous SGD on
+four NVIDIA RTX 2080 Ti GPUs; training took approximately three days.
+On ImageNet our base classiﬁer used the ResNet-50 architecture provided in torchvision . On CIFAR-10 we used a
+110-layer residual network from https://github.com/bearpaw/pytorch-classification .
+On ImageNet we certiﬁed every 100-th image in the validation set, for 500 images total. On CIFAR-10 we certiﬁed the
+whole test set.
+In Figure 8 ( middle ) we ﬁxed= 0:25and
+= 0:001while varying the number of samples n. We did not actually vary
+the number of samples nthat we simulated: we kept this number ﬁxed at 100,000 but varied the number that we fed the
+Clopper-Pearson conﬁdence interval.
+In Figure 8 ( right ), we ﬁxed= 0:25andn=100,000 while varying 
+.Certiﬁed Adversarial Robustness via Randomized Smoothing
+J.3. Adversarial Attacks
+As discussed in Section 4, we subjected smoothed classiﬁers to a projected gradient descent-style adversarial attack. We
+now describe the details of this attack.
+Letfbe the base classiﬁer and let be the noise level. Following Li et al. (2018), given an example (x;c)2RdY and a
+radiusr, we used a projected gradient descent style adversarial attack to optimize the objective:
+arg max
+:kk2<rE"N(0;2I)[`(f(x++");c)] (39)
+where`is the softmax loss function. (Breaking notation with the rest of the paper in which freturns a class, the function f
+here refers to the function that maps an image in Rdto a vector of classwise scores.)
+At each iteration of the attack, we drew ksamples of noise, "1:::"kN(0;2I), and followed the stochastic gradient
+gt=Pk
+i=1rt`(f(x+t+"k);c).
+As is typical (Kolter & Madry, 2018), we used a “steepest ascent” update rule, which, for the `2norm, means that we
+normalized the gradient before applying the update. The overall PGD update is: t+1=projr
+t+gt
+kgtk
+where the
+function projrthat projects its input onto the ball fz:kzk2rgis given by projr(z) =rz
+max(r;kzk2). We used a constant
+step sizeand a ﬁxed number Tof PGD iterations.
+In practice, our step size was = 0:1, we usedT= 20 steps of PGD, and we computed the stochastic gradient using
+k= 1000 Monte Carlo samples.
+Unfortunately, the objective we optimize (39) is not actually the attack objective of interest. To force a misclassiﬁcation, an
+attacker needs to ﬁnd some perturbation withkk2<rand some class cBfor which
+P"N(0;2I)(f(x++") =cB)P"N(0;2I)(f(x++") =c)
+Effective adversarial attacks against randomized smoothing are outside the scope of this paper.Certiﬁed Adversarial Robustness via Randomized Smoothing
+K. Examples of Noisy Images
+We now show examples of CIFAR-10 and ImageNet images corrupted with varying levels of noise.
+= 0:00
+ = 0:25
+ = 0:50
+ = 1:00
+Figure 17. CIFAR-10 images additively corrupted by varying levels of Gaussian noise N(0;2I). Pixel values greater than 1.0 (=255) or
+less than 0.0 (=0) were clipped to 1.0 or 0.0.Certiﬁed Adversarial Robustness via Randomized Smoothing
+= 0:00
+ = 0:25
+ = 0:50
+ = 1:00
+Figure 18. ImageNet images additively corrupted by varying levels of Gaussian noise N(0;2I). Pixel values greater than 1.0 (=255) or
+less than 0.0 (=0) were clipped to 1.0 or 0.0.

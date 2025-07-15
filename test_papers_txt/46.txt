@@ -1,0 +1,487 @@
+Translated Learning: Transfer Learning across
+Different Feature Spaces
+†Wenyuan Dai,†Yuqiang Chen,†Gui-Rong Xue,‡Qiang Yang and†Yong Yu
+†Shanghai Jiao Tong University
+Shanghai 200240, China
+{dwyak,yuqiangchen,grxue,yyu}@apex.sjtu.edu.cn
+‡Hong Kong University of Science and Technology
+Kowloon, Hong Kong
+qyang@cse.ust.hk
+Abstract
+This paper investigates a new machine learning strategy called translated learn-
+ing. Unlike many previous learning tasks, we focus on how to use labeled data
+from one feature space to enhance the classiﬁcation of other entirely different
+learningspaces. Forexample,wemightwishtouselabeledtextdatatohelplearn
+a model for classifying image data, when the labeled images are difﬁcult to ob-
+tain. An important aspect of translated learning is to build a “bridge” to link one
+feature space (known as the “source space”) to another space (known as the “tar-
+get space”) through a translator in order to migrate the knowledge from source to
+target. The translated learning solution uses a language model to link the class
+labels to the features in the source spaces, which in turn is translated to the fea-
+tures in the target spaces. Finally, this chain of linkages is completed by tracing
+back to the instances in the target spaces. We show that this path of linkage can
+be modeled using a Markov chain and risk minimization. Through experiments
+on the text-aided image classiﬁcation and cross-language classiﬁcation tasks, we
+demonstrate that our translated learning framework can greatly outperform many
+state-of-the-art baseline methods.
+1 Introduction
+Traditional machine learning relies on the availability of a large amount of labeled data to train a
+modelinthesamefeaturespace. However, labeleddataareoftenscarceandexpensivetoobtain. In
+ordertosavemuchlabelingwork,variousmachinelearningstrategieshavebeenproposed,including
+semi-supervised learning [13], transfer learning [3, 11, 10], self-taught learning [9], etc. One com-
+monality among these strategies is they all require the training data and test data to be in the same
+featurespace. Forexample,ifthetrainingdataaredocuments,thentheclassiﬁerscannotaccepttest
+datafromavideospace. However,inpractice,weoftenfacetheproblemwherethelabeleddataare
+scarceinitsownfeaturespace,whereastherearesufﬁcientlabeleddatainotherfeaturespaces. For
+example, theremaybefewlabeledimagesavailable,butthereareoftenplentyoflabeledtextdocu-
+mentsontheWeb(e.g.,throughtheOpenDirectoryProject,orODP, http://www.dmoz.org/).
+Another example is cross-language classiﬁcation where labeled documents in English are much
+more than ones in some other languages such as Bangla, which has only 21 Web pages in the ODP.
+Therefore, it would be great if we could learn the knowledge across different feature spaces and to
+save a substantial labeling effort.
+To address the transferring of knowledge across different feature spaces, researchers have proposed
+multi-view learning [2, 8, 7] in which each instance has multiple views in different feature spaces.
+Different from multi-view learning, in this paper, we focus on the situation where the training data
+are in asourcefeature space, and the test data are in a different targetfeature space, and that there
+isnocorrespondencebetweeninstancesinthesespaces. Thesourceandtargetfeaturespacescanbe(a) Supervised Learning
+ (b) Semi-supervised Learning
+(c) TransferLearning
+ (d) Self-taught Learning
+(e) Multi-view LearningElephants
+a
+re large
+and gray ...big
+m
+ammals
+on earth...thick-
+s
+kinned,
+...massive
+h
+oofed
+mammal...
+(f) Translated Learning
+ Test Data
+F
+igure 1: An intuitive illustration to different kinds of learning strategies using classiﬁcation of
+imageelephantsandrhinosastheexample. Theimagesinorangeframesarelabeleddata,whilethe
+ones without frames are unlabeled data.
+very different, as in the case of text and images. To solve this novel learning problem, we develop
+a novel framework named as translated learning, where training data and test data can be in totally
+different feature spaces. A translator is needed to be exploited to link the different feature spaces.
+Clearly, the translated learning framework is more general and difﬁcult than traditional learning
+problems. Figure 1 presents an intuitive illustration of six different learning strategies, including
+supervised learning, semi-supervised learning [13], transfer learning [10], self-taught learning [9],
+multi-view learning [2], and ﬁnally, translated learning.
+An intuitive idea for translated learning is to somehow translate all the training data into a target
+feature space, where learning can be done within a single feature space. This idea has already been
+demonstrated successful in several applications in cross-lingual text classiﬁcation [1]. However, for
+the more general translated learning problem, this idea is hard to be realized, since machine trans-
+lationbetween different featurespaces isverydifﬁcult toaccomplish inmany non-natural language
+cases, such as translating documents to images. Furthermore, while a text corpus can be exploited
+for cross-langauge translation, for translated learning, the learning of the “feature-space translator”
+from available resources is a key issue.
+Oursolutionistomakethebestuseofavailabledatathathavebothfeaturesofthesourceandtarget
+domainsinordertoconstructatranslator. Whilethesedatamaynotbesufﬁcient inbuildingagood
+classiﬁer for the target domain, as we will demonstrate in our experimental study in the paper, by
+leveragingtheavailablelabeleddatainthesourcedomain,wecanindeedbuildeffectivetranslators.
+An example is to translate between the text and image feature spaces using the social tagging data
+from Web sites such as Flickr (http://www.flickr.com/).
+The main contribution of our work is to combine the feature translation and the nearest neighbor
+learning into a uniﬁed model by making use of a language model [5]. Intuitively, our model can be
+represented using a Markov chain c→y→x, where yrepresents the features of the data instances
+x. Intranslatedlearning,thetrainingdata xsarerepresentedbythefeatures ysinthesourcefeature
+space,whilethetestdata xtarerepresentedbythefeatures ytinthetargetfeaturespace. Wemodel
+the learning in the source space through a Markov chain c→ys→xs, which can be connected to
+anotherMarkovchain c→yt→xtinthetargetspace. Animportantcontributionofourworkthen
+is to show how to connect these two paths, so that the new chain c→ys→yt→xt, can be used
+to translate the knowledge from the source space to the target one, where the mapping ys→ytis
+acting as a feature-level translator. In our ﬁnal solution, which we call TLRisk, we exploit the risk
+minimization framework in [5] to model translated learning. Our framework can accept different
+distance functions to measure the relevance between two models.
+2 Translated LearningFramework
+2.1 Problem Formulation
+Weﬁrstdeﬁnethetranslatedlearningproblemformally. Let Xsbethesourceinstancespace. Inthis
+space, each instance xs∈ Xsis represented by a feature vector (y(1)
+s,... ,y(ns)
+s), where y(i)
+s∈ YsandYsi s the source feature space. Let Xtbe thetargetinstance space, in which each instance
+xt∈ X tis represented by a feature vector (y(1)
+t,... ,y(nt)
+t), where y(i)
+t∈ YtandYtis the target
+feature space. We have a labeled training data set Ls={(x(i)
+s,c(i)
+s)}n
+i=1in the source space, where
+x(i)
+s∈ Xsandc(i)
+s∈ C={1,... , |C|}is the true class-label of x(i)
+s. We also have another labeled
+trainingdataset Lt={(x(i)
+t,c(i)
+t)}m
+i=1inthetargetspace,where x(i)
+t∈ Xtandc(i)
+t∈ C. Usually, m
+is assumed to be small, so that Ltis not enough to train a reliable prediction model. The unlabeled
+test data set Uis a set of kexamples {x(i)
+u}k
+i=1, where x(i)
+u∈ X t. Note that x(i)
+sis in a different
+featurespacefrom x(i)
+tandx(i)
+u. Forexample, x(i)
+smaybeatextdocument,while x(i)
+tandx(i)
+umay
+be visual images.
+To link the two feature spaces, a feature translator p(yt|ys)∝φ(yt,ys)is constructed. However,
+foreaseofexplanation,weﬁrstassumethatthetranslator φisgiven,andwilldiscussthederivation
+ofφlater in this section, based on co-occurrence data. We focus on our main objective in learning,
+which is to estimate a hypothesis ht:Xt/mapsto→ Cto classify the instances x(i)
+u∈ Uas accurately as
+possible, by making use of the labeled training data L=Ls∪ Ltand the translator φ.
+2.2 RiskMinimization Framework
+First,weformulateourobjectiveintermsofhowtominimizeanexpectedriskfunctionwithrespect
+to the labeled training data L=Ls∪ Ltand the translator φby extending the risk minimization
+framework in [5].
+In this work, we use the risk function R(c,xt)to measure the the risk for classifying xtto the
+category c. Therefore, to predict the label for an instance xt, we need only to ﬁnd the class-label c
+which minimizes the riskfunction R(c,xt), so that
+ht(xt) = arg min
+c∈CR(c,xt). (1)
+Theriskfunction R(c,xt)canbeformulateasthe expectedloss whencandxtarerelevant;formally,
+R(c,xt)≡L(r= 1|c,xt) =/integraldisplay
+ΘC/integraldisplay
+ΘXtL(θC,θXt,r= 1)p(θC|c)p(θXt|xt) dθXtdθC.(2)
+Here,r= 1representstheeventof“relevant”,whichmeans(inEquation(2))“c andxtarerelevant”,
+or“thelabelof xtisc”.θCandθXtarethemodelswithrespecttoclasses Candtargetspaceinstances
+Xtrespectively. ΘCandΘXtaretwocorrespondingmodelspacesinvolvingallthepossiblemodels.
+Notethat,inEquation(2), θConlydependson candθXtonlydependsto xt. Thus,weuse p(θC|c)to
+replace p(θC|c,xt),anduse p(θXt|xt)toreplace p(θXt|c,xt).L(θC,θXt,r= 1)isthelossfunction
+with respect to the event of θCandθXtbeing relevant. We next address the estimation of the risk
+function in Equation (2).
+2.3 Estimation
+The risk function in Equation (2) is difﬁcult to estimate, since the sizes of ΘCandΘXtcan be
+exponential in general. Therefore, we have to use approximation for estimating the risk function
+for efﬁciency. First of all, the loss function L(θC,θXt,r= 1)can be formulated using distance
+functions between the two models θCandθXt, so that L(θC,θXt,r= 1) = α∆(θC,θXt), where
+∆(θC,θXt)isthedistance(ordissimilarity)function,e.g. theKullback-Leiblerdivergence. Replac-
+ingL(θC,θXt,r= 1)with∆(θC,θXt), the risk function is reformulated as
+R(c,xt)∝/integraldisplay
+ΘC/integraldisplay
+ΘXt∆(θC,θXt)p(θC|c)p(θXt|xt) dθXtdθC. (3)
+Sincethesizesof ΘCandΘXtareexponentialingeneral,wecannotcalculateEquation(3)straight-
+forwardly. Inthis paper, we approximate the riskfunction by its value at the posterior mode:
+R(c,xt)≈∆(ˆθc,ˆθxt)p(ˆθc|c)p(ˆθxt|xt)∝∆(ˆθc,ˆθxt)p(ˆθc|c), (4)
+where ˆθc= arg max θCp(θC|c), andˆθxt= arg max θXtp(θXt|xt).
+InEquation(4), p(ˆθc|c)isthepriorprobabilityof ˆθcwithrespecttothetargetclass c. Thispriorcan
+be used to balance the inﬂuence of different classes in the class-imbalance case. When we assume
+there is no prior difference among all the classes, the riskfunction can be rewritten intoAlgorithm 1 R isk Minimization Algorithm for Translated Learning: (TLRisk)
+Input:L abeled training data Lin the source space, unlabeled test data Uin the target space, a
+translator φto link the two feature spaces YsandYtand a dissimilarityfunction ∆(·,·).
+Output: The prediction label ht(xt)for each xt∈ U.
+Procedure TLRisk train
+1
+:foreachc∈ Cdo
+2:Estimate the model ˆθcbased on Equation (6).
+3:end for
+Procedure TLRisk test
+1
+:foreachxt∈ Udo
+2:Estimate the model ˆθxtbased on Equation (7).
+3:Predict the label ht(xt)forxtbased on Equations (1) and (5).
+4:end for
+R(c, x t)∝∆(ˆθc,ˆθxt), (5)
+where ∆(ˆθc,ˆθxt)denotesthedissimilaritybetweentwomodels ˆθcandˆθxt. Toachievethisobjective,
+as in [5], we formulate these two models in the target feature space Yt; speciﬁcally, if we use KL
+divergence as the distance function, ∆(ˆθc,ˆθxt)can be measured by KL(p(Yt|ˆθc)||p(Yt|ˆθxt)).
+Our estimation is based on the Markov chain assumption where ˆθc→c→ys→yt→xt→ˆθxt
+andˆθc→c→yt→xt→ˆθxt, so that
+p(yt|ˆθc) =/integraldisplay
+Ys/summationdisplay
+c/prime∈Cp(yt|ys)p(ys|c/prime)p(c/prime|ˆθc) dys+λ/summationdisplay
+c/prime∈Cp(yt|c/prime)p(c/prime|ˆθc), (6)
+where p(yt|ys)can be estimated using the translator φ;p(ys|c/prime)can be estimated based on the
+statisticalobservations in the labeled text data set Lsinthe source feature space Ys;p(yt|c/prime)can be
+estimated based on Ltin the target feature space Yt;p(c/prime|ˆθc)can be calculated as: p(c/prime|ˆθc) = 1if
+c=c/prime, and otherwise, p(c/prime|ˆθc) = 0; andλis a trade-off parameter which controls the inﬂuence of
+target space labeled data Lt.
+For another model p(Yt|ˆθxt), it can be estimated by
+p(yt|ˆθxt) =/integraldisplay
+Xtp(yt|x/prime
+t)p(x/prime
+t|ˆθxt) dx/prime
+t, (7)
+where p(yt|x/prime
+t)can be estimated using the feature extractor in the target feature space Yt, and
+p(x/prime
+t|ˆθxt)can be calculated as p(x/prime
+t|ˆθxt) = 1ifx/prime
+t=xt; otherwise p(x/prime
+t|ˆθxt) = 0.
+Integrating Equations (1), (5), (6) and (7), our translated learning framework is summarized as
+algorithm TLRisk,anabbreviationfor TranslatedLearningviaRiskMinimization,whichisshown
+in Algorithm 1.
+Considering the computational cost of Algorithm 1, due to the Markov chain assumption, our al-
+gorithm TLRisk can be implemented using dynamic programming. Therefore, in the worst case,
+the time complexity of TLRisk isO(|C||Y t|+|Yt||Ys|)in training, and O(|C||Y t|)for predicting
+an instance. In practice, the data are quite sparse, and good feature mappings (or translator) should
+alsobesparse,otherwiseitwillconsistofmanyambiguouscases. Therefore, TLRisk canperform
+much faster than the worst cases generally, and the computational cost of TLRisk is linear in the
+non-zero occurrences in feature mappings.
+2.4 Translator φ
+We now explain in particular how to build the translator φ(yt,ys)∝p(yt|ys)to connect two dif-
+ferent feature spaces. As mentioned before, to estimate the translator p(yt|ys), we need some co-
+occurrence data across the two feature spaces: source and target. Formally, we need co-occurrence
+data in the form of p(yt,ys),p(yt,xs),p(xt,ys), orp(xt,xs). In cross-language problems, dictio-
+naries can be considered as data in the form of p(yt,ys)(feature-level co-occurrence). On the Web,DA TASETDA TASIZE
+DA TASETDA TASIZE
+DOCUMENTS IMAGES DOCUMENTS IMAGES
++ − +− + − +−
+horse vscoin 1610 1345 270 123 dog vs canoe 1084 1047 102 103
+kayak vsbear 1045 885 102 101 greyhound vs cd 380 362 94 102
+electric-guitarvs snake 335 326 122 112 stained-glassvsmicrowave 331 267 99 107
+cake vsbinoculars 265 320 104 216 rainbow vssheet-music 261 256 102 84
+laptopvs sword 210 203 128 102 tomatovs llama 175 172 102 119
+bonsai vscomet 166 164 122 120 frog vs saddle 150 148 115 110
+Table 1: The description for each data set. Here, h orse vs coin indicates all the positive in-
+stances are about horsewhile all the negative instances are about coin. “+” means positive
+instance; “−” means negative instances.
+social annotations on images (e.g. Flickr, images associated with keywords) and search-engine re-
+sultsinresponsetoqueriesareexamplesforcorrelationaldataintheformsof p(yt,xs)andp(xt,ys)
+(feature-instance co-occurrence). Moreover, multi-view data (e.g. Web pages including both text
+and pictures) is an example for data in the form of p(xt,xs)(instance-level co-occurrence). Where
+there is a pool of such co-occurrence data available, we can build the translator φfor estimating the
+Markov chains in the previous subsections.
+In particular, to estimate the translator φ, at ﬁrst, the feature-instance co-occurrence data (p( yt,xs)
+orp(xt,ys)) can be used to estimate the probabilities for feature-level co-occurrence p(yt,ys);
+formally, p(yt,ys) =/integraltext
+Xsp(yt,xs)p(ys|xs) dxsandp(yt,ys) =/integraltext
+Xtp(xt,ys)p(yt|xt) dxt. The
+instance-level co-occurrence data can also be converted to feature-level co-occurrence; formally,
+p(yt,ys) =/integraltext
+Xt/integraltext
+Xsp(xt,xs)p(ys|xs)p(yt|xt) dxsdxt. Here, p(ys|xs)andp(yt|xt)aretwofeature
+extractorsin YsandYt. Usingthefeature-levelco-occurrenceprobability p(yt,ys),wecanestimate
+the translator as p(yt|ys) =p(yt,ys)//integraltext
+Ytp(y/prime
+t,ys)dy/prime
+t.
+3 Evaluation: Text-aided ImageClassiﬁcation
+Inthissection,weapplyourframework TLRisk toatext-aidedimageclassiﬁcationproblem,which
+uses binary labeled text documents as auxiliary data to enhance the image classiﬁcation. This prob-
+lemisderivedfromtheapplicationwhereauseroragroupofusersmayhaveexpressedpreferences
+over some text documents, and we wish to translate these preferences to images for the same group
+of users. We will show the effectiveness of TLRisk on text-aided image classiﬁcation. Our ob-
+jective is to demonstrate that even with a small amount of labeled image training data, we can still
+build a high-quality translated learning solution for image classiﬁcation by leveraging the text doc-
+uments, even if the co-occurrence data themselves are not sufﬁcient when directly used for training
+a classiﬁcation model inthe target space.
+3.1 Data Sets
+The data sets of Caltech-2561and Open Directory Project (ODP, http://www.dmoz.org/)
+wereusedinourevaluation,astheimageandtextcorpora. OurODPcollectionwascrawledduring
+August 2006, and involves 1,271,106 English Web pages. We generated 12 binary text-to-image
+classiﬁcation tasks from the above corpora. The description for each data set is presented in Table
+1. The ﬁrst column presents the name of each data set, e.g. horse vs coin indicates all the
+positive instances are about horsewhile all the negative instances are about coin. We collected
+the corresponding documents from ODP for each category. However, due to space limitation, we
+omit the detailed ODP directory information with respect to each data set here. In the table, we
+also listed the data sizes for each task, including documents and images. Generally, the number of
+documents is much larger than the number of images.
+For data preprocessing, the SIFT descriptor [6] was used to ﬁnd and describe the interesting points
+in the images, and then clustered the extracted interest points into 800 clusters to obtain the code-
+book. Based on the code-book, each image can be converted to a corresponding feature vector. For
+text documents, we ﬁrst extracted and stemmed all the tokens from the ODP Web pages, and then
+information gain [12] was used to select the most important features for further learning process.
+We collected the co-occurrence data from a commercial image search engine during April 2008.
+The collected data are in the form of feature-instance co-occurrence p(ys,xt), so that we have to
+convert them to feature-level co-occurrence p(ys,yt)as discussed in Section 2.4.
+1http://www.vision.caltech.edu/Image Datasets/Caltech256/1248 16 320.200.250.300.350.40
+0.15
+number of labeled images per categoryError RateCosine
+  
+Image Only
+Search+Image
+TLRisk
+Lowerbound
+(a)1248 16 320.200.250.300.350.40
+0.15
+number of labeled images per categoryError RateKullback−Leibler Divergence
+  
+Image Only
+Search+Image
+TLRisk
+Lowerbound
+(b)1248 16 320.200.250.300.350.40
+0.15
+number of labeled images per categoryError RatePearson’s Correlation Coefficient
+  
+Image Only
+Search+Image
+TLRisk
+Lowerbound
+(c)
+F
+igure 2: The average error rates over 12 data sets for text-aided image classiﬁcation with different
+number of labeled images Lt.
+0.0625 0.25 14160.200.250.30
+0.150.35
+λ (in log scale)Error RateCosine
+  
+average over 12 data sets
+(a)0.0625 0.25 14160.150.200.250.300.35
+λ (in log scale)Error RateKullback−Liebler Divergence
+  
+average over 12 data sets
+(b)0.0625 0.25 14160.150.200.250.300.35
+λ (in log scale)Error RatePearson’s Correlation Coefficient
+  
+average over 12 data sets
+(c)
+F
+igure 3: The average error rates over 12 data sets for text-aided image classiﬁcation with different
+trade-off λ.
+3.2 Evaluation Methods
+Few existing research works addressed the text-aided image classiﬁcation problem, so that for the
+baselinemethodsinourexperiments,weﬁrstsimplyusedthelabeleddata Ltasthetrainingdatain
+thetargetspacetotrainaclassiﬁcationmodel;werefertothismodelas Image Only. Thesecond
+baseline is to use the category name (in this case, there are two names for binary classiﬁcation
+problems) to search for training images and then to train classiﬁers together with labeled images in
+Lt; we refer to this model as Search+Image.
+Our framework TLRisk was evaluated under three different dissimilarity functions: (1) Kullback-
+Leibler divergence (named KL):/integraltext
+Ytp(yt|θC)logp(yt|θC)
+p(yt|θXt)dyt;(2) Negative of cosine function
+(named NCOS): −/integraltext
+Ytp(yt|θC)p(yt|θXt)dyt/radicalBig/integraltext
+Ytp2(yt|θC)
+dyt/radicalBig/integraltext
+Ytp2(yt|θXt)
+dyt; (3) Negative of the Pearson’s correlation co-
+efﬁcient (named NPCC): −cov(p(Yt|θC),p(Yt|θXt))√
+var(p(Yt|θC) )var(p(Yt|θXt)).
+We also evaluated the lower bound of the error rate with respect to each data set. To estimate the
+lowerbound,weconducteda5-foldcross-validationonthetestdata U. Notethatthisstrategy,which
+isreferredtoas Lowerbound,isunavailableinourproblemsetting,sinceitusesalargeamountof
+labeled data in the target space. In our experiments, this lower bound is used just for reference. We
+also note that on some data sets, the performance of Lowerbound may be slightly worse than that
+ofTLRisk, because Lowerbound was trained based on images in Caltech-256, while TLRisk
+was based on the co-occurrence data. These models used different supervisory knowledge.
+3.3 Experimental Results
+The experimental results were evaluated in terms of error rates, and are shown in Figure 2. On
+one hand, from the table, we can see that our framework TLRisk greatly outperforms the baseline
+methods Image Only andSearch+Image, no matter which dissimilarity function is applied.
+On the other hand, compared with Lowerbound, TLRisk also shows comparable performance.
+It indicates that our framework TLRisk can effectively learn knowledge across different feature
+spaces in the case of text-to-image classiﬁcation.
+Moreover, when the number of target space labeled images decreases, the performance of Image
+Onlydeclines rapidly, while the performances of Search+Image andTLRisk stay very sta-DA TASETEN GLISH GE RMAN
+LO CATION SI ZE LO CATION SI ZE
+1Top: Sport: Ballsport 2000 Top: World: Deutsch: Sport: Ballsport 128
+Top: Computers: Internet 2000 Top: World: Deutsch: Computer: Internet 126
+2Top: Arts: Architecture: Building Types 1259 Top: World: Deutsch: Kultur: Architektur: Geb ¨a udetypen 71
+Top: Home: Cooking: RecipeCollections 475Top: World: Deutsch: Zuhause: Kochen: Rezeptesammlungen 72
+3Top: Science: Agriculture 1886 Top: World: Deutsch: Wissenschaft: Agrarwissenschaften 71
+Top: Society: Crime 1843 Top: World: Deutsch: Gesellschaft: Kriminalit ¨a t 69
+4Top: Sports: Skating: RollerSkating 926Top: World: Deutsch: Sport: Rollsport 70
+Top: Health: Public Healthand Safety 2361 Top: World: Deutsch: Gesundheit: PublicHealth 71
+5Top: Recreation: Outdoors: Hunting 2919 Top: World: Deutsch: Freizeit: Outdoor: Jagd 70
+Top: Society: Holidays 2258 Top: World: Deutsch: Gesellschaft: Fest ´u nd Feiertage 72
+Table 2: The description for each cross-language classiﬁcat ion data set.
+ble. This indicates that TLRisk is not quite sensitive to the size of Lt; in other words, TLRisk
+has good robustness. We also want to note that, sometimes TLRisk performs slightly better than
+Lowerbound. This is not a mistake, because these two methods use different supervisory knowl-
+edge:Lowerbound is based on images in the Caltech-256 corpus; TLRisk is based on the co-
+occurrence data. In these experiments, Lowerbound is just for reference.
+InTLRisk, a parameter to tune is the trade off parameter λ(refer to Equation (6)). Figure 3 shows
+the average error rate curves on all the 12 data sets, when λgradually changes from 2−5to25.
+In this experiment, we ﬁxed the number of target training images per category to one, and set the
+threshold K(which is the number of images to collect for each text keyword, when collecting the
+co-occurrencedata)to40. Fromtheﬁgure,wecanseethat,ononehand,when λisverylarge,which
+meanstheclassiﬁcationmodelmainlybuildsonthetargetspacetrainingimages Lt,theperformance
+is rather poor. On the other hand, when λis small such that the classiﬁcation model relies more on
+the auxiliary text training data Ls, the classiﬁcation performance is relatively stable. Therefore, we
+suggest to set the trade-off parameter λto a small value, and in these experiments, all the λs are set
+to 1, based on Figure 3.
+4 Evaluation: Cross-language Classiﬁcation
+In this section, we apply our framework TLRisk to another scenario, the cross-language classiﬁ-
+cation. We focused on English-to-German classiﬁcation, where English documents are used as the
+source data to help classifyGerman documents, which are target data.
+Intheseexperiments,wecollectedthedocumentsfromcorrespondingcategoriesfromODPEnglish
+pages and ODP German pages, and generated ﬁve cross-language classiﬁcation tasks, as shown in
+Table 2. For the co-occurrence data, we used the English-German dictionary from the Internet Dic-
+tionary Project2(IDP). The dictionary data are in the form of feature-level co-occurrence p(yt,ys).
+We note that while most cross-language classiﬁcation works rely on machine translation [1], our
+assumption is that the machine translation is unavailable and we rely on dictionary only.
+Weevaluated TLRisk withthenegativeofcosine(named NCOS)asthedissimilarityfunction. Our
+framework TLRisk wascomparedtoclassiﬁcationusingonlyveryfewGermanlabeleddocuments
+as a baseline, called German Labels Only. We also present the lower bound of error rates by
+performing 5-fold cross-validation on the test data U, which we refer to as Lowerbound. The
+performances of the evaluated methods are presented in Table 3. In this experiment, we have only
+sixteen German labeled documents in each category. The error rates in Table 3 were evaluated
+by averaging the results of 20 random repeats. From the ﬁgure, we can see that TLRisk always
+shows marked improvements compared with the baseline method German Labels Only, al-
+though there are still gaps between TLRisk and the ideal case Lowerbound. This indicates our
+algorithm TLRisk is effective on the cross-language classiﬁcation problem.
+DA TASET 1 2 3 4 5
+German Labels Only 0.2 46 ±0.061 0.1 33 ±0.037 0.3 01 ±0.067 0.2 57 ±0.053 0.2 77 ±0.068
+TLRisk 0.1 91 ±0.045 0.1 22 ±0.043 0.2 53 ±0.062 0.2 47 ±0.059 0.1 83 ±0.072
+Lowerbound 0.1 70 ±0.000 0.1 16 ±0.000 0.1 57 ±0.000 0.1 76 ±0.000 0.1 66 ±0.000
+Table 3: The average error rate and variance on each data set, g iven by all the evaluation methods,
+for English-to-German cross-language classiﬁcation.
+We have empirically tuned the trade-off parameter λ. Similar to the results of the text-aided image
+classiﬁcation experiments, when λis small, the performance of TLRisk is better and stable. In
+2http://www.ilovelanguages.com/idp/index.htmlthese experiments, we set λt o2−4. However, due to space limitation, we cannot present the curves
+forλtuning here.
+5 Related Work
+We review several prior works related to our work. To solve the label sparsity problem, researchers
+proposed several learning strategies, e.g. semi-supervised learning [13] and transfer learning [3,
+11, 10, 9, 4]. Transfer learning mainly focuses on training and testing processes being in different
+scenarios, e.g. multi-task learning [3], learning with auxiliary data sources [11], learning from
+irrelevant categories [10], and self-taught learning [9, 4]. The translated learning proposed in this
+paper can be considered as an instance of general transfer learning; that is, transfer learning from
+data in different feature spaces.
+Multi-view learning addresses learning across different feature spaces. Co-training [2] established
+the foundation of multi-view learning, in which the classiﬁers in two views learn from each other
+to enhance the learning process. Nigam and Ghani [8] proposed co-EM to apply EM algorithm to
+each view, and interchange probabilistic labels between different views. Co-EMT [7] is an active
+learning multi-view learning algorithm, and has shown more robustness empirically. However, as
+discussedbefore,multi-viewlearningrequiresthateachinstanceshouldcontaintwoviews,whilein
+translated learning, this requirement is relaxed. Translated learning can accept training data in one
+view and test data in another view.
+6 Conclusions
+In this paper, we proposed a translated learning framework for classifying target data using data
+from another feature space. We have shown that in translated learning, even though we have very
+little labeled data in the target space, if we can ﬁnd a bridge to link the two spaces through feature
+translation, we can achieve good performance by leveraging the knowledge from the source data.
+We formally formulated our translated learning framework using risk minimization, and presented
+anapproximationmethodformodelestimation. Inourexperiments,wehavedemonstratedhowthis
+can be done effectively through the co-occurrence data in TLRisk. The experimental results on
+thetext-aidedimageclassiﬁcationandthecross-languageclassiﬁcationshowthatouralgorithmcan
+greatly outperform the state-of-the-art baseline methods.
+Acknowledgement We thank the anonymous reviewers for their greatly helpful comments.
+Wenyuan Dai and Gui-Rong Xue are supported by the grants from National Natural Science Foun-
+dation of China (NO. 60873211) and the MSRA-SJTU joint lab project “Transfer Learning and its
+Application on the Web”. Qiang Yang thanks the support of Hong Kong CERG Project 621307.
+References
+[1] N. Bel, C.Koster, and M. Villegas. Cross-lingualtext categorization. In ECDL, 2003.
+[2] A. Blumand T. Mitchell. Combining labeled and unlabeled data with co-training. In COLT, 1998.
+[3] R. Caruana. Multitask learning. Machine Learning, 28(1):41–75, 1997.
+[4] W. Dai, Q. Yang, G.-R.Xue, and Y. Yu. Self-taught clustering. In ICML,2008.
+[5] J.LaffertyandC.Zhai. Documentlanguagemodels,querymodels,andriskminimizationforinformation
+retrieval. In SIGIR,2001.
+[6] D. Lowe. Distinctive image features from scale-invariant keypoints. International Journal of Computer
+Vision, 60(2):91–110, 2004.
+[7] I. Muslea, S. Minton, and C. Knoblock. Active + semi-supervised learning = robust multi-view learning.
+InICML,2002.
+[8] K. Nigam and R. Ghani. Analyzing the effectiveness and applicability of co-training. In CIKM,2000.
+[9] R. Raina, A. Battle, H. Lee, B. Packer, and A. Ng. Self-taught learning: transfer learning from unlabeled
+data. InICML,2007.
+[10] R. Raina, A. Ng, and D. Koller. Constructing informative priors using transferlearning. In ICML,2006.
+[11] P. Wu and T. Dietterich. Improving svm accuracy by training on auxiliary data sources. In ICML,2004.
+[12] Y.YangandJ.Pedersen. Acomparativestudyonfeatureselectionintextcategorization. In ICML,1997.
+[13] X. Zhu. Semi-supervised learning literature survey. Technical Report 1530, University of Wisconsin-
+Madison, 2007.

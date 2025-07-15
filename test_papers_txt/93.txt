@@ -1,0 +1,861 @@
+Efficient Projections onto the ℓ1-Ball for Learning in High Dimensions
+
+John Duchi JDUCHI@CS.STANFORD .EDU
+Google, Mountain View, CA 94043
+Shai Shalev-Shwartz SHAI@TTI-C.ORG
+Toyota Technological Institute,Chicago, IL, 60637
+Yoram Singer SINGER@GOOGLE.COM
+Tushar Chandra TUSHAR@GOOGLE.COM
+Google, Mountain View, CA 94043
+Abstract
+We describe efﬁcient algorithms for projecting a
+vector onto the ℓ1-ball. We present two methods
+for projection. The ﬁrst performs exact projec-
+tion in O(n)expected time, where nis the di-
+mension of the space. The second works on vec-
+torskof whose elements are perturbed outside
+theℓ1-ball, projecting in O(klog(n))time. This
+setting is especially useful for online learning in
+sparse feature spaces such as text categorization
+applications. We demonstrate the merits and ef-
+fectiveness of our algorithms in numerous batch
+and online learning tasks. We show that vari-
+ants of stochastic gradient projection methods
+augmented with our efﬁcient projection proce-
+dures outperform interior point methods, which
+areconsideredstate-of-the-artoptimizationtech-
+niques. We also show that in online settings gra-
+dient updates with ℓ1projections outperform the
+exponentiated gradient algorithm while obtain-
+ingmodels withhigh degrees ofsparsity.
+1.Introduction
+A prevalent machine learning approach for decision and
+prediction problems is to cast the learning task as penal-
+ized convex optimization. In penalized convex optimiza-
+tion we seek a set of parameters, gathered together in a
+vectorw, which minimizes a convex objective function in
+wwith an additional penalty term that assesses the com-
+plexity of w. Two commonly used penalties are the 1-
+norm and the square of the 2-norm of w. An alternative
+Appearing in Proceedings of the 25thInternational Conference
+on Machine Learning , Helsinki, Finland, 2008. Copyright 2008
+bythe author(s)/owner(s).butmathematicallyequivalentapproachistocasttheprob-
+lem as aconstrained optimization problem. In this setting
+we seek a minimizer of the objective function while con-
+straining the solution to have a bounded norm. Many re-
+cent advances in statistical machine learning and related
+ﬁelds can be explained as convex optimization subject to
+a 1-norm constraint on the vector of parameters w. Im-
+posing an ℓ1constraint leads to notable beneﬁts. First, it
+encourages sparse solutions, i.ea solution for which many
+components of ware zero. When the original dimension
+ofwis very high, a sparse solution enables easier inter-
+pretation of the problem in a lower dimension space. For
+theusageof ℓ1-basedapproachinstatisticalmachinelearn-
+ing see for example (Tibshirani, 1996) and the references
+therein. Donoho(2006b)providedsufﬁcientconditionsfor
+obtaininganoptimal ℓ1-normsolutionwhichissparse. Re-
+cent work on compressed sensing (Candes, 2006; Donoho,
+2006a) further explores how ℓ1constraints can be used for
+recovering a sparse signal sampled below the Nyquist rate.
+The second motivation for using ℓ1constraints in machine
+learningproblemsisthatinsomecasesitleadstoimproved
+generalization bounds. For example, Ng (2004) examined
+the task of PAC learning a sparse predictor and analyzed
+cases in which an ℓ1constraint results in better solutions
+than an ℓ2constraint.
+In this paper we re-examine the task of minimizing a con-
+vex function subject to an ℓ1constraint on the norm of
+the solution. We are particularly interested in cases where
+the convex function is the average loss over a training
+set of mexamples where each example is represented as
+a vector of high dimension. Thus, the solution itself is
+a high-dimensional vector as well. Recent work on ℓ2
+constrained optimization for machine learning indicates
+that gradient-related projection algorithms are more efﬁ-
+cientinapproachingasolutionofgoodgeneralizationthan
+second-orderalgorithmswhenthenumberofexamplesandEfﬁcient Projections ontothe ℓ1-Ballfor Learningin High Dimensions
+the dimension are large. For instance, Shalev-Shwartz
+et al. (2007) give recent state-of-the-art methods for solv -
+ing large scale support vector machines. Adapting these
+recent results to projection methods onto the ℓ1ball poses
+algorithmicchallenges. Whileprojectionsonto ℓ2ballsare
+straightforward to implement in linear time with the ap-
+propriate data structures, projection onto an ℓ1ball is a
+more involved task. The main contribution of this paper is
+the derivation of gradient projections with ℓ1domain con-
+straints that can be performed almost as fast as gradient
+projection with ℓ2constraints.
+Ourstartingpointisanefﬁcientmethodforprojectiononto
+the probabilistic simplex. The basic idea is to show that,
+after sorting the vector we need to project, it is possible to
+calculate the projection exactly in linear time. This idea
+was rediscovered multiple times. It was ﬁrst described in
+anabstractandsomewhatopaqueformintheworkofGafni
+and Bertsekas (1984) and Bertsekas (1999). Crammer and
+Singer (2002) rediscovered a similar projection algorithm
+as a tool for solving the dual of multiclass SVM. Hazan
+(2006) essentially reuses the same algorithm in the con-
+text of online convex programming. Our starting point is
+another derivation of Euclidean projection onto the sim-
+plex that paves the way to a few generalizations. First we
+show that the same technique can also be used for project-
+ing onto the ℓ1-ball. This algorithm is based on sorting the
+components of the vector to be projected and thus requires
+O(nlog(n))time. We next present an improvement of the
+algorithmthatreplacessortingwithaprocedureresemblin g
+median-search whose expected timecomplexity is O(n).
+Inmanyapplications,however,thedimensionofthefeature
+space is very high yet the number of features which attain
+non-zero values for an example may be very small. For in-
+stance,inourexperimentswithtextclassiﬁcationinSec.7 ,
+the dimension is two million (the bigram dictionary size)
+whileeachexamplehasonaverageone-thousandnon-zero
+features(thenumberofuniquetokensinadocument). Ap-
+plications where the dimensionality is high yet the number
+of“on”featuresineachexampleissmallrenderoursecond
+algorithm useless in some cases. We therefore shift gears
+and describe a more complex algorithm that employs red-
+black trees to obtain a linear dependence on the number
+of non-zero features in an example and only logarithmic
+dependence on the full dimension. The key to our con-
+struction lies in the fact that we project vectors that are th e
+sumofavectorinthe ℓ1-ballandasparsevector—theyare
+“almost” inthe ℓ1-ball.
+In conclusion to the paper we present experimental results
+thatdemonstratethemeritsofouralgorithms. Wecompare
+our algorithms with several specialized interior point (IP )
+methods as well as general methods from the literature for
+solving ℓ1-penalized problems on both synthetic and realdata (the MNIST handwritten digit dataset and the Reuters
+RCV1 corpus) for batch and online learning. Our projec-
+tion based methods outperform competing algorithms in
+terms of sparsity, and they exhibit faster convergence and
+lower regret than previous methods.
+2.Notation andProblemSetting
+We start by establishing the notation used throughout the
+paper. The set of integers 1through nis denoted by [n].
+Scalars are denoted by lower case letters and vectors by
+lower case bold face letters. We use the notation w≻b
+to designate that all of the components of ware greater
+thanb. We use∝ba∇dbl·∝ba∇dblas a shorthand for the Euclidean norm
+∝ba∇dbl·∝ba∇dbl2. Theothernormweusethroughoutthepaperisthe 1-
+normofthevector, ∝ba∇dblv∝ba∇dbl1=/summationtextn
+i=1|vi|. Lastly,weconsider
+order statistics and sorting vectors frequently throughou t
+this paper. To that end, we let v(i)denote the ithorder
+statisticof v,that is, v(1)≥v(2)≥...≥v(n)forv∈Rn.
+Inthesettingconsideredinthispaperweareprovidedwith
+a convex function L:Rn→R. Our goal is to ﬁnd the
+minimum of L(w)subject to an ℓ1-norm constraint on w.
+Formally, the problem weneed tosolve is
+minimize
+wL(w)s.t.∝ba∇dblw∝ba∇dbl1≤z . (1)
+Our focus is on variants of the projected subgradient
+method for convex optimization (Bertsekas, 1999). Pro-
+jectedsubgradientmethodsminimizeafunction L(w)sub-
+ject to the constraint that w∈X, forXconvex, by gener-
+ating thesequence {w(t)}via
+w(t+1)= Π X/parenleftBig
+w(t)−ηt∇(t)/parenrightBig
+(2)
+where∇(t)is (an unbiased estimate of) the (sub)gradient
+ofLatw(t)andΠX(x) = argmin y{∝ba∇dblx−y∝ba∇dbl |y∈
+X}is Euclidean projection of xontoX. In the rest of the
+paper, the main algorithmic focus is on the projection step
+(computinganunbiasedestimateofthegradientof L(w)is
+straightforwardintheapplicationsconsideredinthispap er,
+as isthemodiﬁcation of w(t)by∇(t)).
+3.EuclideanProjection onto theSimplex
+Forclarity,webeginwiththetaskofperformingEuclidean
+projection onto the positive simplex; our derivation natu-
+rally builds to the more efﬁcient algorithms. As such, the
+mostbasicprojectiontaskweconsidercanbeformallyde-
+scribed asthe following optimization problem,
+minimize
+w1
+2∝ba∇dblw−v∝ba∇dbl2
+2s.t.n/summationdisplay
+i=1wi=z , w i≥0.(3)Efﬁcient Projections ontothe ℓ1-Ballfor Learningin High Dimensions
+When z= 1the above is projection onto the probabilistic
+simplex. The Lagrangian of theproblem inEq. (3)is
+L(w,ζ) =1
+2∝ba∇dblw−v∝ba∇dbl2+θ/parenleftBiggn/summationdisplay
+i=1wi−z/parenrightBigg
+−ζ·w,
+where θ∈Ris a Lagrange multiplier and ζ∈Rn
++is a
+vector of non-negative Lagrange multipliers. Differenti-
+ating with respect to wiand comparing to zero gives the
+optimality condition,dL
+dwi=wi−vi+θ−ζi= 0.
+The complementary slackness KKT condition implies that
+whenever wi>0we must have that ζi= 0. Thus, if
+wi>0we get that
+wi=vi−θ+ζi=vi−θ . (4)
+All the non-negative elements of the vector ware tied via
+a single variable, so knowing the indices of these elements
+gives a much simpler problem. Upon ﬁrst inspection, ﬁnd-
+ing these indices seems difﬁcult, but the following lemma
+(Shalev-Shwartz&Singer,2006)providesakeytoolinde-
+riving our procedure for identifying non-zero elements.
+Lemma 1. Letwbe the optimal solution to the minimiza-
+tion problem in Eq. (3). Let sandjbe two indices such
+thatvs> vj. Ifws= 0thenwjmust be zeroas well.
+Denoting by Ithe set of indices of the non-zero compo-
+nents of the sorted optimal solution, I={i∈[n] :v(i)>
+0}, we see that Lemma 1 implies that I= [ρ]for some
+1≤ρ≤n. Had we known ρwe could have simply used
+Eq. (4) toobtain that
+n/summationdisplay
+i=1wi=n/summationdisplay
+i=1w(i)=ρ/summationdisplay
+i=1w(i)=ρ/summationdisplay
+i=1/parenleftbig
+v(i)−θ/parenrightbig
+=z
+and therefore
+θ=1
+ρ/parenleftBiggρ/summationdisplay
+i=1v(i)−z/parenrightBigg
+. (5)
+Given θwecan characterize theoptimal solutionfor was
+wi= max{vi−θ ,0}. (6)
+We are left with the problem of ﬁnding the optimal ρ, and
+thefollowinglemma(Shalev-Shwartz&Singer,2006)pro-
+videsasimplesolutiononcewesort vindescendingorder.
+Lemma 2. Letwbe the optimal solution to the minimiza-
+tion problem given in Eq. (3). Let µdenote the vector ob-
+tained by sorting vin a descending order. Then, the num-
+ber of strictlypositiveelements in wis
+ρ(z,µ) = max/braceleftBigg
+j∈[n] :µj−1
+j/parenleftBiggj/summationdisplay
+r=1µr−z/parenrightBigg
+>0/bracerightBigg
+.
+The pseudo-code describing the O(nlogn)procedure for
+solving Eq. (3)is given inFig. 1.INPUT: A vector v∈Rnand ascalar z >0
+Sortvintoµ:µ1≥µ2≥...≥µp
+Findρ= max/braceleftBigg
+j∈[n] :µj−1
+j/parenleftBiggj/summationdisplay
+r=1µr−z/parenrightBigg
+>0/bracerightBigg
+Deﬁne θ=1
+ρ/parenleftBiggρ/summationdisplay
+i=1µi−z/parenrightBigg
+OUTPUT:ws.t.wi= max{vi−θ ,0}
+Figure1. Algorithm forprojection onto thesimplex.
+4.EuclideanProjection onto the ℓ1-Ball
+We next modify the algorithm to handle the more general
+ℓ1-norm constraint, which gives theminimization problem
+minimize
+w∈Rn∝ba∇dblw−v∝ba∇dbl2
+2s.t.∝ba∇dblw∝ba∇dbl1≤z .(7)
+We do so by presenting a reduction to the problem of pro-
+jecting onto the simplex given in Eq. (3). First, we note
+that if∝ba∇dblv∝ba∇dbl1≤zthen the solution of Eq. (7) is w=v.
+Therefore, from now on we assume that ∝ba∇dblv∝ba∇dbl1> z. In this
+case, the optimal solution must be on the boundary of the
+constraint set and thus we can replace the inequality con-
+straint∝ba∇dblw∝ba∇dbl1≤zwith an equality constraint ∝ba∇dblw∝ba∇dbl1=z.
+Having done so, the sole difference between the problem
+in Eq. (7) and the one in Eq. (3) is that in the latter we
+have an additional set of constraints, w≥0. The follow-
+ing lemma indicates that each non-zero component of the
+optimal solution wshares thesignof itscounterpart in v.
+Lemma 3. Letwbe an optimal solution of Eq. (7). Then,
+for all i,wivi≥0.
+Proof.Assume by contradiction that the claim does not
+hold. Thus, there exists ifor which wivi<0. Let ˆw
+be a vector such that ˆwi= 0and for all j∝\e}atio\slash=iwe have
+ˆwj=wj. Therefore,∝ba∇dblˆw∝ba∇dbl1=∝ba∇dblw∝ba∇dbl1−|wi|≤zand hence
+ˆwisafeasiblesolution. Inaddition,
+∝ba∇dblw−v∝ba∇dbl2
+2−∝ba∇dblˆw−v∝ba∇dbl2
+2= (wi−vi)2−(0−vi)2
+=w2
+i−2wivi> w2
+i>0.
+We thus constructed a feasible solution ˆwwhich attains an
+objective value smaller than that of w. This leads us to the
+desired contradiction.
+Based on the above lemma and the symmetry of the ob-
+jective, we are ready to present our reduction. Let ube a
+vector obtained by taking the absolute value of each com-
+ponent of v,ui=|vi|. We now replace Eq. (7)with
+minimize
+β∈Rn∝ba∇dblβ−u∝ba∇dbl2
+2s.t.∝ba∇dblβ∝ba∇dbl1≤zandβ≥0.(8)
+Onceweobtainthesolutionfortheproblemabovewecon-
+structthe optimal of Eq. (7)by setting wi=sign(vi)βi.Efﬁcient Projections ontothe ℓ1-Ballfor Learningin High Dimensions
+INPUTA vector v∈Rnand ascalar z >0
+INITIALIZE U= [n]s= 0ρ= 0
+WHILEU∝\e}atio\slash=φ
+PICKk∈Uat random
+PARTITION U:
+G={j∈U|vj≥vk}
+L={j∈U|vj< vk}
+CALCULATE ∆ρ=|G|;∆s=/summationdisplay
+j∈Gvj
+IF(s+ ∆s)−(ρ+ ∆ρ)vk< z
+s=s+ ∆s;ρ=ρ+ ∆ρ;U←L
+ELSE
+U←G\{k}
+ENDIF
+SETθ= (s−z)/ρ
+OUTPUT ws.t.vi= max{vi−θ ,0}
+Figure 2. Linear time projection ontothesimplex.
+5.A LinearTime Projection Algorithm
+In this section we describe a more efﬁcient algorithm for
+performing projections. To keep our presentation simple
+and easy to follow, we describe the projection algorithm
+onto the simplex. The generalization to the ℓ1ball can
+straightforwardly incorporated into the efﬁcient algorit hm
+by the results from the previous section (we simply work
+in the algorithm with a vector of the absolute values of v,
+replacingthesolution’scomponents wiwithsign (vi)·wi).
+For correctness of the following discussion, we add an-
+other component to v(the vector to be projected), which
+we set to 0, thus vn+1= 0andv(n+1)= 0. Let us
+start by examining again Lemma 2. The lemma implies
+that the index ρis the largest integer that still satisﬁes
+v(ρ)−1
+ρ/parenleftbig/summationtextρ
+r=1v(r)−z/parenrightbig
+>0. After routine algebraic
+manipulations the above can be rewritten in the following
+somewhat simplerform:
+ρ/summationdisplay
+i=1/parenleftbig
+v(i)−v(ρ)/parenrightbig
+< zandρ+1/summationdisplay
+i=1/parenleftbig
+v(i)−v(ρ+1)/parenrightbig
+≥z.(9)
+Given ρandv(ρ)weslightlyrewritethevalue θasfollows,
+θ=1
+ρ
+/summationdisplay
+j:vj≥v(ρ)vj−z
+. (10)
+The task of projection can thus be distilled to the task of
+ﬁnding θ,whichinturnreducestothetaskofﬁnding ρand
+the pivot element v(ρ). Our problem thus resembles the
+task of ﬁnding an order statistic with an additional compli-
+cating factor stemming from the need to compute summa-
+tions (while searching) of the form given by Eq. (9). Our
+efﬁcient projection algorithm is based on a modiﬁcation of
+the randomized median ﬁnding algorithm (Cormen et al.,2001). The algorithm computes partial sums just-in-time
+and has expected linear timecomplexity.
+The algorithm identiﬁes ρand the pivot value v(ρ)without
+sorting the vector vby using a divide and conquer proce-
+dure. The procedure works in rounds and on each round
+eithereliminateselementsshowntobestrictlysmallertha n
+v(ρ)or updates the partial sum leading to Eq. (9). To do so
+the algorithm maintains a set of unprocessed elements of
+v. This set contains the components of vwhose relation-
+ship to v(ρ)we do not know. We thus initially set U= [n].
+On each round of the algorithm we pick at random an in-
+dexkfrom the set U. Next, we partition the set Uinto
+two subsets GandL.Gcontains all the indices j∈U
+whose components vj> vk;Lcontains those j∈Usuch
+thatvjis smaller. We now face two cases related to the
+current summation of entries in vgreater than the hypoth-
+esized v(ρ)(i.e.vk). If/summationtext
+j:vj≥vk(vj−vk)< zthen by
+Eq. (9), vk≥v(ρ). In this case we know that all the el-
+ements in Gparticipate in the sum deﬁning θas given by
+Eq. (9). We can discard Gand set Uto beLas we still
+need to further identify the remaining elements in L. If/summationtext
+j:vj≥vk(vj−vk)≥zthen the same rationale implies
+thatvk< v(ρ). Thus,alltheelementsin Laresmallerthan
+v(ρ)and can be discarded. In this case we can remove the
+setLandvkand set Uto beG\{k}. The entire process
+ends when Uis empty.
+Along the process we also keep track of the sum and the
+number of elements in vthat we have found thus far to
+be no smaller than v(ρ), which is required in order not to
+recalculate partial sums. The pseudo-code describing the
+efﬁcient projection algorithm is provided in Fig. 2. We
+keep the set of elements found to be greater than v(ρ)only
+implicitly . Formally, at each iteration of the algorithm we
+maintain a variable s, which is the sum of the elements in
+the set{vj:j∝\e}atio\slash∈U,vj≥v(ρ)}, and overload ρto des-
+ignate the cardinality of the this set throughout the algo-
+rithm. Thus,whenthealgorithmsexitsitsmainwhileloop,
+ρis the maximizer deﬁned in Lemma 1. Once the while
+loop terminates, we are left with the task of calculating θ
+using Eq. (10) and performing the actual projection. Since/summationtext
+j:vj≥µρvjis readily available to us as the variable s, we
+simply set θto be(s−z)/ρand perform the projection as
+prescribed by Eq. (6).
+Though omitted here for lack of space, we can also extend
+the algorithms to handle the more general constraint that/summationtextai|wi|≤zforai≥0.
+6.EfﬁcientProjection for SparseGradients
+Before we dive into developing a new algorithm, we re-
+mind the reader of the iterations the minimization algo-
+rithm takes from Eq. (2): we generate a sequence {w(t)}Efﬁcient Projections ontothe ℓ1-Ballfor Learningin High Dimensions
+INPUTA balanced treeTand ascalar z >0
+INITIALIZE v⋆=∞,ρ∗=n+ 1,s∗=z
+CALLPIVOTSEARCH(root(T),0, 0)
+PROCEDURE PIVOTSEARCH (v,ρ,s)
+COMPUTE ˆρ=ρ+r(v) ; ˆs=s+σ(v)
+IFˆs < vˆρ+z//v≥pivot
+IFv⋆> v
+v⋆=v;ρ⋆= ˆρ;s⋆= ˆs
+ENDIF
+IFleafT(v)
+RETURN θ= (s⋆−z)/ρ⋆
+ENDIF
+CALLPIVOTSEARCH (leftT(v),ˆρ,ˆs)
+ELSE //v <pivot
+IFleafT(v)
+RETURN θ= (s⋆−z)/ρ⋆
+ENDIF
+CALLPIVOTSEARCH/parenleftbig
+rightT(v),ρ,s/parenrightbig
+ENDIF
+ENDPROCEDURE
+Figure3. Efﬁcientsearchofpivotvalueforsparsefeaturespaces.
+by iterating
+w(t+1)= Π W/parenleftBig
+w(t)+g(t)/parenrightBig
+whereg(t)=−ηt∇(t),W={w|∝ba∇dblw∝ba∇dbl1≤z}andΠWis
+projection onto this set.
+In many applications the dimension of the feature space
+is very high yet the number of features which attain a
+non-zero value for each example is very small (see for in-
+stance our experiments on text documents in Sec. 7). It is
+straightforward to implement the gradient-related update s
+in time which is proportional to the number of non-zero
+features, but the time complexity of the projection algo-
+rithm described in the previous section is linear in the di-
+mension. Therefore,usingthealgorithmverbatimcouldbe
+prohibitively expensive in applications where the dimen-
+sion is high yet the number of features which are “on” in
+each example is small. In this section we describe a pro-
+jectionalgorithmthatupdatesthevector w(t)withg(t)and
+scaleslinearlyinthenumberofnon-zeroentriesof g(t)and
+onlylogarithmically in the total number of features ( i.e.
+non-zeros in w(t)).
+Theﬁrststepinfacilitatinganefﬁcientprojectionforspa rse
+featurespacesistorepresenttheprojectedvectorasa“raw ”
+vectorvby incorporating a global shift that is applied to
+each non-zero component. Speciﬁcally, each projection
+step amounts to deducting θfrom each component of v
+and thresholding the result at zero. Let us denote by θtthe
+shiftvalueusedonthe tthiterationofthealgorithmandby
+Θtthe cumulative sum of the shift values, Θt=/summationtext
+s≤tθs.
+The representation we employ enables us to perform thestep in which we deduct θtfrom all the elements of the
+vectorimplicitly , adhering tothe goal of performing a sub-
+linearnumberofoperations. Asbefore,weassumethatthe
+goal is to project onto the simplex. Equipped with these
+variables, the jthcomponent oftheprojected vector after t
+projectedgradientstepscanbewrittenas max{vj−Θt,0}.
+Thesecondsubstantialmodiﬁcationtothecorealgorithmis
+tokeeponlythe non-zero components oftheweightvector
+inared-blacktree(Cormenetal.,2001). Thered-blacktree
+facilitates an efﬁcient search for the pivot element ( v(ρ)) in
+timewhich islogarithmic inthedimension, aswedescribe
+in the sequel. Once the pivot element is found we implic-
+itly deduct θtfrom all the non-zero elements in our weight
+vectorbyupdating Θt. Wethenremoveallthecomponents
+that are less than v(ρ)(i.e. less than Θt); this removal is
+efﬁcientandrequiresonlylogarithmictime(Tarjan,1983) .
+Thecourseofthealgorithmisasfollows. After tprojected
+gradientiterationswehaveavector v(t)whosenon-zeroel-
+ementsarestoredinared-blacktree Tandaglobaldeduc-
+tionvalue Θtwhichisappliedtoeachnon-zerocomponent
+just-in-time, i.e.when needed. Therefore, each non-zero
+weightisaccessedas vj−ΘtwhileTdoesnotcontainthe
+zeroelementsofthevector. Whenupdating vwithagradi-
+ent, we modify the vector v(t)by adding to it the gradient-
+basedvector g(t)withknon-zerocomponents. Thisupdate
+is done using kdeletions (removing vifromTsuch that
+g(t)
+i∝\e}atio\slash= 0) followed by kre-insertions of v′
+i= (vi+g(t)
+i)
+intoT, which takes O(klog(n))time. Next we ﬁnd in
+O(log(n))time the value of θt. Fig. 3 contains the algo-
+rithm for this step; it is explained in the sequel. The last
+stepremovesallelementsofthenewrawvector v(t)+g(t)
+which become zero due to the projection. This step is dis-
+cussed at theend of this section.
+In contrast to standard tree-based search procedure, to ﬁnd
+θtwe need to ﬁnd a pair of consecutive values in vthat
+correspond to v(ρ)andv(ρ+1). We do so by keeping track
+of the smallest element that satisﬁes the left hand side of
+Eq.(9)whilesearchingbasedontheconditiongivenonthe
+righthandsideofthesameequation. Tiskeyedontheval-
+uesoftheun-shiftedvector vt. Thus,allthechildreninthe
+left(right)sub-treeofanode vrepresentvaluesin vtwhich
+aresmaller(larger)than v. Inordertoefﬁcientlyﬁnd θtwe
+keepateachnodethefollowinginformation: (a)Thevalue
+of the component, simply denoted as v. (b) The number of
+elementsintherightsub-treerootedat v,denoted r(v),in-
+cludingthenode v. (c)Thesumoftheelementsintheright
+sub-tree rooted at v, denoted σ(v), including the value v
+itself. Our goal is to identify the pivot element v(ρ)and its
+indexρ. Intheprevioussectionwedescribedasimplecon-
+dition for checking whether an element in vis greater or
+smaller than the pivot value. We now rewrite this expres-
+sion yet one more time. A component with value visnotEfﬁcient Projections ontothe ℓ1-Ballfor Learningin High Dimensions
+smaller than thepivot iffthefollowing holds:
+/summationdisplay
+j:vj≥vvj>|{j:vj≥v}|·v+z . (11)
+The variables in the red-black tree form the infrastructure
+for performing efﬁcient recursive computation of Eq. (11).
+NotealsothattheconditionexpressedinEq.(11)stillhold s
+when we do notdeduct Θtfrom all theelements in v.
+The search algorithm maintains recursively the number ρ
+and the sum sof the elements that have been shown to be
+greater or equal to the pivot. We start the search with the
+root node ofT, and thus initially ρ= 0ands= 0. Upon
+entering a new node v, the algorithm checks whether the
+conditiongivenbyEq.(11)holdsfor v. Since ρandswere
+computed for the parent of v, we need to incorporate the
+number and the sum of the elements that are larger than v
+itself. By construction, these variables are r(v)andσ(v),
+which we store at the node vitself. We let ˆρ=ρ+r(v)
+andˆs=s+σ(v),andwiththesevariableshandy,Eq.(11)
+distillstotheexpression ˆs < vˆρ+z. Iftheinequalityholds,
+we know that vis either larger than the pivot or it may be
+the pivot itself. We thus update our current hypothesis for
+µρandρ(designated as v⋆andρ⋆in Fig. 3). We continue
+searching the left sub-tree (leftT(v)) which includes all el-
+ements smaller than v. If inequality ˆs < v ˆρ+zdoes not
+hold, we know that v < µ ρ, and we thus search the right
+subtree (rightT(v)) and keep ρandsintact. The process
+naturally terminates once we reach a leaf, where we can
+alsocalculate thecorrect value of θusingEq. (10).
+Once we ﬁnd θt(ifθt≥0) we update the global shift,
+Θt+1= Θ t+θt. We need to discard all the elements in
+Tsmaller than Θt+1, which we do using Tarjan’s (1983)
+algorithm for splitting a red-black tree. This step is log-
+arithmic in the total number of non-zero elements of vt.
+Thus, as the additional variables in the tree can be updated
+in constant time as a function of a node’s child nodes in
+T, each of the operations previously described can be per-
+formedinlogarthmictime(Cormenetal.,2001),givingus
+atotal update timeof O(klog(n)).
+7.Experiments
+Wenowpresentexperimentalresultsdemonstratingtheef-
+fectiveness of the projection algorithms. We ﬁrst report re -
+sults for experiments with synthetic data and then move to
+experiments withhigh dimensional natural datasets.
+In our experiment with synthetic data, we compared vari-
+ants of the projected subgradient algorithm (Eq. (2)) for
+ℓ1-regularized least squares and ℓ1-regularized logistic re-
+gression. We compared our methods to a specialized
+coordinate-descentsolverfortheleastsquaresproblemdu e
+to Friedman et al. (2007) and to very fast interior point0.20.40.60.811.21.41.61.822.2
+x 10810−1100101102
+Approximate Flopsf − f*
+  
+Coordinate
+L1 − Line
+L1 − Batch
+L1 − Stoch
+IP
+1 2 3 4 5 6
+x 10910−1100101102103
+Approximate Flopsf − f*
+  
+Coordinate
+L1 − Batch
+L1 − Stoch
+IP
+Figure4. Comparisonofmethodson ℓ1-regularizedleastsquares.
+Thelefthas dimension n= 800,theright n= 4000
+methodsforbothleastsquaresandlogisticregression(Koh
+et al., 2007; Kim et al., 2007). The algorithms we use are
+batch projected gradient, stochastic projected subgradie nt,
+and batch projected gradient augmented with a backtrack-
+ing line search (Koh et al., 2007). The IP and coordinate-
+wise methods both solve regularized loss functions of the
+formf(w) =L(w) +λ∝ba∇dblw∝ba∇dbl1rather than having an ℓ1-
+domain constraint, so our objectives are not directly com-
+parable. To surmount this difﬁculty, we ﬁrst minimize
+L(w)+λ∝ba∇dblw∝ba∇dbl1andusethe1-normoftheresultingsolution
+w∗as theconstraint forour methods.
+To generate the data for the least squares problem setting,
+wechosea wwithentriesdistributednormallywith0mean
+and unit variance and randomly zeroed 50% of the vector.
+The data matrix X∈Rm×nwas random with entries also
+normallydistributed. Togeneratetargetvaluesforthelea st
+squares problem, we set y=Xw+ν, where the com-
+ponents of νwere also distributed normally at random. In
+the case of logistic regression, we generated data Xand
+the vector widentically, but the targets yiwere set to be
+sign(w·xi)with probability 90% and to −sign(w·xi)
+otherwise. We ran two sets of experiments, one each for
+n= 800andn= 4000. We also set the number of ex-
+amples mto be equal to n. For the subgradient methods
+in these experiments and throughout the remainder, we set
+ηt=η0/√
+t, choosing η0to give reasonable performance.
+(η0too large will mean that the initial steps of the gradient
+method are not descent directions; the noise will quickly
+disappear because thestepsizesareproportional to 1/√
+t).
+Fig. 4 and Fig. 5 contain the results of these experiments
+and plot f(w)−f(w∗)as a function of the number of
+ﬂoating point operations. From the ﬁgures, we see that the
+projectedsubgradientmethodsaregenerallyveryfastatth e
+outset,gettingustoanaccuracyof f(w)−f(w∗)≤10−2
+quickly, but their rateof convergence slows over time. The
+fastprojectionalgorithmswehavedeveloped, however, al-
+low projected-subgradient methods to be very competitive
+with specialized methods, even on these relatively small
+problemsizes. Onhigher-dimensiondatasetsinteriorpoin t
+methods are infeasible or very slow. The rightmost graphs
+in Fig. 4 and Fig. 5 plot f(w)−f(w∗)as functions of
+ﬂoating point operations for least squares and logistic re-Efﬁcient Projections ontothe ℓ1-Ballfor Learningin High Dimensions
+0.511.522.533.544.555.5
+x 10810−410−310−210−1
+Approximate Flopsf − f*
+  
+L1 − Line
+L1 − Batch
+L1 − Stoch
+IP
+12345678
+x 10910−510−410−310−210−1
+Approximate Flopsf − f*
+  
+L1 − Batch
+L1 − Stoch
+IP
+Figure5. Comparison of methods on ℓ1-regularized logistic re-
+gression. The lefthas dimension n= 800,the right n= 4000
+gression with dimension n= 4000. These results indicate
+that in high dimensional feature spaces, the asymptoticall y
+faster convergence of IP methods is counteracted by their
+quadratic dependence on thedimension of thespace.
+We also ran a series of experiments on two real datasets
+with high dimensionality: the Reuters RCV1 Cor-
+pus (Lewis et al., 2004) and the MNIST handwritten digits
+database. The Reuters Corpus has 804,414 examples; with
+simple stemming and stop-wording, there are 112,919 uni-
+gramfeaturesand1,946,684bigramfeatures. Withourpre-
+processing,theunigramshaveasparsityof1.2%andthebi-
+gramshavesparsityof.26%. Weperformed ℓ1-constrained
+binary logistic regression on the CCAT category from
+RCV1 (classifying a document as corporate/industrial) us-
+ingunigramsinabatchsettingandbigramsinanonlineset-
+ting. TheMNISTdatasetconsistsof60,000trainingexam-
+plesanda10,000exampletestsetandhas10-classes;each
+imageisagray-scale 28×28image,whichwerepresentas
+xi∈R784. Rather than directly use the input xi, however,
+we learned weights wjusing the following Kernel-based
+“similarity”function foreach class j∈{1,... ,10}:
+k(x,j) =/summationdisplay
+i∈SwjiσjiK(xi,x), σji=/braceleftbigg1 ifyi=j
+−1 otherwise .
+In the above, Kis a Gaussian kernel function, so that
+K(x,y) = exp(−∝ba∇dblx−y∝ba∇dbl2/25), andSis a 2766 element
+support set. We put an ℓ1constraint on each wj, giving us
+thefollowing multiclass objective withdimension 27,660:
+minimize w1
+m/summationtextm
+i=1log/parenleftBig
+1 +/summationtext
+r/negationslash=yiek(xi,r)−k(xi,yi)/parenrightBig
+s.t.∝ba∇dblwj∝ba∇dbl1≤z,wj∝{ollowsequal0.
+(12)
+As a comparison to our projected subgradient methods on
+realdata,weusedamethodknownintheliteratureaseither
+entropic descent, a special case of mirror descent (Beck &
+Teboulle, 2003), or exponentiated gradient (EG) (Kivinen
+& Warmuth, 1997). EG maintains a weight vector wsub-
+ject to the constraint that/summationtext
+iwi=zandw∝{ollowsequal0; it can
+easily be extended to work with negative weights under a
+1-normconstraintbymaintainingtwovectors w+andw−.
+WecompareagainstEGsinceitworkswellinveryhighdi-0 20 40 60 80 100 12010−310−210−1
+Time (CPU seconds)f − f*
+  
+L1 − Stoch
+L1 − Full
+EG − Full
+EG − Stoch
+05010015020025030035040045010−410−310−210−1
+Time (CPU seconds)f − f*
+  
+L1 − 1
+EG − 1
+L1 − 100
+EG − 100
+Figure6. EGandprojected subgradientmethods on RCV1.
+mensionalspaces,anditveryquicklyidentiﬁesandshrinks
+weightsforirrelevantfeatures(Kivinen&Warmuth,1997).
+At every stepof EG weupdate
+w(t+1)
+i=w(t)
+iexp/parenleftbig
+−ηt∇if(w(t))/parenrightbig
+Zt(13)
+where Ztnormalizes so that/summationtext
+iw(t+1)
+i =zand∇if
+denotes the ithentry of the gradient of f, the function
+to be minimized. EG can actually be viewed as a pro-
+jected subgradient method using generalized relative en-
+tropy ( D(x∝ba∇dbly) =/summationtext
+ixilogxi
+yi−xi+yi) as the distance
+function for projections (Beck & Teboulle, 2003). We can
+replace∇ifwithˆ∇ifin Eq. (13), an unbiased estimator
+of the gradient of f, to get stochastic EG. A step size ηt∝
+1/√
+tguaranteesaconvergence rateof O(/radicalbig
+logn/T). For
+each experiment with EG, however, we experimented with
+learning rates proportional to 1/t,1/√
+t, and constant, as
+well as different initial step-sizes; to make EG as competi-
+tive as possible, we chose the step-size and rate for which
+EG performed best oneach individual test..
+Resultsforourbatchexperimentslearningalogisticclass i-
+ﬁer for CCAT on the Reuters corpus can be seen in Fig. 6.
+The ﬁgure plots the binary logistic loss of the different al-
+gorithms minus the optimal log loss as a function of CPU
+time. On the left side Fig. 6, we used projected gradient
+descent and stochastic gradient descent using 25% of the
+training data to estimate the gradient, and we used the al-
+gorithm of Fig. 2 for the projection steps. We see that ℓ1-
+projections outperform EG both in terms of convergence
+speed and empirical log-loss. On the right side of the ﬁg-
+ure, we performed stochastic descent using only 1 training
+example or 100 training examples to estimate the gradient,
+using Fig. 3 to project. When the gradient is sparse, up-
+datesforEGare O(k)(where kisthenumberofnon-zeros
+in the gradient), so EG has a run-time advantage over ℓ1-
+projections when the gradient is very sparse. This advan-
+tage can be seen intheright sideof Fig. 6.
+For MNIST, with dense features, we ran a similar series
+of tests to those we ran on the Reuters Corpus. We plot
+the multiclass logistic loss from Eq. (12) over time (as a
+functionofthenumbergradientevaluations)inFig.7. The
+left side of Fig. 7 compares EG and gradient descent usingEfﬁcient Projections ontothe ℓ1-Ballfor Learningin High Dimensions
+246810121416182010−1100
+Gradient Evaluationsf − f*
+  
+EG
+L1
+50 100 150 200 250 300 350 40010−1100
+Stochastic Subgradient Evaluationsf − f*
+  
+EG
+L1
+Figure7. MNIST multiclass logistic loss as a function of the
+number of gradient steps. The left uses true gradients, the right
+stochasticsubgradients.
+0 1 2 3 4 5 6 7 8
+x 1050.511.522.533.5x 105
+Training ExamplesCumulative Loss
+  
+EG − CCAT
+EG − ECAT
+L1 − CCAT
+L1 − ECAT
+0 1 2 3 4 5 6 7 8
+x 10501234567
+Training Examples% Sparsity
+  
+% of Total Features
+% of Total Seen
+Figure8. Online learning of bigram classiﬁer on RCV1. Left is
+the cumulative loss,rightshows sparsityover time.
+the true gradient while the right ﬁgure compares stochas-
+tic EG and stochastic gradient descent using only 1% of
+the training set to estimate the gradient. On top of outper-
+forming EG in terms of convergence rate and loss, the ℓ1-
+projectionmethodsalsogavesparsity,zeroingoutbetween
+10 and 50% of the components of each class vector wjin
+theMNIST experiments, whileEG gives no sparsity.
+As a last experiment, we ran an online learning test on
+the RCV1 dataset using bigram features, comparing ℓ1-
+projections to using decreasing step sizes given by Zinke-
+vich (2003) to exponential gradient updates. The ℓ1-
+projections are computationally feasible because of algo-
+rithm 3, as the dimension of our feature space is nearly 2
+million (using the expected linear-time algorithm of Fig. 2
+takes 15 times as long to compute the projection for the
+sparse updates in online learning). We selected the bound
+on the 1-norm of the weights to give the best online re-
+gret of all our experiments (in our case, the bound was
+100). The results of this experiment are in Fig. 8. The
+left ﬁgure plots the cumulative log-loss for the CCAT and
+ECATbinarypredictionproblemsasafunctionofthenum-
+ber of training examples, while the right hand ﬁgure plots
+the sparsity of the ℓ1-constrained weight vector both as a
+function of the dimension and as a function of the number
+of features actually seen. The ℓ1-projecting learner main-
+tained an active set with only about 5%non-zero compo-
+nents;theEGupdateshavenosparsitywhatsoever. Ouron-
+lineℓ1-projections outperform EG updates in terms of the
+online regret (cumulative log-loss), and the ℓ1-projection
+updates also achieve a classiﬁcation error rate of 11.9%
+over all the examples on the CCAT task and 14.9% onECAT (versus more than 15% and 20% respectively for
+EG).
+Acknowledgments
+We thank the anonymous reviewers for their helpful and
+insightful comments.
+References
+Beck, A., & Teboulle, M. (2003). Mirror descent and nonlinear
+projectedsubgradientmethods forconvex optimization. Opera-
+tionsResearch Letters ,31, 167–175.
+Bertsekas, D. (1999). Nonlinear programming . Athena Scien-
+tiﬁc.
+Candes, E. J. (2006). Compressive sampling. Proc. of the Int.
+CongressofMath.,Madrid,Spain .
+Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C.
+(2001).Introduction toalgorithms . MIT Press.
+Crammer, K., & Singer, Y. (2002). On the learnability and de-
+signofoutputcodesformulticlassproblems. MachineLearning ,
+47.
+Donoho, D. (2006a). Compressed sensing. Technical Report,
+StanfordUniversity .
+Donoho,D.(2006b).Formostlargeunderdeterminedsystemsof
+linearequations,theminimal ℓ1-normsolutionisalsothespars-
+estsolution. Comm.PureAppl.Math. 59 .
+Friedman, J., Hastie, T., & Tibshirani, R. (2007). Pathwise co-
+ordinateoptimization. Annals ofAppliedStatistics ,1,302–332.
+Gafni, E., & Bertsekas, D. P. (1984). Two-metric projection
+methodsforconstrainedoptimization. SIAMJournalonControl
+andOptimization ,22,936–964.
+Hazan, E. (2006). Approximate convex optimization by online
+gameplaying. Unpublished manuscript.
+Kim, S.-J., Koh, K., Lustig, M., Boyd, S., & Gorinevsky, D.
+(2007). An interior-point method for large-scale ℓ1-regularized
+least squares. IEEE Journal on Selected Topics in Signal Pro-
+cessing,4,606–617.
+Kivinen,J.,&Warmuth,M.(1997). Exponentiatedgradientver-
+susgradientdescentforlinearpredictors. InformationandCom-
+putation,132, 1–64.
+Koh, K., Kim, S.-J., & Boyd, S. (2007). An interior-point
+method for large-scale ℓ1-regularized logistic regression. Jour-
+nalofMachine LearningResearch ,8,1519–1555.
+Lewis, D., Yang, Y., Rose, T., & Li, F. (2004). Rcv1: A new
+benchmark collection for text categorization research. Journal
+ofMachine LearningResearch ,5, 361–397.
+Ng, A. (2004). Feature selection, l1vs.l2regularization, and
+rotational invariance. Proceedings of the Twenty-First Interna-
+tionalConference onMachine Learning .
+Shalev-Shwartz, S., & Singer, Y. (2006). Efﬁcient learning of
+labelrankingbysoftprojectionsontopolyhedra. JournalofMa-
+chine LearningResearch ,7(July), 1567–1599.
+Shalev-Shwartz, S., Singer, Y., & Srebro, N. (2007). Pegasos:
+Primal estimated sub-gradient solver for SVM. Proceedings of
+the24thInternational Conference onMachine Learning .
+Tarjan, R. E. (1983). Data structures and network algorithms .
+Societyfor IndustrialandApplied Mathematics.
+Tibshirani, R. (1996). Regression shrinkage and selection via
+thelasso. J. Royal.Statist.Soc B. ,58, 267–288.
+Zinkevich,M.(2003). Onlineconvexprogrammingandgeneral-
+ized inﬁnitesimal gradient ascent. Proceedings of the Twentieth
+InternationalConference onMachine Learning .

@@ -1,0 +1,497 @@
+Deflation Methods for Sparse PCA
+
+Lester Mackey
+C
+omputer Science Division
+University of California, Berkeley
+Berkeley, CA 94703
+Abstract
+In analogy to the PCA setting, the sparse PCA problem is often solved by iter-
+atively alternating between two subtasks: cardinality-constrained rank-one vari-
+ance maximization and matrix deﬂation. While the former has received a great
+deal of attention in the literature, the latter is seldom analyzed and is typically
+borrowed without justiﬁcation from the PCA context. In this work, we demon-
+strate that the standard PCA deﬂation procedure is seldom appropriate for the
+sparse PCA setting. To rectify the situation, we ﬁrst develop several deﬂation al-
+ternativesbettersuitedtothecardinality-constrainedcontext. Wethenreformulate
+thesparsePCAoptimizationproblemtoexplicitlyreﬂectthemaximum additional
+variance objective on each round. The result is a generalized deﬂation procedure
+that typically outperforms more standard techniques on real-world datasets.
+1 Introduction
+Principal component analysis (PCA) is a popular change of variables technique used in data com-
+pression, predictive modeling, and visualization. The goal of PCA is to extract several principal
+components, linear combinations of input variables that together best account for the variance in a
+data set. Often, PCA is formulated as an eigenvalue decomposition problem: each eigenvector of
+the sample covariance matrix of a data set corresponds to the loadingsor coefﬁcients of a principal
+component. A common approach to solving this partial eigenvalue decomposition is to iteratively
+alternatebetweentwosubproblems: rank-onevariancemaximizationandmatrixdeﬂation. Theﬁrst
+subproblem involves ﬁnding the maximum-variance loadings vector for a given sample covariance
+matrixor,equivalently,ﬁndingtheleadingeigenvectorofthematrix. Thesecondinvolvesmodifying
+the covariance matrix to eliminate the inﬂuence of that eigenvector.
+AprimarydrawbackofPCAisitslackofsparsity. Eachprincipalcomponentisalinearcombination
+of all variables, and the loadings are typically non-zero. Sparsity is desirable as it often leads to
+more interpretable results, reduced computation time, and improved generalization. Sparse PCA
+[8, 3, 16, 17, 6, 18, 1, 2, 9, 10, 12] injects sparsity into the PCA process by searching for “pseudo-
+eigenvectors”, sparse loadings that explain a maximal amount variance in the data.
+In analogy to the PCA setting, many authors attempt to solve the sparse PCA problem by itera-
+tively alternating between two subtasks: cardinality-constrained rank-one variance maximization
+and matrix deﬂation. The former is an NP-hard problem, and a variety of relaxations and approx-
+imate solutions have been developed in the literature [1, 2, 9, 10, 12, 16, 17]. The latter subtask
+has received relatively little attention and is typically borrowed without justiﬁcation from the PCA
+context. In this work, we demonstrate that the standard PCA deﬂation procedure is seldom appro-
+priateforthesparsePCAsetting. Torectifythesituation,weﬁrstdevelopseveralheuristicdeﬂation
+alternativeswithmoredesirableproperties. WethenreformulatethesparsePCAoptimizationprob-
+lem to explicitly reﬂect the maximum additional variance objective on each round. The result is a
+generalized deﬂation procedure that typically outperforms more standard techniques on real-world
+datasets.
+1Theremainderofthepaperisorganizedasfollows. InSection 2wediscussmatrixdeﬂationasitre-
+latestoPCAandsparsePCA.WeexaminethefailingsoftypicalPCAdeﬂationinthesparsesetting
+anddevelopseveralalternativedeﬂationprocedures. InSection3,wepresentareformulationofthe
+standard iterative sparse PCA optimization problem and derive a generalized deﬂation procedure
+to solve the reformulation. Finally, in Section 4, we demonstrate the utility of our newly derived
+deﬂation techniques on real-world datasets.
+Notation
+Iis the identity matrix. Sp
++is the set of all symmetric, positive semideﬁnite matrices in Rp×p.
+Card( x)represents the cardinality of or number of non-zero entries in the vector x.
+2 Deﬂation methods
+Amatrix deﬂation modiﬁes a matrix to eliminate the inﬂuence of a given eigenvector, typically by
+setting the associated eigenvalue to zero (see [14] for a more detailed discussion). We will ﬁrst
+discuss deﬂation in the context of PCA and then consider its extension to sparse PCA.
+2.1 Hotelling’s deﬂation and PCA
+InthePCAsetting,thegoalistoextractthe rleadingeigenvectorsofthesamplecovariancematrix,
+A0∈Sp
++, as its eigenvectors are equivalent to the loadings of the ﬁrst rprincipal components.
+Hotelling’sdeﬂationmethod[11]isasimpleandpopulartechniqueforsequentiallyextractingthese
+eigenvectors. On the t-th iteration of the deﬂation method, we ﬁrst extract the leading eigenvector
+ofAt−1,
+xt= argmax
+x:xTx=1xTAt−1x (1)
+and we then use Hotelling’s deﬂation to annihilate xt:
+At=At−1−xtxT
+tAt−1xtxT
+t. (2)
+The deﬂation step ensures that the t+ 1-st leading eigenvector of A0is the leading eigenvector of
+At. The following proposition explains why.
+Proposition2.1. Ifλ1≥...≥λparetheeigenvaluesof A∈Sp
++,x1,... ,x parethecorresponding
+eigenvectors,and ˆA=A−xjxT
+jAxjxT
+jforsome j∈1,... ,p,then ˆAhaseigenvectors x1,... ,x p
+with corresponding eigenvalues λ1,... ,λ j−1,0,λj+1,... ,λ p.
+PROOF.
+ˆAxj=Axj−xjxT
+jAxjxT
+jxj=Axj−xjxT
+jAxj=λjxj−λjxj= 0xj.
+ˆAxi=Axi−xjxT
+jAxjxT
+jxi=Axi−0 =λixi,∀i/ne}ationslash=j.
+Thus, Hotelling’s deﬂation preserves all eigenvectors of a m atrix and annihilates a selected eigen-
+valuewhilemaintainingallothers. Notably,thisimpliesthatHotelling’sdeﬂationpreservespositive-
+semideﬁniteness. In the case of our iterative deﬂation method, annihilating the t-th leading eigen-
+vector of A0renders the t+ 1-st leading eigenvector dominant in the next round.
+2.2 Hotelling’s deﬂation and sparse PCA
+In the sparse PCA setting, we seek rsparse loadings which together capture the maximum amount
+of variance in the data. Most authors [1, 9, 16, 12] adopt the additional constraint that the loadings
+be produced in a sequential fashion. To ﬁnd the ﬁrst such ”pseudo-eigenvector”, we can consider a
+cardinality-constrained version of Eq. (1):
+x1= argmax
+x:xTx=1,Card( x)≤k1xTA0x. (3)
+2Thatleavesuswiththequestionofhowtobestextractsubsequ entpseudo-eigenvectors. Acommon
+approachintheliterature[1,9,16,12]istoborrowtheiterativedeﬂationmethodofthePCAsetting.
+Typically, Hotelling’s deﬂation is utilized by substituting an extracted pseudo-eigenvector for a true
+eigenvector in the deﬂation step of Eq. (2). This substitution, however, is seldom justiﬁed, for the
+properties of Hotelling’s deﬂation, discussed in Section 2.1, depend crucially on the use of a true
+eigenvector.
+To see what can go wrong when Hotelling’s deﬂation is applied to a non-eigenvector, consider the
+following example.
+Example. LetC=/parenleftbigg
+2 1
+1 1/parenrightbigg
+, a2×2matrix. The eigenvalues of Careλ1= 2.6180andλ2=
+.3820. Let x= (1,0)T, a sparse pseudo-eigenvector, and ˆC=C−xxTCxxT, the corresponding
+deﬂated matrix. Then ˆC=/parenleftbigg
+0 1
+1 1/parenrightbigg
+with eigenvalues ˆλ1= 1.6180andˆλ2=−.6180. Thus,
+Hotelling’s deﬂation does not in general preserve positive-semideﬁniteness when applied to a non-
+eigenvector.
+ThatSp
++is not closed under pseudo-eigenvector Hotelling’s deﬂation is a serious failing, for most
+iterative sparse PCA methods assume a positive-semideﬁnite matrix on each iteration. A second,
+related shortcoming of pseudo-eigenvector Hotelling’s deﬂation is its failure to render a pseudo-
+eigenvectororthogonaltoadeﬂatedmatrix. If Aisourmatrixofinterest, xisourpseudo-eigenvector
+with variance λ=xTAx, and ˆA=A−xxTAxxTis our deﬂated matrix, then ˆAx=Ax−
+xxTAxxTx=Ax−λxis zero iff xis a true eigenvector. Thus, even though the “variance” of
+xw.r.t. ˆAis zero (xTˆAx=xTAx−xTxxTAxxTx=λ−λ= 0), “covariances” of the form
+yTˆAxfory/ne}ationslash=xmay still be non-zero. This violation of the Cauchy-Schwarz inequality betrays a
+lackofpositive-semideﬁnitenessandmayencouragethereappearanceof xasacomponentoffuture
+pseudo-eigenvectors.
+2.3 Alternative deﬂation techniques
+In this section, we will attempt to rectify the failings of pseudo-eigenvector Hotelling’s deﬂation by
+considering several alternative deﬂation techniques better suited to the sparse PCA setting. Note
+that any deﬂation-based sparse PCA method (e.g. [1, 9, 16, 12]) can utilize any of the deﬂation
+techniques discussed below.
+2.3.1 Projection deﬂation
+Given a data matrix Y∈Rn×pand an arbitrary unit vector in x∈Rp, an intuitive way to remove
+the contribution of xfromYis to project Yonto the orthocomplement of the space spanned by x:
+ˆY=Y(I−xxT). IfAis the sample covariance matrix of Y, then the sample covariance of ˆYis
+given by ˆA= (I−xxT)A(I−xxT), which leads to our formulation for projection deﬂation:
+Projection deﬂation
+At=At−1−xtxT
+tAt−1−At−1xtxT
+t+xtxT
+tAt−1xtxT
+t= (I−xtxT
+t)At−1(I−xtxT
+t)(4)
+Note that when xtis a true eigenvector of At−1with eigenvalue λt, projection deﬂation reduces to
+Hotelling’s deﬂation:
+At=At−1−xtxT
+tAt−1−At−1xtxT
+t+xtxT
+tAt−1xtxT
+t
+=At−1−λtxtxT
+t−λtxtxT
+t+λtxtxT
+t
+=At−1−xtxT
+tAt−1xtxT
+t.
+However, in the general case, when xtis not a true eigenvector, projection deﬂation maintains the
+desirable properties that were lost to Hotelling’s deﬂation. For example, positive-semideﬁniteness
+is preserved:
+∀y,yTAty=yT(I−xtxT
+t)At−1(I−xtxT
+t)y=zTAt−1z
+where z= (I−xtxT
+t)y. Thus, if At−1∈Sp
++, so is At. Moreover, Atis rendered left and right
+orthogonalto xt,as(I−xtxT
+t)xt=xt−xt= 0andAtissymmetric. Projectiondeﬂationtherefore
+annihilates all covariances with xt:∀v,vTAtxt=xT
+tAtv= 0.
+32.3.2 Schur complement deﬂation
+S
+ince our goal in matrix deﬂation is to eliminate the inﬂuence, as measured through variance and
+covariances, of a newly discovered pseudo-eigenvector, it is reasonable to consider the conditional
+variance of our data variables given a pseudo-principal component. While this conditional variance
+isnon-trivialtocomputeingeneral,ittakesonasimpleclosedformwhenthevariablesarenormally
+distributed. Let x∈Rpbeaunitvectorand W∈RpbeaGaussianrandomvector,representingthe
+jointdistributionofthedatavariables. If Whascovariancematrix Σ,then (W,Wx)hascovariance
+matrix V=/parenleftbiggΣ Σx
+xTΣxTΣx/parenrightbigg
+, andV ar(W|Wx) = Σ−ΣxxTΣ
+xTΣxwhenever xTΣx/ne}ationslash= 0[15].
+That is, the conditional variance is the Schur complement of the vector variance xTΣxin the full
+covariance matrix V. By substituting sample covariance matrices for their population counterparts,
+we arrive at a new deﬂation technique:
+Schur complement deﬂation
+At=At−1−At−1xtxT
+tAt−1
+xT
+tAt−1xt(5)
+Schur complement deﬂation, like projection deﬂation, preserves positive-semideﬁniteness. To
+see this, suppose At−1∈Sp
++. Then,∀v,vTAtv=vTAt−1v−vTAt−1xtxT
+tAt−1v
+xT
+tAt−1xt≥0as
+vTAt−1vxT
+tAt−1xt−(vTAt−1xt)2≥0by the Cauchy-Schwarz inequality and xT
+tAt−1xt≥0
+asAt−1∈Sp
++.
+Furthermore, Schur complement deﬂation renders xtleft and right orthogonal to At, since Atis
+symmetric and Atxt=At−1xt−At−1xtxT
+tAt−1xt
+xT
+tAt−1xt=At−1xt−At−1xt=0.
+Additionally,SchurcomplementdeﬂationreducestoHotelling’sdeﬂationwhen xtisaneigenvector
+ofAt−1with eigenvalue λt/ne}ationslash= 0:
+At=At−1−At−1xtxT
+tAt−1
+xT
+tAt−1xt
+=At−1−λtxtxT
+tλt
+λt
+=At−1−xtxT
+tAt−1xtxT
+t.
+Wh
+ile we motivated Schur complement deﬂation with a Gaussianity assumption, the technique ad-
+mits a more general interpretation as a column projection of a data matrix. Suppose Y∈Rn×p
+is a mean-centered data matrix, x∈Rphas unit norm, and ˆY= (I−Y xxTYT
+||Y x||2)Y, the projection
+of the columns of Yonto the orthocomplement of the space spanned by the pseudo-principal com-
+ponent, Y x. IfYhas sample covariance matrix A, then the sample covariance of ˆYis given by
+ˆA=1
+nYT(I−Y
+xxTYT
+||Y x||2)T(I−Y xxTYT
+||Y x||2)Y=1
+nYT(I−Y
+xxTYT
+||Y x||2)Y=A−AxxTA
+xTA x.
+2.3.3 Orthogonalized deﬂation
+While projection deﬂation and Schur complement deﬂation address the concerns raised by per-
+forming a single deﬂation in the non-eigenvector setting, new difﬁculties arise when we attempt to
+sequentially deﬂate a matrix with respect to a seriesof non-orthogonal pseudo-eigenvectors.
+Whenever we deal with a sequence of non-orthogonal vectors, we must take care to distinguish
+between the variance explained by a vector and the additional variance explained, given all pre-
+vious vectors. These concepts are equivalent in the PCA setting, as true eigenvectors of a matrix
+are orthogonal, but, in general, the vectors extracted by sparse PCA will not be orthogonal. The
+additional variance explained by the t-th pseudo-eigenvector, xt, is equivalent to the variance ex-
+plainedbythecomponentof xtorthogonaltothespacespannedbyallpreviouspseudo-eigenvectors,
+qt=xt−Pt−1xt,wherePt−1istheorthogonalprojectionontothespacespannedby x1,... ,x t−1.
+On each deﬂation step, therefore, we only want to eliminate the variance associated with qt. Anni-
+hilating the full vector xtwill often lead to “double counting” and could re-introduce components
+parallel to previously annihilated vectors. Consider the following example:
+4Example. L etC0=I. If we apply projection deﬂation w.r.t. x1= (√
+2
+2,√
+2
+2)T,the result is
+C1=/parenleftbigg1
+2−1
+2
+−1
+21
+2/parenrightbigg
+,
+andx1is orthogonal to C1. If we next apply projection deﬂation to C1w.r.t.
+x2= (1,0)T, the result, C2=/parenleftbigg0 0
+01
+2/parenrightbigg
+,
+is no longer orthogonal to x1.
+The authors of [12] consider this issue of non-orthogonality in the context of Hotelling’s deﬂation.
+Their modiﬁed deﬂation procedure is equivalent to Hotelling’s deﬂation (Eq. (2)) for t= 1and can
+be easily expressed in terms of a running Gram-Schmidt decomposition for t >1:
+Orthogonalized Hotelling’s deﬂation (OHD)
+qt=(I−Qt−1QT
+t−1)xt/vextendsingle/vextendsingle/vextendsingle/vextendsingle(I−Qt−1QT
+t−1)xt/vextendsingle/vextendsingle/vextendsingle/vextendsingle( 6)
+At=At−1−qtqT
+tAt−1qtqT
+t
+where q1=x1,andq1,... ,q t−1formthecolumnsof Qt−1. Since q1,... ,q t−1formanorthonormal
+basis for the space spanned by x1,... ,x t−1, we have that Qt−1QT
+t−1=Pt−1, the aforementioned
+orthogonal projection.
+Since the ﬁrst round of OHD is equivalent to a standard application of Hotelling’s deﬂation, OHD
+inheritsalloftheweaknessesdiscussedinSection2.2. However,thesameprinciplesmaybeapplied
+to projection deﬂation to generate an orthogonalized variant that inherits its desirable properties.
+Schur complement deﬂation is unique in that it preserves orthogonality in all subsequent rounds.
+That is, if a vector vis orthogonal to At−1for any t, then Atv=At−1v−At−1xtxT
+tAt−1v
+xT
+tAt−1xt=0as
+At−1v= 0. This further implies the following proposition.
+Proposition 2.2. Orthogonalized Schur complement deﬂation is equivalent to Schur complement
+deﬂation.
+Proof.Consider the t-th round of Schur complement deﬂation. We may write xt=ot+pt, where
+ptis in the subspace spanned by all previously extracted pseudo-eigenvectors and otis orthogonal
+to this subspace. Then we know that At−1pt= 0, asptis a linear combination of x1,... ,x t−1,
+andAt−1xi= 0,∀i < t. Thus, xT
+tAtxt=pT
+tAtpt+oT
+tAtpt+pT
+tAtot+oT
+tAtot=oT
+tAtot.
+Further, At−1xtxT
+tAt−1=At−1ptpT
+tAt−1+At−1ptoT
+tAt−1+At−1otpT
+tAt−1+At−1otoT
+tAt−1=
+At−1otoT
+tAt−1. Hence, At=At−1−At−1otoT
+tAt−1
+oT
+tAt−1ot=At−1−At−1qtqT
+tAt−1
+qT
+tAt−1qtasqt=ot
+||ot| |.
+Table 1 compares the properties of the various deﬂation techn iques studied in this section.
+Method xT
+tAtxt= 0 Atxt= 0 At∈Sp
++Asxt= 0 ,∀s > t
+Hotelling’s /check×××
+Projection /check /check /check×
+Schur complement /check /check /check /check
+Orth. Hotelling’s /check×××
+Orth. Projection /check /check /check /check
+Table 1: Summary of sparse PCA deﬂation method properties
+3
+ReformulatingsparsePCA
+In the previous section, we focused on heuristic deﬂation techniques that allowed us to reuse the
+cardinality-constrained optimization problem of Eq. (3). In this section, we explore a more princi-
+pled alternative: reformulating the sparse PCA optimization problem to explicitly reﬂect our maxi-
+mization objective on each round.
+Recall that the goal of sparse PCA is to ﬁnd rcardinality-constrained pseudo-eigenvectors which
+together explain the most variance in the data. If we additionally constrain the sparse loadings to
+5begeneratedsequentially,asinthePCAsettingandtheprevi oussection,thenagreedyapproachof
+maximizing the additional variance of each new vector naturally suggests itself.
+On round t, the additional variance of a vector xis given byqTA0q
+qTqwhereA0is the data covari-
+ance matrix, q= (I−P t−1)x, andPt−1is the projection onto the space spanned by previous
+pseudo-eigenvectors x1,... ,x t−1. AsqTq=xT(I−Pt−1)(I−Pt−1)x=xT(I−Pt−1)x, max-
+imizing additional variance is equivalent to solving a cardinality-constrained maximum generalized
+eigenvalue problem,
+max
+xxT(I−Pt−1)A0(I−Pt−1)x
+subject to xT(I−Pt−1)x= 1
+Card( x)≤kt.(7)
+Ifwelet qs= (I−Ps−1)xs,∀s≤t−1,then q1,... ,q t−1formanorthonormalbasisforthespace
+spanned by x1,... ,x t−1. Writing I−P t−1=I−/summationtextt−1
+s=1qsqT
+s=/producttextt−1
+s=1(I−qsqT
+s)suggests a
+generalized deﬂation technique that leads to the solution of Eq. (7) on each round. We imbed the
+technique into the following algorithm for sparse PCA:
+Algorithm 1 G eneralized Deﬂation Method for Sparse PCA
+Given: A0∈Sp
++,r∈N,{k1, ... ,k r}⊂N
+Execute:
+1.B0←I
+2. For t:= 1,... ,r
+•xt← argmax
+x:xTBt−1x=1,Card( x)≤ktxTAt−1x
+•qt←Bt−1xt
+•At←(I−qtqT
+t)At−1(I−qtqT
+t)
+•Bt←Bt−1(I−qtqT
+t)
+•xt←xt/||xt||
+Return:{x1,... ,x r}
+Addingacardinalityconstrainttoamaximumeigenvalueprob lemrenderstheoptimizationproblem
+NP-hard [10], but any of several leading sparse eigenvalue methods, including GSLDA of [10],
+DCPCA of [12], and DSPCA of [1] (with a modiﬁed trace constraint), can be adapted to solve this
+cardinality-constrained generalized eigenvalue problem.
+4 Experiments
+Inthissection,wepresentseveralexperimentsonrealworlddatasetstodemonstratethevalueadded
+by our newly derived deﬂation techniques. We run our experiments with Matlab implementations
+of DCPCA [12] (with the continuity correction of [9]) and GSLDA [10], ﬁtted with each of the
+following deﬂation techniques: Hotelling’s (HD), projection (PD), Schur complement (SCD), or-
+thogonalized Hotelling’s (OHD), orthogonalized projection (OPD), and generalized (GD).
+4.1 Pit props dataset
+The pit props dataset [5] with 13 variables and 180 observations has become a de facto standard for
+benchmarking sparse PCA methods. To demonstrate the disparate behavior of differing deﬂation
+methods, we utilize each sparse PCA algorithm and deﬂation technique to successively extract six
+sparse loadings, each constrained to have cardinality less than or equal to kt= 4. We report the
+additional variances explained by each sparse vector in Table 2 and the cumulative percentage vari-
+ance explained on each iteration in Table 3. For reference, the ﬁrst 6 true principal components of
+the pit props dataset capture 87% of the variance.
+6DCPCA GSLDA
+HDPDSCDOHDOPD GD HDPDSCDOHDOPD GD
+2.9382.9382.9382.9382.9382.938 2.9382.9382.9382.9382.9382.938
+2.2092.2092.0762.2092.2092.209 2.1072.2802.0652.1072.2802.280
+0.9351.4641.9260.9351.4641.477 1.9882.0672.2431.9852.0672.072
+1.3011.4641.1640.7991.4641.464 1.3521.3041.1201.3351.3051.360
+1.2061.0571.4770.9011.0581.178 1.0671.1201.1640.4971.1251.127
+0.9590.9800.7250.4310.9040.988 0.5570.8530.8410.4890.8520.908
+Table 2: Additional variance explained by each of the ﬁrst 6 sp arse loadings extracted from the Pit
+Props dataset.
+OntheDCPCArun,Hotelling’sdeﬂationexplains73.4%ofthevariance,whilethebestperforming
+methods, Schur complement deﬂation and generalized deﬂation, explain approximately 79% of the
+varianceeach. ProjectiondeﬂationanditsorthogonalizedvariantalsooutperformHotelling’sdeﬂa-
+tion,whileorthogonalizedHotelling’sshowstheworstperformancewithonly63.2%ofthevariance
+explained. Similar results are obtained when the discrete method of GSLDA is used. Generalized
+deﬂation and the two projection deﬂations dominate, with GD achieving the maximum cumulative
+variance explained on each round. In contrast, the more standard Hotelling’s and orthogonalized
+Hotelling’s underperform the remaining techniques.
+DCPCA GSLDA
+HD PD SCD OHD OPD GD HD PD SCD OHD OPD GD
+22.6% 22.6% 22.6% 22.6% 22.6% 22.6% 22.6% 22.6% 22.6% 22.6% 22.6% 22.6%
+39.6% 39.6% 38.6% 39.6% 39.6% 39.6% 38.8% 40.1% 38.5% 38.8% 40.1% 40.1%
+46.8% 50.9% 53.4% 46.8% 50.9% 51.0% 54.1% 56.0% 55.7% 54.1% 56.0% 56.1%
+56.8% 62.1% 62.3% 52.9% 62.1% 62.2% 64.5% 66.1% 64.4% 64.3% 66.1% 66.5%
+66.1% 70.2% 73.7% 59.9% 70.2% 71.3% 72.7% 74.7% 73.3% 68.2% 74.7% 75.2%
+73.4% 77.8% 79.3% 63.2% 77.2% 78.9% 77.0% 81.2% 79.8% 71.9% 81.3% 82.2%
+Table 3: Cumulative percentage variance explained by the ﬁrs t 6 sparse loadings extracted from the
+Pit Props dataset.
+4.2 Gene expression data
+The Berkeley Drosophila Transcription Network Project (BDTNP) 3D gene expression data
+[4] contains gene expression levels measured in each nucleus of developing Drosophila em-
+bryos and averaged across many embryos and developmental stages. Here, we analyze 0-
+31160524183713 s10436-29ap05-02.vpc, an aggregate VirtualEmbryo contain ing 21 genes and
+5759 example nuclei. We run GSLDA for eight iterations with cardinality pattern 9,7,6,5,3,2,2,2
+and report the results in Table 4.
+GSLDA additional variance explained GSLDA cumulative percentage variance
+HD PDSCD OHD OPD GD HD PD SCD OHD OPD GD
+PC11.784 1.784 1.784 1.784 1.784 1.784 21.0% 21.0% 21.0% 21.0% 21.0% 21.0%
+PC21.464 1.453 1.453 1.464 1.453 1.466 38.2% 38.1% 38.1% 38.2% 38.1% 38.2%
+PC31.178 1.178 1.179 1.176 1.178 1.187 52.1% 51.9% 52.0% 52.0% 51.9% 52.2%
+PC40.716 0.736 0.716 0.713 0.721 0.743 60.5% 60.6% 60.4% 60.4% 60.4% 61.0%
+PC50.444 0.574 0.571 0.460 0.571 0.616 65.7% 67.4% 67.1% 65.9% 67.1% 68.2%
+PC60.303 0.306 0.278 0.354 0.244 0.332 69.3% 71.0% 70.4% 70.0% 70.0% 72.1%
+PC70.271 0.256 0.262 0.239 0.313 0.304 72.5% 74.0% 73.4% 72.8% 73.7% 75.7%
+PC80.223 0.239 0.299 0.257 0.245 0.329 75.1% 76.8% 77.0% 75.9% 76.6% 79.6%
+Table 4: Additional variance and cumulative percentage vari ance explained by the ﬁrst 8 sparse
+loadings of GSLDA on the BDTNP VirtualEmbryo.
+The results of the gene expression experiment show a clear hierarchy among the deﬂation methods.
+Thegeneralizeddeﬂationtechniqueperformsbest,achievingthelargestadditionalvarianceonevery
+round and a ﬁnal cumulative variance of 79.6%. Schur complement deﬂation, projection deﬂation,
+andorthogonalizedprojectiondeﬂationallperformcomparably,explainingroughly77%ofthetotal
+variance after 8 rounds. In last place are the standard Hotelling’s and orthogonalized Hotelling’s
+deﬂations, both of which explain less than 76% of variance after 8 rounds.
+75 Conclusion
+I
+nthiswork,wehaveexposedthetheoreticalandempiricalshortcomingsofHotelling’sdeﬂationin
+thesparsePCAsettinganddevelopedseveralalternativemethodsmoresuitablefornon-eigenvector
+deﬂation. Notably, the utility of these procedures is not limited to the sparse PCA setting. Indeed,
+the methods presented can be applied to any of a number of constrained eigendecomposition-based
+problems,includingsparsecanonicalcorrelationanalysis[13]andlineardiscriminantanalysis[10].
+Acknowledgments
+This work was supported by AT&T through the AT&T Labs Fellowship Program.
+References
+[1] A.d’Aspremont,L.ElGhaoui,M.I.Jordan,andG.R.G.Lanckriet.ADirectFormulationfor
+Sparse PCA using Semideﬁnite Programming. In Advances in Neural Information Processing
+Systems (NIPS). Vancouver, BC, December 2004.
+[2] A. d’Aspremont, F. R. Bach, and L. E. Ghaoui. Full regularization path for sparse principal
+component analysis. In Proceedings of the 24th international Conference on Machine Learn-
+ing. Z. Ghahramani, Ed. ICML ’07, vol. 227. ACM, New York, NY, 177-184, 2007.
+[3] J. Cadima and I. Jolliffe. Loadings and correlations in the interpretation of principal compo-
+nents. Applied Statistics, 22:203.214, 1995.
+[4] C.C. Fowlkes, C.L. Luengo Hendriks, S.V. Kernen, G.H. Weber, O. Rbel, M.-Y. Huang, S.
+Chatoor, A.H. DePace, L. Simirenko and C. Henriquez et al. Cell 133, pp. 364-374, 2008.
+[5] J. Jeffers. Two case studies in the application of principal components. Applied Statistics, 16,
+225-236, 1967.
+[6] I.T. Jolliffe and M. Uddin. A Modiﬁed Principal Component Technique based on the Lasso.
+Journal of Computational and Graphical Statistics, 12:531.547, 2003.
+[7] I.T. Jolliffe, Principal component analysis, Springer Verlag, New York, 1986.
+[8] I.T. Jolliffe. Rotation of principal components: choice of normalization constraints. Journal of
+Applied Statistics, 22:29-35, 1995.
+[9] B. Moghaddam, Y. Weiss, and S. Avidan. Spectral bounds for sparse PCA: Exact and greedy
+algorithms. Advances in Neural Information Processing Systems, 18, 2006.
+[10] B.Moghaddam,Y.Weiss,andS.Avidan.GeneralizedspectralboundsforsparseLDA.InProc.
+ICML, 2006.
+[11] Y. Saad, Projection and deﬂation methods for partial pole assignment in linear state feedback,
+IEEE Trans. Automat. Contr., vol. 33, pp. 290-297, Mar. 1998.
+[12] B.K. Sriperumbudur, D.A. Torres, and G.R.G. Lanckriet. Sparse eigen methods by DC pro-
+gramming. Proceedings of the 24th International Conference on Machine learning, pp. 831-
+838, 2007.
+[13] D. Torres, B.K. Sriperumbudur, and G. Lanckriet. Finding Musically Meaningful Words by
+Sparse CCA. Neural Information Processing Systems (NIPS) Workshop on Music, the Brain
+and Cognition, 2007.
+[14] P.White.TheComputationofEigenvaluesandEigenvectorsofaMatrix.JournaloftheSociety
+for Industrial and Applied Mathematics, Vol. 6, No. 4, pp. 393-437, Dec., 1958.
+[15] F. Zhang (Ed.). The Schur Complement and Its Applications. Kluwer, Dordrecht, Springer,
+2005.
+[16] Z. Zhang, H. Zha, and H. Simon, Low-rank approximations with sparse factors I: Basic algo-
+rithms and error analysis. SIAM J. Matrix Anal. Appl., 23 (2002), pp. 706-727.
+[17] Z. Zhang, H. Zha, and H. Simon, Low-rank approximations with sparse factors II: Penalized
+methods with discrete Newton-like iterations. SIAM J. Matrix Anal. Appl., 25 (2004), pp.
+901-920.
+[18] H.Zou,T.Hastie,andR.Tibshirani.SparsePrincipalComponentAnalysis.TechnicalReport,
+Statistics Department, Stanford University, 2004.
+8

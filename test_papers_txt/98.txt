@@ -1,0 +1,732 @@
+Listwise Approach to Learning to Rank - Theory and Algorithm
+
+Fen Xia* fen.xia@ia.ac.cn
+Institute of Automation, Chinese Academy of Sciences, Beijing, 100190, P. R. China.
+Tie-Yan Liu tyliu@microsoft.com
+Microsoft Research Asia, Sigma Center, No.49 Zhichun Road, Haidian District, Beijing, 100190, P. R. China.
+Jue Wang jue.wang@ia.ac.cn
+Wensheng Zhang wensheng.zhang@ia.ac.cn
+Institute of Automation, Chinese Academy of Sciences, Beijing, 100190, P. R. China.
+Hang Li hangli@microsoft.com
+Microsoft Research Asia, Sigma Center, No.49 Zhichun Road, Haidian District, Beijing, 100190, P. R. China.
+Abstract
+This paper aims to conduct a study on the
+listwise approach to learning to rank. The
+listwise approach learns a ranking function by
+taking individual lists as instances and min-
+imizing a loss function deﬁned on the pre-
+dicted list and the ground-truth list. Exist-
+ing work on the approach mainly focused on
+the development of new algorithms; methods
+such as RankCosine and ListNet have been
+proposed and good performances by them
+have been observed. Unfortunately, the un-
+derlying theory was not suﬃciently studied
+so far. To amend the problem, this paper
+proposes conducting theoretical analysis of
+learning to rank algorithms through inves-
+tigations on the properties of the loss func-
+tions, including consistency, soundness, con-
+tinuity, diﬀerentiability, convexity, and eﬃ-
+ciency. A suﬃcient condition on consistency
+for ranking is given, which seems to be the
+ﬁrst such result obtained in related research.
+The paper then conducts analysis on three
+loss functions: likelihood loss, cosine loss,
+and cross entropy loss. The latter two were
+used in RankCosine and ListNet. The use of
+the likelihood loss leads to the development of
+Appearing in Proceedings of the 25thInternational Confer-
+ence on Machine Learning , Helsinki, Finland, 2008. Copy-
+right 2008 by the author(s)/owner(s).
+*The work was performed when the ﬁrst author was an
+intern at Microsoft Research Asia.a new listwise method called ListMLE, whose
+loss function oﬀers better properties, and also
+leads to better experimental results.
+1. Introduction
+Ranking, which is to sort objects based on certain fac-
+tors, is the central problem of applications such as in-
+formation retrieval (IR) and information ﬁltering. Re-
+cently machine learning technologies called ‘learning
+to rank’ have been successfully applied to ranking, and
+several approaches have been proposed, including the
+pointwise, pairwise, and listwise approaches.
+The listwise approach addresses the ranking problem
+in the following way. In learning, it takes ranked lists
+of objects (e.g., ranked lists of documents in IR) as
+instances and trains a ranking function through the
+minimization of a listwise loss function deﬁned on the
+predicted list and the ground truth list. The listwise
+approach captures the ranking problems, particularly
+those in IR in a conceptually more natural way than
+previous work. Several methods such as RankCosine
+and ListNet have been proposed. Previous experi-
+ments demonstrate that the listwise approach usually
+performs better than the other approaches (Cao et al.,
+2007)(Qin et al., 2007).
+Existing work on the listwise approach mainly fo-
+cused on the development of new algorithms, such as
+RankCosine and ListNet. However, there was no suf-
+ﬁcient theoretical foundation laid down. Furthermore,
+the strength and limitation of the algorithms, and the
+relations between the proposed algorithms were stillListwise Approach to Learning to Rank - Theory and Algorithm
+not clear. This largely prevented us from deeply un-
+derstanding the approach, more critically, from devis-
+ing more advanced algorithms.
+In this paper, we aim to conduct an investigation on
+the listwise approach.
+First, we give a formal deﬁnition of the listwise ap-
+proach. In ranking, the input is a set of objects, the
+output is a permutation of the objects1, and the model
+is a ranking function which maps a given input to an
+output. In learning, the training data is drawn i.i.d.
+according to an unknown but ﬁxed joint probability
+distribution between input and output. Ideally we
+would minimize the expected 0 ¡1 loss deﬁned on the
+predicted list and the ground truth list. Practically
+we instead manage to minimize an empirical surrogate
+loss with respect to the training data.
+Second, we evaluate a surrogate loss function from four
+aspects: (a) consistency, (b) soundness, (c) mathemat-
+ical properties of continuity, diﬀerentiability, and con-
+vexity, and (d) computational eﬃciency in learning.
+We give analysis on three loss functions: likelihood
+loss, cosine loss, and cross entropy loss. The ﬁrst one
+is newly proposed in this paper, and the last two were
+used in RankCosine and ListNet, respectively.
+Third, we propose a novel method for the listwise ap-
+proach, which we call ListMLE. ListMLE formalizes
+learning to rank as a problem of minimizing the likeli-
+hood loss function, equivalently maximizing the likeli-
+hood function of a probability model. Due to the nice
+properties of the loss function, ListMLE stands to be
+more eﬀective than RankCosine and ListNet.
+Finally, we have experimentally veriﬁed the correct-
+ness of the theoretical ﬁndings. We have also found
+that ListMLE can signiﬁcantly outperform RankCo-
+sine and ListNet.
+The rest of the paper is organized as follows. Section
+2 introduces related work. Section 3 gives a formal
+deﬁnition to the listwise approach. Section 4 conducts
+theoretical analysis of listwise loss functions. Section 5
+introduces the ListMLE method. Experimental results
+are reported in Section 6 and the conclusion and future
+work are given in the last section.
+2. Related Work
+Existing methods for learning to rank fall into three
+categories. The pointwise approach (Nallapati, 2004)
+transforms ranking into regression or classiﬁcation on
+1In this paper, we use permutation and ranked list in-
+terchangeably.single objects. The pairwise approach (Herbrich et al.,
+1999) (Freund et al., 1998) (Burges et al., 2005) trans-
+forms ranking into classiﬁcation on object pairs. The
+advantage for these two approaches is that existing
+theories and algorithms on regression or classiﬁcation
+can be directly applied, but the problem is that they
+do not model the ranking problem in a straightforward
+fashion. The listwise approach can overcome the draw-
+back of the aforementioned two approaches by tackling
+the ranking problem directly, as explained below.
+For instance, Cao et al. (2007) proposed one of the ﬁrst
+listwise methods, called ListNet. In ListNet, the list-
+wise loss function is deﬁned as cross entropy between
+two parameterized probability distributions of permu-
+tations; one is obtained from the predicted result and
+the other is from the ground truth. Qin et al. (2007)
+proposed another method called RankCosine. In the
+method, the listwise loss function is deﬁned on the ba-
+sis of cosine similarity between two score vectors from
+the predicted result and the ground truth2. Experi-
+mental results show that the listwise approach usually
+outperforms the pointwise and pariwise approaches.
+In this paper, we aim to investigate the listwise ap-
+proach to learning to rank, particularly from the view-
+point of loss functions. Actually similar investigations
+have also been conducted for classiﬁcation. For in-
+stance, in classiﬁcation, consistency and soundness of
+loss functions are well studied. Consistency forms the
+basis for the success of a loss function. It is known
+that if a loss function is consistent, then the learned
+classiﬁer can achieve the optimal Bayes error rate in
+the large sample limit. Many well known loss func-
+tions such as hinge loss, exponential loss, and logis-
+tic loss are all consistent (cf., (Zhang, 2004)(Bartlett
+et al., 2003)(Lin, 2002)). Soundness of a loss func-
+tion guarantees that the loss can represent well the
+targeted learning problem. That is, an incorrect pre-
+diction should receive a larger penalty than a correct
+prediction, and the penalty should reﬂect the conﬁ-
+dence of prediction. For example, hinge loss, exponen-
+tial loss, and logistic loss are sound for classiﬁcation.
+In contrast, square loss is sound for regression but not
+for classiﬁcation (Hastie et al., 2001).
+3. Listwise Approach
+We give a formal deﬁnition of the listwise approach
+to learning to rank. Let Xbe the input space whose
+2In a broad sense, methods directly optimizing evalua-
+tion measures, such as SVM-MAP (Yue et al., 2007) and
+AdaRank (Xu & Li, 2007) can also be regarded as listwise
+algorithms. We will, however, limit our discussions in this
+paper on algorithms like ListNet and RankCosine.Listwise Approach to Learning to Rank - Theory and Algorithm
+elements are sets of objects to be ranked, Ybe the out-
+put space whose elements are permutations of objects,
+andPXYbe an unknown but ﬁxed joint probability
+distribution of XandY. Let h:X!Ybe a ranking
+function, and Hbe the corresponding function space
+(i.e.,h2H). Let x2Xandy2Y, and let y(i) be
+the index of object which is ranked at position i. The
+task is to learn a ranking function that can minimize
+the expected loss R(h), deﬁned as:
+R(h) =∫
+X×Yl(h(x),y)dP(x,y), (1)
+where l(h(x),y) is the 0 ¡1 loss function such that
+l(h(x),y) ={1,ifh(x)6=y
+0,ifh(x) =y,(2)
+That is to say, we formalize the ranking problem as
+a new ‘classiﬁcation’ problem on permutations. If the
+permutation of the predicted result is the same as the
+ground truth, then we have zero loss; otherwise we
+have one loss. In real ranking applications, the loss
+can be cost-sensitive, i.e., depending on the positions
+of the incorrectly ranked objects. We will leave this
+as our future work and focus on the 0 ¡1 loss in this
+paper ﬁrst. Actually, in the literature of classiﬁcation,
+people also studied the 0 ¡1 loss ﬁrst, before they
+eventually moved onto the cost-sensitive case.
+It is easy to see that the optimal ranking func-
+tion which can minimize the expected loss R(hB) =
+infR(h) is given by the Bayes rule,
+hB(x) = arg max
+y∈YP(yjx), (3)
+Since PXYis unknown, formula (1) cannot be directly
+solved and thus hB(x) cannot be easily obtained. In
+practice, we are given independently and identically
+distributed (i.i.d) samples S=f(x(i),y(i))gm
+i=1»
+PXY, we instead try to obtain a ranking function
+h2Hthat minimizes the empirical loss.
+RS(h) =1
+mm∑
+i=1l(h(x(i)),y(i)). (4)
+Note that for eﬃciency consideration, in practice the
+ranking function usually works on individual objects.
+It assigns a score to each object (by employing a scor-
+ing function g), sorts the objects in descending order of
+the scores, and ﬁnally creates the ranked list. That is
+to say, h(x(i)) is decomposable with respect to objects.
+It is deﬁned as
+h(x(i)) =sort(g(x(i)
+1), . . . , g (x(i)
+ni)). (5)where x(i)
+j2x(i),nidenotes the number of objects
+inx(i),g(¢) denotes the scoring function, and sort(¢)
+denotes the sorting function. As a result, (4) becomes:
+RS(g) =1
+mm∑
+i=1l(sort(g(x(i)
+1), . . . , g (x(i)
+ni)),y(i)).(6)
+Due to the nature of the sorting function and the
+0¡1 loss function, the empirical loss in (6) is inher-
+ently non-diﬀerentiable with respect to g, which poses
+a challenge to the optimization of it. To tackle this
+problem, we can introduce a surrogate loss as an ap-
+proximation of (6), following a common practice in
+machine learning.
+Rφ
+S(g) =1
+mm∑
+i=1φ(g(x(i)),y(i)), (7)
+where φis a surrogate loss function and g(x(i)) =
+(g(x(i)
+1), . . . , g (x(i)
+ni)). For convenience in notation, in
+the following sections, we sometimes write φy(g) for
+φ(g(x),y) and use bold symbols such as gto denote
+vectors since for a given x,g(x) becomes a vector.
+4. Theoretical Analysis
+4.1. Properties of Loss Function
+We analyze the listwise approach from the viewpoint
+of surrogate loss function. Speciﬁcally, we look at
+the following properties3of it: (a) consistency , (b)
+soundness, (c) continuity, diﬀerentiability, and convex-
+ity, and (d) computational eﬃciency in learning.
+Consistency is about whether the obtained ranking
+function can converge to the optimal one through the
+minimization of the empirical surrogate loss (7), when
+the training sample size goes to inﬁnity. It is a nec-
+essary condition for a surrogate loss function to be a
+good one for a learning algorithm (cf., Zhang (2004)).
+Soundness is about whether the loss function can in-
+deed represent loss in ranking. For example, an in-
+correct ranking should receive a larger penalty than
+a correct ranking, and the penalty should reﬂect the
+conﬁdence of the ranking. This property is particu-
+larly important when the size of training data is small,
+because it can directly aﬀect the training results.
+4.2. Consistency
+We conduct analysis on learning to rank algorithms
+from the viewpoint of consistency. As far as we know,
+3In addition, convergence rate is another issue to con-
+sider. We leave it as future work.Listwise Approach to Learning to Rank - Theory and Algorithm
+this is the ﬁrst work discussing the consistency issue
+for ranking.
+In the large sample limit, minimizing the empirical
+surrogate loss (7) amounts to minimizing the following
+expected surrogate loss
+Rφ(g) =EX,Yfφy(g(x))g=EXfQ(g(x))g (8)
+where Q(g(x)) =∑
+y∈YP(yjx)φy(g(x)).
+Here we assume g(x) is chosen from a vector Borel
+measurable function set, whose elements can take any
+value from Ω ½Rn.
+When the minimization of (8) can lead to the min-
+imization of the expected 0 ¡1 loss (1), we say the
+surrogate loss function is consistent. A equivalent def-
+inition can be found in Deﬁnition 2. Actually this
+equivalence relationship has been discussed in related
+work on the consistency of classiﬁcation (Zhang, 2004).
+Deﬁnition 1. We deﬁne Λyas the space of all possible
+probabilities on the permutation space Y, i.e., ΛY,
+fp2R|Y|:∑
+y∈Ypy= 1, py¸0g.
+Deﬁnition 2. The loss φy(g)is consistent on a set
+Ω½Rnwith respect to the ranking loss (1), if the
+following conditions hold: 8p2ΛY, assume y∗=
+argmax y∈YpyandYc
+y∗denotes the space of permu-
+tations after removing y∗, we have
+inf
+g∈ΩQ(g)< inf
+g∈Ω,sort (g)∈Yc
+y∗Q(g)
+We next give suﬃcient conditions of consistency in
+ranking.
+Deﬁnition 3. A permutation probability space ΛYis
+order preserving with respect to object iandj, if the
+following conditions hold: 8y2Yi,j,fy2Y:
+y−1(i)< y−1(j)gwhere y−1(i)denotes the position for
+object iiny, denote σ−1yas the permutation which
+exchanges the positions of object iandjwhile hold
+others unchanged for y, we have py> pσ−1y.
+Deﬁnition 4. The loss φy(g)is order sensitive on a
+setΩ½Rn, ifφy(g)is a non-negative diﬀerentiable
+function and the following two conditions hold:
+1.8y2Y,8i < j , denote σyas the permutation
+which exchanges the object on position iand that
+on position jwhile holds others unchanged for y,
+ifgy(i)< gy(j), then φy(g)¸φσy(g)and with at
+least one y, the strict inequality holds.
+2.Ifgi=gj, then either 8y2Yi,j,∂φy(g)
+∂gi·∂φy(g)
+∂gj,
+or8y2Yi,j,∂φy(g)
+∂gi¸∂φy(g)
+∂gj, and with at least
+oney, the strict inequality holds.Theorem 5. Letφy(g)be an order sensitive loss func-
+tion on Ω½Rn.8nobjects, if its permutation prob-
+ability space is order preserving with respect to n¡1
+objective pairs (j1, j2),(j2, j3),¢ ¢ ¢,(jn¡1, jn). Then
+the loss φy(g)is consistent with respect to (1).
+Due to space limitations, we only give the proof sketch.
+First, we can show if the permutation probability space
+is order preserving with respect to n¡1 objective pairs
+(j1, j2),(j2, j3),¢ ¢ ¢,(jn¡1, jn), then the permutation
+with the maximum probability is y∗= (j1, j2,¢ ¢ ¢, jn).
+Second, for an order sensitive loss function, for any or-
+der preserving object pairs ( j1, j2), the vector gwhich
+minimizes Q(g) in (8) should assign a larger score to
+j1than to j2. This can be proven by the change of loss
+due to exchanging the scores of j1andj2. Given all
+these results and Deﬁnition 2, we can prove Theorem
+5 by means of contradiction.
+Theorem 5 gives suﬃcient conditions for a surrogate
+loss function to be consistent: the permutation prob-
+ability space should be order preserving and the func-
+tion should be order sensitive. Actually, the assump-
+tion of order preserving has already been made when
+we use the scoring function and sorting function for
+ranking. The property of order preserving has also
+been explicitly or implicitly used in previous work,
+such as Cossock and Zhang (2006). The property of
+order sensitive shows that starting with a ground truth
+permutation, the loss will increase if we exchange the
+positions of two objects in it, and the speed of increase
+in loss is sensitive to the positions of objects.
+4.3. Case Studies
+We look at the four properties of three loss functions.
+4.3.1. Likelihood Loss
+We introduce a new loss function for listwise approach,
+which we call likelihood loss. The likelihood loss func-
+tion is deﬁned as:
+φ(g(x),y) =¡logP(yjx;g) (9)
+where P(yjx;g) =n∏
+i=1exp(g(xy(i)))∑n
+k=iexp(g(xy(k))).
+Note that we actually deﬁne a parameterized exponen-
+tial probability distribution over all the permutations
+given the predicted result (by the ranking function),
+and deﬁne the loss function as the negative log likeli-
+hood of the ground truth list. The probability distri-
+bution turns out to be a Plackett-Luce model (Marden,
+1995).
+The likelihood loss function has the nice properties as
+below.Listwise Approach to Learning to Rank - Theory and Algorithm
+First, the likelihood loss is consistent. The following
+proposition shows that the likelihood loss is order sen-
+sitive. Therefore, according to Theorem 5, it is consis-
+tent. Due to the space limitations, we omit the proof.
+Proposition 6. The likelihood loss (9) is order sen-
+sitive on Ω½Rn.
+Second, the likelihood loss function is sound. For sim-
+plicity, suppose that there are two objects to be ranked
+(similar argument can be made when there are more
+objects). The two objects receive scores of g1andg2
+from a ranking function. Figure 1(a) shows the scores,
+and the point g= (g1, g2). Suppose that the ﬁrst ob-
+ject is ranked below the second object in the ground
+truth. Then the upper left area above line g2=g1cor-
+responds to correct ranking; and the lower right area
+incorrect ranking. According to the deﬁnition of likeli-
+hood loss, all the points on the line g2=g1+dhas the
+same loss. Therefore, we say the likelihood loss only
+depends on d. Figure 1(b) shows the relation between
+the loss function and d. We can see the loss function
+decreases monotonously as dincreases. It penalizes
+negative values of dmore heavily than positive ones.
+This will make the learning algorithm focus more on
+avoiding incorrect rankings. In this regard, the loss
+function is a good approximation of the 0 ¡1 loss.
+2ddgg=−12
+12gg=2g
+1gg
+(a)
+dφ (b)
+Figure 1. (a) Ranking scores of predicted result; (b) Loss
+φv.s.dfor the likelihood loss.
+Third, it is easy to verify that the likelihood loss is
+continuous, diﬀerentiable, and convex (Boyd & Van-
+denberghe, 2004). Furthermore, the loss can be com-
+puted eﬃciently, with time complexity of linear order
+to the number of objects.
+With the above good properties, a learning algorithm
+which optimizes the likelihood loss will become pow-
+erful for creating a ranking function.
+4.3.2. Cosine Loss
+The cosine loss is the loss function used in RankCosine
+(Qin et al., 2007), a listwise method. It is deﬁned on
+the basis of the cosine similarity between the scorevector of the ground truth and that of the predicted
+result.
+φ(g(x),y) =1
+2(1¡ψy(x)Tg(x)
+kψy(x)kkg(x)k). (10)
+The score vector of the ground truth is produced by a
+mapping ψy(¢) :Rd!R, which retains the order in a
+permutation, i.e, ψy(xy(1))>¢ ¢ ¢> ψy(xy(n)).
+First, we can prove that the cosine loss is consistent,
+given the following proposition. Due to space limita-
+tions, we omit the proof.
+Proposition 7. The cosine loss (10) is order sensitive
+onΩ½Rn.
+Second, the cosine loss is not very sound. Let us again
+consider the case of ranking two objects. Figure 2(a)
+shows point g= (g1, g2) representing the scores of the
+predicted result and point gψrepresenting the ground
+truth (which depends on the mapping function ψ). We
+denote the angle from point gto line g2=g1asα, and
+the angle from gψto line g2=g1asαgψ. We inves-
+tigate the relation between the loss and the angle α.
+Figure 2(b) shows the cosine loss as a function of α.
+From this ﬁgure, we can see that the cosine loss is
+not a monotonously decreasing function of α. When
+α > α gψ, it increases quickly, which means that it
+can heavily penalize correct rankings. Furthermore,
+the mapping function and thus αgψcan also aﬀect the
+loss function. Speciﬁcally, the curve of the loss func-
+tion can shift from left to right with diﬀerent values
+ofαgψ. Only when αgψ=π/2, it becomes a rela-
+tively satisfactory representation of loss for the learn-
+ing problem.
+ψg
+1g2g
+12gg= g
+α
+(a)
+−π αgψπαφ (b)
+Figure 2. (a) Ranking scores of predicted result and ground
+truth; (b) Loss φv.s. angle αfor the cosine loss.
+Third, it is easy to see that the cosine loss is contin-
+uous, diﬀerentiable, but not convex. It can also be
+computed in an eﬃcient manner with a time complex-
+ity linear to the number of objects.Listwise Approach to Learning to Rank - Theory and Algorithm
+4.3.3. Cross Entropy Loss
+The cross entropy loss is the loss function used in List-
+Net (Cao et al., 2007), another listwise method. The
+cross entropy loss function is deﬁned as:
+φ(g(x),y) =D(P(πjx;ψy)jjP(πjx;g)) (11)
+where P(πjx;ψy) =n∏
+i=1exp(ψy(xπ(i)))∑n
+k=iexp(ψy(xπ(k)))
+P(πjx;g) =n∏
+i=1exp(g(xπ(i)))∑n
+k=iexp(g(xπ(k)))
+where ψis a mapping function whose deﬁnition is sim-
+ilar to that in RankCosine.
+First, we can prove that the cross entropy loss is con-
+sistent, given the following proposition. Due to space
+limitations, we omit the proof.
+Proposition 8. The cross entropy loss (11) is order
+sensitive on Ω½Rn.
+Second, the cross entropy loss is not very sound.
+Again, we look at the case of ranking two objects.
+g= (g1, g2) denotes the ranking scores of the predicted
+result. gψdenotes the ranking scores of the ground
+truth (depending on the mapping function). Similar
+to the discussions in the likelihood loss, the cross en-
+tropy loss only depends on the quantity d. Figure 3(a)
+illustrates the relation between g,gψ, and d. Figure
+3(b) shows the cross entropy loss as a function of d. As
+can be seen that the loss function achieves its minimum
+at point dgψ, and then increases as dincreases. That
+means it can heavily penalize those correct rankings
+with higher conﬁdence. Note that the mapping func-
+tion also aﬀects the penalization. According to map-
+ping functions, the penalization on correct rankings
+can be even larger than that on incorrect rankings.
+2ddgg=−12
+12gg=2g
+1gψgg
+(a)
+dgψ dφ (b)
+Figure 3. (a) Ranking scores of predicted result and ground
+truth; (b) Loss φv.s.dfor the cross entropy loss.
+Third, it is easy to see that the cross entropy loss is
+continuous and diﬀerentiable. It is also convex because
+the log of a convex function is still convex, and theAlgorithm 1 ListMLE Algorithm
+Input: training data f(x(1),y(1)), . . . , (x(m),y(m))g
+Parameter: learning rate η, tolerance rate ²
+Initialize parameter ω
+repeat
+fori= 1tomdo
+Input ( x(i),y(i)) to Neural Network and compute
+gradient 4ωwith current ω
+Update ω=ω¡η£ 4ω
+end for
+calculate likelihood loss on the training set
+until change of likelihood loss is below ²
+Output: Neural Network model ω
+set of convex function is closed under addition (Boyd
+& Vandenberghe, 2004). However, it cannot be com-
+puted in an eﬃcient manner. The time complexity is
+of exponential order to the number of objects.
+Table 1 gives a summary of the properties of the loss
+functions. All the three loss functions as aforemen-
+tioned are consistent, as well as continuous and diﬀer-
+entiable. The likelihood loss is better than the cosine
+loss in terms of convexity and soundness, and is better
+than the cross entropy loss in terms of time complexity
+and soundness.
+5. ListMLE
+We propose a novel listwise method referred to as
+ListMLE. In learning of ListMLE, we employ the like-
+lihood loss as the surrogate loss function, since it is
+proven to have all the nice properties as a surrogate
+loss. On the training data, we actually maximize the
+sum of the likelihood function with respect to all the
+training queries.
+m∑
+i=1logP(y(i)jx(i);g). (12)
+We choose Stochastic Gradient Descent (SGD) as the
+algorithm for conducting the minimization. As rank-
+ing model, we choose linear Neural Network (param-
+eterized by ω). Algorithm 1 shows the learning algo-
+rithm based on SGD.
+6. Experimental Results
+We conducted two experiments to verify the correct-
+ness of the theoretical ﬁndings. One data set is syn-
+thetic data, and the other is the LETOR benchmark
+data for learning to rank (Liu et al., 2007).Listwise Approach to Learning to Rank - Theory and Algorithm
+Table 1. Comparison between diﬀerent surrogate losses.
+Loss Consistency Soundness Continuity Diﬀerentiability Convexity Complexity
+Likelihoodp p p p pO(n)
+Cosinep£p p£ O(n)
+Cross entropyp£p p pO(n!¢n)
+6.1. Experiment on Synthetic Data
+We conducted an experiment using a synthetic data
+set. We created the data as follows. First, we ran-
+domly sample a point according to the uniform dis-
+tribution on the square area [0 ,1]£[0,1]. Then we
+assign to the point a score using the following rule,
+y=x1+ 10x2+²where ²denotes a random variable
+normally distributed with mean of zero and standard
+deviation of 0 .005. In total, we generate 15 points and
+their scores in this way, and create a permutation on
+the points based on their scores, which forms an in-
+stance of ranking. We repeat the process and make
+100 training instances, 100 validation instances, and
+100 testing instances. We applied RankCosine, List-
+Net4, and ListMLE to the data.
+We tried diﬀerent score mapping functions for
+RankCosine and ListNet, and used ﬁve most represen-
+tative ones, i.e., log(15¡r),p15¡r, 15¡r, (15¡r)2
+and exp(15 ¡r), where rdenotes the positions of ob-
+jects. We denote the mapping functions as log,sqrt,
+l,q, and expfor simplicity. The experiments were re-
+peated 20 times with diﬀerent initial values of param-
+eters in the Neural Network model. Table 2 shows
+the means and standard deviations of the accuracies
+and Mean Average Precision (MAP)(Baeza-Yates &
+Ribeiro-Neto, 1999) of the three algorithms. The ac-
+curacy measures the proportion of correctly ranked in-
+stances and MAP5is a commonly used measure in IR.
+As shown in the table, ListMLE achieves the best per-
+formance among all the algorithms in terms of both
+accuracy and MAP, owing to good properties of its loss
+function. The accuracies of RankCosine and ListNet
+vary according to the mapping functions. Especially,
+RankCosine achieves an accuracy of only 0 .047 when
+using the mapping function expwhile 0 .917 when using
+the mapping function l. This result indicates that the
+performances of the cosine loss and the cross entropy
+loss depend on the mapping functions, while ﬁnding a
+suitable mapping function is not easy. Furthermore,
+RankCosine has a larger variance than ListMLE and
+ListNet. The likely explanation is that RankCosine’s
+4The top-1 version of the cross entropy loss was em-
+ployed as in the original work (Cao et al., 2007).
+5When calculating MAP, we treated the top-1 items as
+relevant and the other as irrelevant.Table 2. The performance of three algorithms on the syn-
+thetic data set.
+Algorithm Accuracy MAP
+ListMLE 0.92§0.011 0 .999§0.002
+ListNet-log 0.905§0.010 0 .999§0.002
+ListNet-sqrt 0.917§0.009 0 .999§0.002
+ListNet-l 0.767§0.021 0 .995§0.003
+ListNet-q 0.868§0.028 0 .999§0.002
+ListNet-exp 0.832§0.074 0 .997§0.004
+RankCosine-log 0 .180§0.217 0 .948§0.034
+RankCosine-sqrt 0 .080§0.159 0 .886§0.056
+RankCosine-l 0 .917§0.112 0 .999§0.002
+RankCosine-q 0 .102§0.161 0 .890§0.060
+RankCosine-exp 0 .047§0.163 0 .746§0.136
+performance is sensitive to the initial values of param-
+eters due to the non-convexity of its loss function.
+6.2. Experiment on OHSUMED Data
+We also conducted an experiment on OHSUMED, a
+benchmark data set for learning to rank provided in
+LETOR. There are in total 106 queries, and 16,140
+query-document pairs upon which relevance judg-
+ments are made. The relevance judgments are either
+deﬁnitely relevant, possibly relevant, or not relevant.
+The data was in the form of feature vector and rele-
+vance label. There are in total 25 features. We used
+the data split provided in LETOR to conduct ﬁve-fold
+cross validation experiments. In evaluation, besides
+MAP, we adopted another measures commonly used in
+IR: Normalized Discounted Cumulative Gain (NDCG)
+(Jarvelin & Kekanainen, 2000).
+Note that here the ground truth in the data is given as
+partial ranking, while the methods need to use total
+ranking (permutation) in training. To bridge the gap,
+for RankCosine and ListNet, we adopted the methods
+proposed in the papers (Cao et al., 2007) (Qin et al.,
+2007). For ListMLE we randomly selected one perfect
+permutation for each query from among the possible
+perfect permutations based on the ground truth.
+We applied RankCosine, ListNet, and ListMLE to
+the data. The results reported below are those aver-
+aged over ﬁve trials. As shown in Figure 4, ListMLE
+achieves the best performance among all the algo-
+rithms. Especially, on NDCG@1, it has more thanListwise Approach to Learning to Rank - Theory and Algorithm
+5-point gains over RankCosine which is at the sec-
+ond place. We also conducted the t-test on the im-
+provements of ListMLE over the other two algorithms.
+The results show that the improvements are statisti-
+cally signiﬁcant for NDCG@5, NDCG@7, NDCG@8,
+NDCG@9, and NDCG@10 (p-value <0.05).
+0.5 0.52 0.54 0.56 0.58 
+ListMLE 
+ListNet 
+0.42 0.44 0.46 0.48 0.5 
+MAP NDCG@1 NDCG@2 NDCG@3 NDCG@4 NDCG@5 NDCG@6 NDCG@7 NDCG@8 NDCG@9 NDCG@10 RankCosine 
+Figure 4. Ranking performance on OHSUMED data.
+7. Conclusion
+In this paper, we have investigated the theory and al-
+gorithms of the listwise approach to learning to rank.
+We have pointed out that to understand the eﬀective-
+ness of a learning to rank algorithm, it is necessary to
+conduct theoretical analysis on its loss function. We
+propose investigating a loss function from the view-
+points of (a) consistency, (b) soundness, (c) continu-
+ity, diﬀerentiability, convexity, and (d) eﬃciency. We
+have obtained some theoretical results on consistency
+of ranking. We have conducted analysis on the likeli-
+hood loss, cosine loss, and cross entropy loss. The re-
+sult indicates that the likelihood loss has better prop-
+erties than the other two losses. We have then de-
+veloped a new learning algorithm using the likelihood
+loss, called ListMLE and demonstrated its eﬀective-
+ness through experiments.
+There are several directions which we can further ex-
+plore. (1) We want to conduct more theoretical anal-
+ysis on the properties of loss functions, for example,
+weaker conditions for consistency and the rates of con-
+vergence. (2) We plan to study the case where cost-
+sensitive loss function is used instead of the 0 ¡1 loss
+function in deﬁning the expected loss. (3) We plan
+to investigate other surrogate loss functions with the
+tools we have developed in this paper.
+References
+Baeza-Yates, R., & Ribeiro-Neto, B. (Eds.). (1999). Mod-
+ern information retrieval . Addison Wesley.
+Bartlett, P. L., Jordan, M. I., & McAuliﬀe, J. D. (2003).
+Convexity, classiﬁcation, and risk bounds (Technical Re-port 638). Statistics Department, University of Califor-
+nia, Berkeley.
+Boyd, S., & Vandenberghe, L. (Eds.). (2004). Convex op-
+timization . Cambridge University.
+Burges, C., Shaked, T., Renshaw, E., Lazier, A., Deeds,
+M., Hamilton, N., & Hullender, G. (2005). Learning to
+rank using gradient descent. Proceedings of ICML 2005
+(pp. 89–96).
+Cao, Z., Qin, T., Liu, T. Y., Tsai, M. F., & Li, H. (2007).
+Learning to rank: From pairwise approach to listwise
+approach. Proceedings of the 24th International Con-
+ference on Machine Learning (pp. 129–136). Corvallis,
+OR.
+Cossock, D., & Zhang, T. (2006). Subset ranking using
+regression. COLT (pp. 605–619).
+Freund, Y., Iyer, R., Schapire, R. E., & Singer, Y. (1998).
+An eﬃcient boosting algorithm for combining prefer-
+ences. Proceedings of ICML (pp. 170–178).
+Hastie, T., Tibshirani, R., & Friedman, J. H. (Eds.).
+(2001). The elements of statistical learning: Data min-
+ing, inference and prediction . Springer.
+Herbrich, R., Graepel, T., & Obermayer, K. (1999). Sup-
+port vector vector learning for ordinal regression. Pro-
+ceedings of ICANN (pp. 97–102).
+Jarvelin, K., & Kekanainen, J. (2000). Ir evaluation meth-
+ods for retrieving highly relevant documents. Proceed-
+ings of SIGIR (pp. 41–48).
+Lin, Y. (2002). Support vector machines and the bayes rule
+in classiﬁcation. Data Mining and Knowledge Discovery ,
+259–275.
+Liu, T. Y., Qin, T., Xu, J., Xiong, W. Y., & Li, H. (2007).
+Letor: Benchmark dataset for research on learning to
+rank for information retrieval. Proceedings of SIGIR .
+Marden, J. I. (Ed.). (1995). Analyzing and modeling rank
+data. London: Chapman and Hall.
+Nallapati, R. (2004). Discriminative models for informa-
+tion retrieval. Proceedings of SIGIR (pp. 64–71).
+Qin, T., Zhang, X.-D., Tsai, M.-F., Wang, D.-S., Liu, T.-
+Y., & Li, H. (2007). Query-level loss functions for infor-
+mation retrieval. Information processing and manage-
+ment .
+Xu, J., & Li, H. (2007). Adarank: a boosting algorithm
+for information retrieval. Proceedings of SIGIR (pp. 391–
+398).
+Yue, Y., Finley, T., Radlinski, F., & Joachims, T. (2007).
+A support vector method for optimization average pre-
+cision. Proceedings of SIGIR (pp. 271–278).
+Zhang, T. (2004). Statistical analysis of some multi-
+category large margin classiﬁcation methods. Journal
+of Machine Learning Research ,5, 1225–1251.

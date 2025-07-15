@@ -1,0 +1,1149 @@
+Error Feedback Fixes SignSGD and other Gradient
+Compression Schemes
+Sai Praneeth Karimireddy, Quentin Rebjock, Sebastian U. Stich, Martin Jaggi
+EPFL
+{sai.karimireddy, quentin.rebjock, sebastian.stich, martin.jaggi}@epfl.ch
+Abstract
+Sign-based algorithms (e.g. SIGN SGD) have been proposed as a biased gradient compression technique
+to alleviate the communication bottleneck in training large neural networks across multiple workers. We
+show simple convex counter-examples where signSGD does not converge to the optimum. Further, even
+when it does converge, signSGD may generalize poorly when compared with SGD. These issues arise
+because of the biased nature of the sign compression operator.
+Finally we show that using error-feedback, i.e. incorporating the error made by the compression op-
+erator into the next step, overcomes these issues. We prove that our algorithm, EF-SGD, with arbitrary
+compression operator, achieves the same rate of convergence as SGD without any additional assumptions,
+indicating that we get gradient compression for free . Our experiments thoroughly substantiate the theory
+showing the superiority of our algorithm.
+1 Introduction
+Stochastic optimization algorithms Bottou [2010] which are amenable to large-scale parallelization, taking
+advantage of massive computational resources Krizhevsky et al. [2012], Dean et al. [2012] have been at the
+core of signiﬁcant recent progress in deep learning Schmidhuber [2015], LeCun et al. [2015]. One such
+example is the SIGN SGD algorithm and its variants, c.f. Seide et al. [2014], Bernstein et al. [2018, 2019].
+To minimize a continuous (possibly) non-convex function f:Rd!R, the classic stochastic gradient
+algorithm (SGD) Robbins and Monro [1951] performs iterations of the form
+xt+1:=xt 
+gt; (SGD)
+where
+2Ris the step-size (or learning-rate) and gtis the stochastic gradient such that E[gt] =rf(xt).
+Methods performing updates only based on the sign of each coordinate of the gradient have recently
+gaining popularity for training deep learning models Seide et al. [2014], Carlson et al. [2015], Wen et al.
+[2017], Balles and Hennig [2018], Bernstein et al. [2018], Zaheer et al. [2018], Liu et al. [2018]. For example,
+the update step of SIGN SGD is given by:
+xt+1:=xt 
+sign(gt): (SIGN SGD)
+Such sign-based algorithms are particularly interesting since they can be viewed through two lenses: as
+i) approximations of adaptive gradient methods such as ADAM Balles and Hennig [2018], and also a ii)
+communication efﬁcient gradient compression schemes Seide et al. [2014]. However, we show that a severe
+handicap of sign-based algorithms is that they do not converge in general. To substantiate this claim, we
+present in this work simple convex counter-examples where SIGN SGD cannot converge. The main reasons
+being that the sign operator loses information about, i.e. ‘forgets’, i) the magnitude, as well as ii) the direction
+ofgt. We present an elegant solution that provably ﬁxes these problems of SIGN SGD, namely algorithms
+with error-feedback .
+Error-feedback. We demonstrate that the aforementioned problems of SIGN SGD can be ﬁxed by i) scaling
+the signed vector by the norm of the gradient to ensure the magnitude of the gradient is not forgotten, and ii)
+1arXiv:1901.09847v1  [cs.LG]  28 Jan 2019Algorithm 1 EF-SIGN SGD ( SIGN SGD with Error-Feedb.)
+1:Input: learning rate 
+, initial iterate x02Rd,e0=0
+2:fort= 0;:::;T 1do
+3: gt:=stochasticGradient (xt)
+4: pt:=
+gt+et .error correction
+5: t:= (kptk1=d) sign( pt) .compression
+6: xt+1:=xt t .update iterate
+7: et+1:=pt t .update residual error
+8:end for
+locally storing the difference between the actual and compressed gradient, and adding it back into the next
+step so that the correct direction is not forgotten. We call our ‘ﬁxed’ method EF-SIGN SGD (Algorithm 1).
+In Algorithm 1, etdenotes the accumulated error from all quantization/compression steps. This residual
+error is added to the gradient step 
+gtto obtain the corrected direction pt. When compressing pt, the signed
+vector is again scaled by kptk1and hence does not lose information about the magnitude. Note that our
+algorithm does not introduce any additional parameters and requires only the step-size 
+.
+Our contributions. We show that naively using biased gradient compression schemes (such as e.g. SIGN SGD)
+can lead to algorithms which may not generalize or even converge. We show both theoretically and experi-
+mentally that simply adding error-feedback solves such problems and recovers the performance of full SGD,
+thereby saving on communication costs. We state our results for SIGN SGD to ease our exposition but our
+positive results are valid for general compression schemes, and our counterexamples extend to SIGN SGD
+with momentum, multiple worker settings, and even other biased compression schemes. More speciﬁcally
+our contributions are:
+1. We construct a simple convex non-smooth counterexample where SIGN SGD cannot converge, even
+with the full batch (sub)-gradient and and tuning the step-size. Another counterexample for a wide
+class of smooth convex functions proves that SIGN SGD with stochastic gradients cannot converge
+with batch-size one.
+2. We prove that by incorporating error-feedback, SIGN SGD—as well as any other gradient compression
+schemes—always converge. Further, our theoretical analysis for non-convex smooth functions recovers
+the same rate as SGD, i.e. we get gradient compression for free .
+3. We show that our algorithm EF-SIGN SGD which incorporates error-feedback approaches the linear
+span of the past gradients. Therefore, unlike SIGN SGD, EF-SIGN SGD converges to the max-margin
+solution in over-parameterized least-squares. This provides a theoretical justiﬁcation for why EF-
+SIGN SGD can be expected to generalize much better than SIGN SGD.
+4. We show extensive experiments on CIFAR10 and CIFAR100 using Resnet and VGG architectures
+demonstrating that EF-SIGN SGD indeed signiﬁcantly outperforms SIGN SGD, and matches SGD both
+on test as well as train datasets while reducing communication by a factor of 64.
+2 Signiﬁcance and Related Work
+Relation to adaptive methods. Introduced in Kingma and Ba [2015], ADAM has gained immense pop-
+ularity as the algorithm of choice for adaptive stochastic optimization for its perceived lack of need for
+parameter-tuning. However since, the convergence Reddi et al. [2018] as well the generalization perfor-
+mance Wilson et al. [2017] of such adaptive algorithms has been called into question. Understanding when
+ADAM performs poorly and providing a principled ‘ﬁx’ for these cases is crucial given its importance as
+the algorithm of choice for many researchers. It was recently noted by Balles and Hennig [2018] that the
+behavior of ADAM is in fact identical to that of SIGN SGD with momentum : More formally, the SIGN SGD M
+algorithm (referred to as ’signum’ by Bernstein et al. [2018, 2019]) adds momentum to the SIGN SGD update
+2as:
+mt+1:=gt+mt
+xt+1:=xt 
+sign(mt+1):(SIGN SGD M)
+for parameter  >0. This connection between signed methods and fast stochastic algorithms is not surprising
+since sign-based gradient methods were ﬁrst studied as a way to speed up SGD Riedmiller and Braun [1993].
+Given their similarity, understanding the behavior of SIGN SGD and SIGN SGD Mcan help shed light on the
+convergence of ADAM.
+Relation to gradient compression methods. As the size of the models keeps getting bigger, the training
+process can often take days or even weeks Dean et al. [2012]. This process can be signiﬁcantly accelerated by
+massive parallelization Li et al. [2014], Goyal et al. [2017]. However, at these scales communication of the
+gradients between the machines becomes a bottleneck hindering us from making full use of the impressive
+computational resources available in today’s data centers Chilimbi et al. [2014], Seide et al. [2014], Strom
+[2015]. A simple solution to alleviate this bottleneck is to compress the gradient and reduce the number of
+bits transmitted. While the analyses of such methods have largely been restricted to unbiased compression
+schemes Alistarh et al. [2017], Wen et al. [2017], Wang et al. [2018], biased schemes which perform extreme
+compression practically perform much better Seide et al. [2014], Strom [2015], Lin et al. [2018]—often
+without any loss in convergence or accuracy. Of these, Seide et al. [2014], Strom [2015], Wen et al. [2017]
+are all sign-based compression schemes. Interestingly, all the practical papers Seide et al. [2014], Strom
+[2015], Lin et al. [2018] use some form of error-feedback.
+Error-feedback. The idea of error-feedback was, as far as we are aware, ﬁrst introduced in 1-bit SGD
+Seide et al. [2014], Strom [2015]. The algorithm 1-bit SGD is very similar to our EF-SIGN SGD algorithm,
+but tailored for the speciﬁc recurrent network studied there. Though not presented as such, the ‘momentum
+correction’ used in Lin et al. [2018] is a variant of error-feedback. However the error-feedback is not on
+the vanilla SGD algorithm, but on SGD with momentum. Recently, Stich et al. [2018] conducted the ﬁrst
+theoretical analysis of error-feedback for compressed gradient methods (they call it ‘memory’) in the strongly
+convex case. Our convergence results can be seen as an extension of theirs to the non-convex and weakly
+convex cases.
+Generalization of deep learning methods. Deep networks are almost always over-parameterized and are
+known to be able to ﬁt arbitrary data and always achieve zero training error Zhang et al. [2017]. This ability
+of deep networks to generalize well on real data, while simultaneously being able to ﬁt arbitrary data has
+recently received a lot of attention (e.g. Soudry et al. [2018], Dinh et al. [2017], Zhang et al. [2018], Arpit
+et al. [2017], Kawaguchi et al. [2017]). SIGN SGD and ADAM are empirically known to generalize worse
+than SGD Wilson et al. [2017], Balles and Hennig [2018]. A number of recent papers try close this gap
+for ADAM. Luo et al. [2019] show that by bounding the adaptive step-sizes in ADAM leads to closing the
+generalization gap. They require new hyper-parameters on top of ADAM to adaptively tune these bounds
+on the step-sizes. Chen and Gu [2019] interpolate between SGD and ADAM using a new hyper-parameter
+pand show that tuning this can recover performance of SGD. Zaheer et al. [2018] introduce a new adaptive
+algorithm which is closer to Adagrad Duchi et al. [2011]. Similarly, well-tuned ADAM (where all the hyper-
+parameters and not just the learning rate are tuned) is also known to close the generalization gap Gugger and
+Howard [2018]. In all of these algorithms, new hyper-parameters are introduced which essentially control
+the effect of the adaptivity. Thus they require additional tuning while the improvement upon traditional SGD
+is questionable. We are not aware of other work bridging the generalization gap in sign-based methods.
+3 Counterexamples for SignSGD
+In this section we study the limitations of SIGN SGD. Whilst under benign conditions—for example if the
+functionfis smooth and the stochastic noise is normal—the algorithm can be shown to converge Bernstein
+et al. [2018, 2019], we show that SIGN SGD does not converge in general. We demonstrate this ﬁrst on a few
+pedagogic examples and later also for realistic and general sum-structured loss functions.
+31g
+1
+g2s1
+s2e1
+e2
+Figure 1: The gradients g(in solid black), singed gradient direction s= sign( g)(in dashed black), and the
+errore(in red) are plotted for = 0:5.SIGN SGD moves only along s=(1; 1)while the error eis
+ignored.
+If we use a ﬁxed step-size 
+0,SIGN SGD does not converge even for simple one-dimensional linear
+functions.
+Counterexample 1. Forx2Rconsider the constrained problem
+min
+x2[ 1;1]
+f(x) :=1
+4x
+;
+with minimum at x?= 1. Assume stochastic gradients are given as (note that f(x) =1
+4(4x x x x))
+g=(
+4; with prob.1
+4
+ 1;with prob.3
+4with E[g] =rf(x):
+For SGD with any step-size 
+,
+Et[f(xt+1)] =1
+4(xt 
+E[g]) =f(xt) 
+16:
+On the other hand, for SIGN SGD with any ﬁxed 
+,
+Et[f(xt+1)] =1
+4(xt 
+E[sign(g)]) =f(xt) +
+8;
+i.e. the objective function increases in expectation for 
+0.
+Remark 1. In the above example, we exploit that the sign operator loses track of the magnitude of the
+stochastic gradient. Also note that our noise is bimodal. The counter-examples for the convergence of ADAM
+Reddi et al. [2018], Luo et al. [2019] do exploit similar ideas for ADAM.
+In the example above the step-size 
+was ﬁxed. But even if we allow changing step-sizes (e.g. decreasing,
+or adaptively chosen optimal step-sizes) SIGN SGD does not converge. This even holds if the full (sub)-
+gradient is available (non-stochastic case).
+Counterexample 2. Forx2R2consider the following non-smooth convex problem with x?= (0;0)>:
+min
+x2R2h
+f(x) :=jx1+x2j+jx1 x2ji
+;
+for parameter 0<< 1and subgradient
+g(x) = sign(x1+x2)
+1
+1
++ sign(x1 x2)
+1
+ 1
+:
+See Fig. 1. The iterates of SIGN SGD started at x0= (1;1)>lie along the line x1+x2= 2. Note that for
+anyxs.t.x1+x2>0,sign(g(x))=(1; 1)>, and hencex1+x2remains constant among the iterations
+ofSIGN SGD. Consequently, for any step-size sequence 
+t,f(xt)f(x0).
+4Remark 2. In this example, we exploit the fact that the sign operator is a biased approximation of the
+gradient—it consistently ignores the direction e=(1;1)>(see Fig 1). Tuning the step-size would not help
+either.
+One might wonder if the smooth-case is easier. Unfortunately, the previous example can easily be ex-
+tended to show that SIGN SGD with stochastic gradients may not converge even for smooth functions.
+Counterexample 3. Forx2R2consider the following least-squares problem with x?= (0;0)>:
+min
+x2R2
+f(x) := (ha1;xi)2+ (ha2;xi)2
+;where
+a1;2:=(1; 1) +(1;1);
+for parameter 0<< 1and stochastic gradient g(x) =rx(ha1;xi)2with prob.1
+2andg(x) =rx(ha2;xi)2
+with prob.1
+2. The stochastic gradient is then either ea1orea2for some scalar e. Exactly as in the non-smooth
+case, for x0= (1;1)>, the sign of the gradient sign(g) =(1; 1). Hence SIGN SGD with any step-size
+sequence remains stuck along the line x1+x2= 2andf(xt)f(x0).
+We can generalize the above counter-example to arbitrary dimensions and loss functions.
+Theorem I. Suppose that scalar loss functions fli:R!Rgn
+i=1and data-pointsfaign
+i=12Rdford2
+satisfy: i)f(x) :=Pn
+i=1li(hai;xi)has a unique optimum at x?, and ii) there exists s2f  1;1gdsuch that
+sign(ai) =sfor alli. Then SIGN SGD with batch-size 1 and stochastic gradients g(x) =rxli(hai;xi)for
+ichosen uniformly at random does not converge to x?a.s. for any sequence of step-sizes, even with random
+initialization.
+4 Convergence of Compressed Methods
+We show the rather surprising result that incorporating error-feedback is sufﬁcient to ensure that the algorithm
+converges at a rate which matches that of SGD. In this section we consider a general gradient compression
+scheme.
+Algorithm 2 EF-SGD (Compr. SGD with Error-Feedback)
+1:Input: learning rate 
+, compressorC(),x02Rd
+2:Initialize: e0=02Rd
+3:fort= 0;:::;T 1do
+4: gt:=stochasticGradient (xt)
+5: pt:=
+gt+et .error correction
+6: t:=C(pt) .compression
+7: xt+1:=xt t .update iterate
+8: et+1:=pt t .update residual error
+9:end for
+5We borrow following deﬁnition from Stich et al. [2018].
+Assumption A (Compressor) .An operatorC:Rd!Rdis a-approximate compressor over Qfor2
+(0;1]if
+kC(x) xk2
+2(1 )kxk2
+2;8x2Q:
+Note that= 1implies thatC(x) =x. Examples of compressors include: i) the sign operator, ii) top- k
+which selects kcoordinates with the largest absolute value while zero-ing out the rest Lin et al. [2018], Stich
+et al. [2018], iii) k-PCA which approximates a matrix Xwith its top keigenvectors Wang et al. [2018].
+Randomized compressors satisfying the assumption in expectation are also allowed.
+We now state a key lemma that shows that the residual errors maintained in Algorithm 2 do not accumulate
+too much.
+Lemma 3 (Error is bounded) .Assume that E[kgtk2]2for allt0. Then at any iteration tofEF-SGD ,
+the norm of the error etin Algorithm 2 is bounded:
+Eketk2
+24(1 )
+22
+2; 8t0:
+If= 1, thenketk= 0and the error is zero as expected.
+We employ standard assumptions of smoothness of the loss function and the variance of the stochastic
+gradient.
+Assumption B (Smoothness) .A functionf:Rd!RisL-smooth if for all x,y2Rdthe following holds:
+jf(y) (f(x) +hrf(x);y xi)jL
+2ky xk2
+2:
+Assumption C (Moment bound) .For any x, our query for a stochastic gradient returns gsuch that
+E[g] =rf(x)and Ekgk2
+22:
+Given these assumptions, we can formally state our theorem followed by a sketch of the proof.
+Theorem II (Non-convex convergence of EF-SGD) .Letfxtgt0denote the iterates of Algorithm 2. Under
+Assumptions A, B, and C,
+min
+t2[T]krf(xt)k22f0
+
+(T+ 1)+
+L2
+2+4
+2L22(1 )
+2;
+withf0:=f(x0) f?.
+Proof Sketch. Intuitively, the condition that C()is a-approximate compressor implies that at each iteration
+a-fraction of the gradient information is sent. The rest is added to etto be transmitted later. Eventually,
+all the gradient information is transmitted—albeit with a delay which depends on . Thus EF-SGD can
+intuitively be viewed as a delayed gradient method. If the function is smooth, the gradient does not change
+quickly and so the delay does not signiﬁcantly matter.
+More formally, consider the error-corrected sequence ~xtwhich represents xtwith the ‘delayed’ informa-
+tion added:
+~xt:=xt+et:
+It satisﬁes the recurrence
+~xt+1=xt+et+1 C(pt) =xt pt=~xt 
+gt:
+Ifxtwas exactly equal to ~xt(i.e. there was zero ‘delay’), then we could proceed with the standard proof
+of SGD. We instead rely on Lemma 3 which shows ~xtxtand on the smoothness of fwhich shows
+rf(xt)rf(~xt).
+6Remark 4. If we substitute 
+:=1pT+1in Theorem II, we get
+min
+t2[T]krf(xt)k24(f(x0) f?) +L2
+2p
+T+ 1+4L22(1 )
+2(T+ 1)
+In the above rate, the compression factor only appears in the higher order O(1=T)term. For comparison,
+SGD under the exact same assumptions achieves
+min
+t2[T]krf(xt)k22(f(x0) f?) +L2
+2p
+T+ 1:
+This means that after TO(1=2)iterations the last term becomes negligible and the rate of convergence
+catches up with full SGD—this is usually true after just the ﬁrst few epochs. Thus we prove that compressing
+the gradient does not change the asymptotic rate of SGD1.
+Remark 5. The use of error-feedback was motivated by our counter-examples for biased compression
+schemes. However our rates show that even if using an un-biased compression (e.g. QSGD Alistarh et al.
+[2017]), using error-feedback gives signiﬁcantly better rates. Suppose we are given an unbiased compressor
+cU()such that E[U(x)] =xandEh
+kU(x)k2
+2i
+kkxk2. Then without feedback, using standard analysis
+(e.g. Alistarh et al. [2017]) the algorithm converges ktimes slower:
+min
+t2[T]krf(xt)k22(f(x0) f?) +Lk2
+2p
+T+ 1:
+Instead, if we useC(x) =1
+kU(x)with error-feedback, we would achieve
+min
+t2[T]krf(xt)k22(f(x0) f?) +L2
+2p
+T+ 1+2L22k2
+T+ 1;
+thereby pushing the dependence on kinto the higher order O(1=T)term.
+Our counter-examples showed that biased compressors may not converge for non-smooth functions. It is
+apriori not clear if adding error-feedback works for such non-smooth functions. Below we prove that it in
+fact does under standard assumptions.
+Theorem III (Non-smooth convergence of EF-SGD) .Letfxtgt0denote the iterates of Algorithm 2 and
+deﬁne xt=1
+TPT
+t=0xt. Given that fis convex and Assumptions A, and C hold,
+E[f(xt)] f?kx0 x?k2
+
+(T+ 1)+
+2
+1 +2p
+1 
+
+:
+Remark 6. By picking the optimal 
+=O(1=p
+T), we see that
+E[f(xt)] f?kx0 x?kp
+T+ 1s
+1 +2p
+1 
+:
+For comparison, the rate of convergence under the same assumptions for SGD is
+E[f(xt)] f?kx0 x?kp
+T+ 1:
+For non-smooth functions, unlike in the smooth case, the compression quality appears directly in the leading
+term of the convergence rate. This is to be expected since we can no longer assume that rf(~xt)rf(xt),
+which formed the crux of our argument for the smooth case.
+Remark 7. Consider the top-1 compressor which just picks the coordinate with the largest absolute value,
+and zeroes out everything else. It is obvious that top-1 is a1
+d-approximate compressor (cf. [Stich et al., 2018,
+Lemma A.1]). Running EF-SGD withCas top-1 results in a steepest coordinate algorithm. This is the ﬁrst
+result we are aware which shows the convergence of a steepest-coordinate type algorithm on non-smooth
+functions.
+If the function is both smooth and convex, we can fall back to the analysis of Stich et al. [2018] and so
+we won’t examine it in more detail here.
+1The astute reader would have observed that the asymptotic rate for EF-SIGN SGD is in fact 2 times slower than SGD. This is just for
+simplicity of presentation and can easily be ﬁxed with a tighter analysis.
+70 50 100 150 200
+Epoch0.20.30.4()
+gt
+gt+etFigure 2: The density ()for the stochastic gradients gtand the error-corrected stochastic gradients gt+et
+for VGG19 on CIFAR10 and batchsize 128 (See Sec. 6). Minimum value of (gt+et)is greater than 0:13.
+Convergence of EF-SIGN SGD
+What do our proven rates imply for EF-SIGN SGD (Algorithm 1), the method of our interest here?
+Lemma 8 (Compressed sign) .The operatorC(v) :=kvk1
+dsign(v)is a
+(v) =kvk2
+1
+dkvk2
+2
+compressor.
+We refer to the quantity (v)as the density of v. If the vector vhad only one non-zero element, the value
+offor EF-SIGN SGD could be as bad as 1=d. However, in deep learning the gradients are usually dense
+and hence(v)is much larger (see Fig. 2). Note that for our convergence rates, it is not the density of the
+gradient gtwhich matters but the density of the error-corrected gradient gt+et.
+Faster convergence than SGD? Kingma and Ba [2015] and Bernstein et al. [2018] note that different
+coordinates of the stochastic gradient gmay have different variances. In standard SGD, the learning rate 
+would be reduced to account for the maximum of these coordinate-wise variances since otherwise the path
+might be dominated by the noise in these sparse coordinates. Instead, using coordinate-wise learning-rates
+like Adam does, or using only the coordinate-wise sign ofgasSIGN SGD does, might mitigate the effect of
+such ‘bad’ coordinates by effectively scaling down the noisy coordinates. This is purported to be the reason
+why ADAM and SIGN SGD can be faster than SGD on train dataset.
+InEF-SIGN SGD, the noise from the ‘bad’ coordinates gets accumulated in the error-term etand is not for-
+gotten or scaled down. Thus, if there are ‘bad’ coordinates whose variance slows down convergence of SGD,
+EF-SIGN SGD should be similarly slow. Conﬁrming this, in a toy experiment with sparse noise (Appendix
+A.1), SGD and EF-SIGN SGD converge at the same slower rate, whereas SIGN SGD is signiﬁcantly faster.
+However, our real world experiments contradict this—even with the feedback, EF-SIGN SGD is consistently
+faster than SGD, SIGN SGD and SIGN SGD Mon training data. Thus the coordinate-wise variance adaption
+explanation proposed by Bernstein et al. [2018], Kingma and Ba [2015] does not explain the faster conver-
+gence of EF-SIGN SGD, and is probably an incomplete explanation of why sign based methods or adaptive
+methods are faster than SGD!
+5 Generalization of SignSGD
+So far our discussion has mostly focused on the convergence of the methods i.e. their performance on training
+data. However for deep-learning, we actually care about their performance on test data i.e. their generaliza-
+tion. It has been observed that the optimization algorithm being used signiﬁcantly impacts the properties
+of the optima reached Im et al. [2016], Li et al. [2018]. For instance, ADAM and SIGN SGD are known to
+generalize poorly compared with SGD Wilson et al. [2017], Balles and Hennig [2018].
+The proposed explanation for this phenomenon is that in an over-parameterized setting, SGD reaches the
+‘max-margin’ solution wheras ADAM and SIGN SGD do not Zhang et al. [2017], Wilson et al. [2017], and
+8Balles and Hennig [2018]. As with the issues in convergence, the issues of SIGN SGD with generalization
+also turn out to be related to the biased nature of the sign operator. We explore how error-feedback may also
+alleviate the issues with generalization for any compression operator.
+5.1 Distance to gradient span
+Like Zhang et al. [2017], Wilson et al. [2017], we consider an over-parameterized least-squares problem
+min
+x2Rdh
+f(x) :=kAx yk2
+2i
+;
+where A2Rndford > n is the data matrix and y2f  1;1gnis the set of labels. The set of solutions
+X?:=fx:f(x) = 0gof this problem forms a subspace in Rd. Of particular interest is the solution with
+smallest norm:
+arg min
+x:2X?kxk2=Ayy=A> 
+AA> 1y;
+as this corresponds to the maximum margin solution in the dual.
+Maximizing margin is known to have a regularizing effect and is said to improve generalization Valiant
+[1984], Cortes and Vapnik [1995].
+The key property that SGD (with or without momentum) trivially satisﬁes is that the iterates always lie in
+the linear span of the gradients.
+Lemma 9. Given any over-parameterized least-squares problem, suppose that the iterates of the algorithm
+always lie in the linear span of the gradients and it converges to a 0 loss solution. This solution corresponds
+to the minimum norm/maximum margin solution.
+If we instead use a biased compressor (e.g. SIGN SGD), it is clear that the iterate may not lie in the span
+of the gradients. In fact it is easy to construct examples where this happens for SIGN SGD Balles and Hennig
+[2018], as well as top- ksparsiﬁcation Gunasekar et al. [2018], perhaps explaining the poor generalization of
+these schemes. Error-feedback is able to overcome this issue as well.
+Theorem IV. Suppose that we run Algorithm 2 for titerations starting from x0=0. LetGt= [g>
+0;:::;g>
+t 1]2
+Rdtdenote the matrix of the stochastic gradients and let Gt:Rn!Im(Gt)denote the projection onto
+the range of Gt.
+kxt Gt(xt)k2
+2ketk2
+2:
+Hereetis the error as deﬁned in Algorithm 2. The theorem follows directly from observing that (xt+1+
+et+1) = (x0+Pt
+i=0
+gi);and hence lies in the linear span of the gradients.
+Remark 10. Theorem IV along with Lemma 3 implies that the iterates of 2 are always close to the linear
+span of the gradients.
+kxt Gt(xt)k2
+24
+2(1 )
+2max
+i2[t]kgik2:
+This distance further reduces as the algorithm progresses since the the step-size 
+is typically reduced.
+5.2 Simulations
+We compare the generalization of the four algorithms with full batch gradient: i) SGD ii) SIGN SGD, iii)
+SIGN SGD M, and iv) EF-SIGN SGD. The data is generated as in Wilson et al. [2017] and is randomly split
+into test and train. The step-size 
+and (where applicable) the momentum parameter are tuned to obtain the
+best results for all cases.
+In all four cases (Fig. 3), the train loss quickly goes to 0. The distance to the linear span of gradients
+is quite large for SIGN SGD and SIGN SGD M. For EF-SIGN SGD, exactly as predicted by our theory, it ﬁrst
+increases to a certain limit and then goes to 0 as the algorithm converges. The test error, almost exactly
+corresponding to the distance kxt Gt(xt)k, goes down to 0. SIGN SGD Moscillates signiﬁcantly because
+of the momentum term, however the conclusion remains unchanged—the best test error is higher than 0.8.
+This indicates that using error-feedback might result in generalization performance comparable with SGD.
+90 50
+Iteration0.02.55.07.5Distance from Gt(xt)
+0 10 20
+Iteration0.00.40.81.2Train losses
+0 50
+Iteration0.00.40.81.2Test losses
+SGDm
+signSGD
+signSGDm
+EF-signSGDFigure 3: Left shows the distance of the iterate from the linear span of the gradients kxt Gt(xt)k. The
+middle and the right plots show the train and test loss. SIGN SGD and SIGN SGD Mhave a high distance to the
+span, and do not generalize (test loss is higher than 0.8). Distance of EF-SIGN SGD to the linear span (and
+the test loss) goes to 0.
+6 Experiments
+We run experiments on deep networks to test the validity of our insights. The results conﬁrm that i) EF-
+SIGN SGD with error feedback always outperforms the standard SIGN SGD and SIGN SGD M, ii) the general-
+ization gap of SIGN SGD and SIGN SGD Mvs. SGD gets larger for smaller batch sizes, iii) the performance
+ofEF-SIGN SGD on the other hand is much closer to SGD, and iv) SIGN SGD behaves erratically when using
+small batch-sizes.
+6.1 Experimental setup
+All our experiments used the PyTorch framework Paszke et al. [2017] on the CIFAR-10/100 dataset Krizhevsky
+and Hinton [2009]. Each experiment is repeated three times and the results are reported in Fig 4. Additional
+details and experiments can be found in Appendix A.
+Algorithms: We experimentally compared the following four algorithms: i) SGD Mwhich is SGD with
+momentum, ii) (scaled) SIGN SGD with stepsize scaled by the L1-norm of the gradient, iii) SIGN SGD Mwhich
+isSIGN SGD using momentum, and iv) EF-SIGN SGD (Alg. 1). The scaled SIGN SGD performs the update
+xt+1:=xt 
+kgtk1
+dsign(gt):
+We chose to include this in our experiments since we wanted to isolate the effects of error-feedback from
+that of scaling. Further we drop the unscaled SIGN SGD from our discussion here since it was observed to
+perform worse than the scaled version. As is standard in compression schemes Seide et al. [2014], Lin et al.
+[2018], Wang et al. [2018], we perform apply our compression layer-wise. Thus the net communication for
+the (scaled) SIGN SGD and EF-SIGN SGD isPl
+i=1(di+ 32) bits wherediis the dimension of layer i, andl
+is the total number of layers. If the total number of parameters is much larger than the number of layers, then
+the cost of the extra 32lbits is negligible—usually the number of parameters is three orders of magnitude
+more than the number of layers.
+All algorithms are run for 200 epochs. The learning-rate is decimated at 100 epochs and then again at 150
+epochs. The initial learning rate is tuned manually (see Appendix A) for all algorithms using batch-size 128.
+For the smaller batch-sizes, the learning-rate is proportionally reduced as suggested in Goyal et al. [2017].
+The momentum parameter (where applicable) was ﬁxed to 0:9and weight decay was left to the default
+value of 510 4.
+Models: We use the VGG+BN+Dropout network on CIFAR-10 (VGG19) from Simonyan and Zisserman
+[2014] and Resnet+BN+Dropout network (Resnet18) from He et al. [2016a]. We adopt the standard data
+augmentation scheme and preprocessing scheme He et al. [2016a,b]. Our code builds upon on an open
+source library2.
+2github.com/kuangliu/pytorch-cifar
+100 25 50 75 100 125 150 175 2005060708090100Train accuracyBatch size 128
+SGDm
+signSGD
+signSGDm
+EF-signSGD
+0 25 50 75 100 125 150 175 2005060708090100Batch size 32
+0 25 50 75 100 125 150 175 200405060708090100Batch size 8
+0 25 50 75 100 125 150 175 200
+Epoch50556065707580Test accuracy
+0 25 50 75 100 125 150 175 200
+Epoch50556065707580
+0 25 50 75 100 125 150 175 200
+Epoch20304050607080Figure 4: Experimental results showing the train and test accuracy percentages on CIFAR-100 using Resnet18
+for different batch-sizes. The solid curves represent the mean value and shaded region spans one standard
+deviation obtained over three replications. Note that the scale of the y-axis varies across the plots. EF-
+SIGN SGD consistently and signiﬁcantly outperforms the other sign-based methods, closely matching the
+performance of SGD M.
+Batch-size SGD MSIGN SGD SIGN SGD MEF-SIGN SGD
+128 75.35 -2.21 -3.15 -0.92
+32 76.22 -3.04 -3.57 -0.79
+8 74.91 -36.35 -6.6 -0.64
+Table 1: Generalization gap on CIFAR-100 using Resnet18 for different batch-sizes. For SGD Mwe report
+the best mean test accuracy percentage, and for the other algorithms we report their difference to the SGD M
+accuracy (i.e. the generalization gap). EF-SIGN SGD has a much smaller gap.
+6.2 Results
+The results of the experiments for Resnet18 on Cifar100 are shown in Fig. 4 and Table 1. Results for VGG19
+on Cifar10 are also similar and can be found in the Appendix. We make four main observations:
+EF-SIGN SGD is faster than SGD Mon train. On the train dataset, both the accuracy and the losses (Fig.
+6) is better for EF-SIGN SGD than for SGD for all batch-sizes and models (Fig. 7). In fact even SIGN SGD
+is faster than SGD Mon the train dataset on VGG19 (Fig. 7) for batch-size 128. As we note in Section 4,
+the result that the scaled sign methods are also faster than SGD (and in fact faster than even the unscaled
+algorithms) overturns previously understood intuition (cf. Kingma and Ba [2015], Bernstein et al. [2018])
+for why SIGN SGD and other adaptive methods outperform SGD—i.e. restricting the effect of a some ‘bad’
+coordinates with high variance may not be the main reason why sign based methods are faster than SGD on
+train.
+EF-SIGN SGD almost matches SGD Mon test. On the test dataset (Table 1), the accuracy and the loss
+is much closer to SGD than the other sign methods across batch-sizes and models (Tables 3, 4). The gen-
+eralization gap (both in accuracy and loss) reduces with decreasing batch-size. We believe this is because
+the learning-rate was scaled proportional to the batch-size and hence smaller learning-rates lead to smaller
+generalization gap, as was theoretically noted in Remark 10.
+SIGN SGD performs poorly for small batch-sizes. The performance of SIGN SGD is always worse than
+EF-SIGN SGD indicating that scaling is insufﬁcient and that error-feedback is crucial for performance. Further
+11all metrics (train and test, loss and accuracy) increasingly become worse as the batch-size decreases indicat-
+ing that SIGN SGD is indeed a brittle algorithm. In fact for batch-size 8, the algorithm becomes extremely
+unstable.
+SIGN SGD Mperforms poorly on some datasets and for smaller batch-sizes. We were surprised that the
+training performance of SIGN SGD Mis signiﬁcantly worse than even SIGN SGD on CIFAR-100 for batch-
+sizes 128 and 32. On CIFAR-10, on the other hand, SIGN SGD Mmanages to be faster than SGD M(though
+still slower than EF-SIGN SGD). We believe this may be due to SIGN SGD Mbeing sensitive to the weight-
+decay parameter as was noted in Bernstein et al. [2018]. We do not tune the weight-decay parameter and leave
+it to its default value for all methods (including EF-SIGN SGD). Further the generalization gap of SIGN SGD M
+gets worse for decreasing batch-sizes with a signiﬁcant 6.6% drop in accuracy for batch-size 8.
+7 Conclusion
+We study the effect of biased compressors on the convergence and generalization of stochastic gradient algo-
+rithms for non-convex optimization. We have shown that biased compressors if naively used can lead to bad
+generalization, and even non-convergence. We then show that using error-feedback all such adverse effects
+can be mitigated. Our theory and experiments indicate that using error-feedback, our compressed gradient
+algorithm EF-SGD enjoys the same rate of convergence as original SGD—thereby giving compression for
+free. We believe this should have a large impact in the design of future compressed gradient schemes for dis-
+tributed and decentralized learning. Further, given the relation between sign-based methods and Adam, we
+believe that our results will be relevant for better understanding the performance and limitations of adaptive
+methods.
+References
+Dan Alistarh, Demjan Grubic, Jerry Li, Ryota Tomioka, and Milan V ojnovic. Qsgd: Communication-efﬁcient
+sgd via gradient quantization and encoding. In Advances in Neural Information Processing Systems (NIPS) ,
+2017. 3, 7
+Devansh Arpit, Stanisław Jastrz˛ ebski, Nicolas Ballas, David Krueger, Emmanuel Bengio, Maxinder S Kan-
+wal, Tegan Maharaj, Asja Fischer, Aaron Courville, Yoshua Bengio, et al. A closer look at memorization
+in deep networks. In International Conference on Machine Learning (ICML) , 2017. 3
+Lukas Balles and Philipp Hennig. Dissecting adam: The sign, magnitude and variance of stochastic gradients.
+InInternation Conference on Machine Learning (ICML) , 2018. 1, 2, 3, 8, 9
+Jeremy Bernstein, Yu-Xiang Wang, Kamyar Azizzadenesheli, and Anima Anandkumar. signsgd: compressed
+optimisation for non-convex problems. In Internation Conference on Machine Learning (ICML) , 2018. 1,
+2, 3, 8, 11, 12, 15
+Jeremy Bernstein, Jiawei Zhao, Kamyar Azizzadenesheli, and Anima Anandkumar. signSGD with majority
+vote is communication efﬁcient and fault tolerant. In International Conference on Learning Representa-
+tions (ICLR) , 2019. 1, 2, 3
+Léon Bottou. Large-scale machine learning with stochastic gradient descent. In Yves Lechevallier and Gilbert
+Saporta, editors, Proceedings of COMPSTAT’2010 , pages 177–186, Heidelberg, 2010. Physica-Verlag HD.
+ISBN 978-3-7908-2604-3. 1
+David Carlson, V olkan Cevher, and Lawrence Carin. Stochastic Spectral Descent for Restricted Boltzmann
+Machines. In International Conference on Artiﬁcial Intelligence and Statistics (AISTATS) , pages 111–119,
+February 2015. 1
+Jinghui Chen and Quanquan Gu. Padam: Closing the generalization gap of adaptive gradient methods in
+training deep neural networks. In International Conference on Learning Representations (ICLR) , 2019. 3
+Trishul M Chilimbi, Yutaka Suzue, Johnson Apacible, and Karthik Kalyanaraman. Project adam: Building
+an efﬁcient and scalable deep learning training system. In OSDI , volume 14, pages 571–582, 2014. 3
+12Corinna Cortes and Vladimir Vapnik. Support-vector networks. Machine learning , 20(3):273–297, 1995. 9
+Jeffrey Dean, Greg Corrado, Rajat Monga, Kai Chen, Matthieu Devin, Mark Mao, Andrew Senior, Paul
+Tucker, Ke Yang, Quoc V Le, et al. Large scale distributed deep networks. In Advances in Neural Infor-
+mation Processing Systems (NIPS) , pages 1223–1231, 2012. 1, 3
+Laurent Dinh, Razvan Pascanu, Samy Bengio, and Yoshua Bengio. Sharp minima can generalize for deep
+nets. arXiv preprint arXiv:1703.04933 , 2017. 3
+John Duchi, Elad Hazan, and Yoram Singer. Adaptive subgradient methods for online learning and stochastic
+optimization. Journal of Machine Learning Research , 12(Jul):2121–2159, 2011. 3
+Priya Goyal, Piotr Dollar, Ross Girshick, Pieter Noordhuis, Lukasz Wesolowski, Aapo Kyrola, Andrew Tul-
+loch, Yangqing Jia, and Kaiming He. Accurate, large minibatch sgd: training imagenet in 1 hour. arXiv
+preprint arXiv:1706.02677 , 2017. 3, 10
+Sylvain Gugger and Jeremy Howard. Adamw and super-convergence is now the fastest way to train neural
+nets. https://www.fast.ai/2018/07/02/adam-weight-decay/ , 2018. Accessed: 2019-01-17. 3
+Suriya Gunasekar, Jason Lee, Daniel Soudry, and Nathan Srebro. Characterizing implicit bias in terms of
+optimization geometry. In International Conference on Machine Learning (ICML) , 2018. 9
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. In
+Proceedings of the IEEE conference on computer vision and pattern recognition (CVPR) , pages 770–778,
+2016a. 10
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Identity mappings in deep residual networks. In
+European Conference on Computer Vision (ECCV) , pages 630–645. Springer, 2016b. 10
+Daniel Jiwoong Im, Michael Tao, and Kristin Branson. An empirical analysis of the optimization of deep
+network loss surfaces. arXiv preprint arXiv:1612.04010 , 2016. 8
+Kenji Kawaguchi, Leslie Pack Kaelbling, and Yoshua Bengio. Generalization in deep learning. arXiv preprint
+arXiv:1710.05468 , 2017. 3
+Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. In International Conference
+on Learning Representations (ICLR) , 2015. 2, 8, 11
+Alex Krizhevsky and Geoffrey Hinton. Learning multiple layers of features from tiny images. Technical
+report, Technical Report, University of Toronto, Toronto., 2009. 10
+Alex Krizhevsky, Ilya Sutskever, and Geoffrey E Hinton. Imagenet classiﬁcation with deep convolutional
+neural networks. In Advances in Neural Information Processing Systems (NIPS) , pages 1097–1105, 2012.
+1
+Yann LeCun, Yoshua Bengio, and Geoffrey Hinton. Deep learning. nature , 521(7553):436, 2015. 1
+Hao Li, Zheng Xu, Gavin Taylor, Christoph Studer, and Tom Goldstein. Visualizing the loss landscape of
+neural nets. In Advances in Neural Information Processing Systems (NeurIPS) , 2018. 8
+Mu Li, David G Andersen, Jun Woo Park, Alexander J Smola, Amr Ahmed, Vanja Josifovski, James Long,
+Eugene J Shekita, and Bor-Yiing Su. Scaling distributed machine learning with the parameter server. In
+OSDI , volume 14, pages 583–598, 2014. 3
+Yujun Lin, Song Han, Huizi Mao, Yu Wang, and William J Dally. Deep gradient compression: Reducing the
+communication bandwidth for distributed training. In International Conference on Learning Representa-
+tions (ICLR) , 2018. 3, 6, 10
+Sijia Liu, Pin-Yu Chen, Xiangyi Chen, and Mingyi Hong. signsgd via zeroth-order oracle. In International
+Conference on Learning Representations (ICLR) , 2018. 1
+Liangchen Luo, Yuanhao Xiong, and Yan Liu. Adaptive gradient methods with dynamic bound of learning
+rate. In International Conference on Learning Representations (ICLR) , 2019. 3, 4
+Adam Paszke, Sam Gross, Soumith Chintala, and Gregory Chanan. Pytorch, 2017. 10
+13Sashank J Reddi, Satyen Kale, and Sanjiv Kumar. On the convergence of adam and beyond. In International
+Conference on Learning Representations (ICLR) , 2018. 2, 4
+Martin Riedmiller and Heinrich Braun. A direct adaptive method for faster backpropagation learning: The
+rprop algorithm. In Neural Networks, 1993., IEEE International Conference on , pages 586–591. IEEE,
+1993. 3
+Herbert Robbins and Sutton Monro. A Stochastic Approximation Method. The Annals of Mathematical
+Statistics , 22(3):400–407, September 1951. 1
+Jürgen Schmidhuber. Deep learning in neural networks: An overview. Neural networks , 61:85–117, 2015. 1
+Frank Seide, Hao Fu, Jasha Droppo, Gang Li, and Dong Yu. 1-bit stochastic gradient descent and its applica-
+tion to data-parallel distributed training of speech dnns. In Fifteenth Annual Conference of the International
+Speech Communication Association , 2014. 1, 3, 10
+Karen Simonyan and Andrew Zisserman. Very deep convolutional networks for large-scale image recogni-
+tion. arXiv preprint arXiv:1409.1556 , 2014. 10
+Daniel Soudry, Elad Hoffer, Mor Shpigel Nacson, Suriya Gunasekar, and Nathan Srebro. The implicit bias
+of gradient descent on separable data. Journal of Machine Learning Research , 19(70), 2018. 3
+Sebastian U Stich, Jean-Baptiste Cordonnier, and Martin Jaggi. Sparsiﬁed sgd with memory. In Advances in
+Neural Information Processing Systems (NeurIPS) , 2018. 3, 6, 7, 22
+Nikko Strom. Scalable distributed dnn training using commodity gpu cloud computing. In Sixteenth Annual
+Conference of the International Speech Communication Association , 2015. 3
+Leslie G Valiant. A theory of the learnable. Communications of the ACM , 27(11):1134–1142, 1984. 9
+Hongyi Wang, Scott Sievert, Shengchao Liu, Zachary Charles, Dimitris Papailiopoulos, and Stephen Wright.
+Atomo: Communication-efﬁcient learning via atomic sparsiﬁcation. In Advances in Neural Information
+Processing Systems (NeurIPS) , 2018. 3, 6, 10
+Wei Wen, Cong Xu, Feng Yan, Chunpeng Wu, Yandan Wang, Yiran Chen, and Hai Li. Terngrad: Ternary
+gradients to reduce communication in distributed deep learning. In Advances in Neural Information Pro-
+cessing Systems (NIPS) , pages 1509–1519, 2017. 1, 3
+Ashia C Wilson, Rebecca Roelofs, Mitchell Stern, Nati Srebro, and Benjamin Recht. The marginal value of
+adaptive gradient methods in machine learning. In Advances in Neural Information Processing Systems
+(NIPS) , pages 4148–4158, 2017. 2, 3, 8, 9, 19
+Manzil Zaheer, Sashank Reddi, Devendra Sachan, Satyen Kale, and Sanjiv Kumar. Adaptive methods for
+nonconvex optimization. In Advances in Neural Information Processing Systems (NeurIPS) , pages 9815–
+9825, 2018. 1, 3
+Chiyuan Zhang, Samy Bengio, Moritz Hardt, Benjamin Recht, and Oriol Vinyals. Understanding deep learn-
+ing requires rethinking generalization. In International Conference on Learning Representations (ICLR) ,
+2017. 3, 8, 9
+Chiyuan Zhang, Oriol Vinyals, Remi Munos, and Samy Bengio. A study on overﬁtting in deep reinforcement
+learning. arXiv preprint arXiv:1804.06893 , 2018. 3
+14Appendix
+A Additional Experiments
+In this section we give the full experimental details and results.
+A.1 Convergence under sparse noise
+0 200 400 600 800 1000
+iteration0102030405060lossSGD
+SignSGD
+(S)SignSGD
+EF-SignSGD
+Figure 5: A simple toy problem where SIGN SGD and (scaled) SIGN SGD are faster than both SGD and EF-
+SIGN SGD. The experiment is repeated 100 times with mean indicated by the solid line and the shaded region
+spans one standard deviation. As in Bernstein et al. [2018], the loss is f(x) =1
+2kxk2
+2forx2R100, with
+gradientrf(x) =x. The stochastic gradient is constructed by adding Gaussian noise N(0;1002)to only the
+ﬁrst coordinate of the gradient. The best learning-rate for SGD and EF-SIGN SGD was found to be 0.001, and
+for SIGN SGD and (scaled) SIGN SGD was 0.01. The conclusion of this toy experiment directly contradicts
+the results of our real-world experiments (Section 6) where EF-SIGN SGD is faster during training than both
+SGD and SIGN SGD. This shows that the sparse noisy coordinate explanation proposed by Bernstein et al.
+[2018] is probably an incorrect explanation for the speed of sign based methods during training.
+A.2 Description of models and datasets
+The cifar dataset. The CIFAR 10 and 100 training and testing datasets was loaded using the default Pytorch
+torchvision api3. Data augmentation consisting of random 3232crops (padding 4) and horizontal ﬂips was
+performed. Both sets were normalized over each separate channel.
+VGG (on CIFAR 10). We used VGG19 architecture consisting in the following layers:
+64 -> 64 -> M -> 128 -> 128 -> M -> 256 -> 256 -> 256 -> 256 -> M -> 512 -> 512 -> 512 -> 512 -> M ->
+512 -> 512 -> 512 -> 512 -> M
+where M denotes max pool layers (kernel 2 and stride 2), and each of the number n(either of 64/128/256/512)
+represents a two dimensional convolution layer with nchannels a kernel of 3 and a padding of 1. All of them
+are followed by a batch normalization layer. Everywhere, ReLU activation is used.
+Resnet (on CIFAR 100). We used a standard Resnet18 architecture with one convolution followed by
+four blocks and one dense layer4.
+A.3 Learning rate tuning
+For all the experiments, the learning rate was divided by 10 at epochs 100 and again at 150. We tuned the
+initial learning rate on batchsize 128. The learning rates for batchsize 32 and 8 were scaled down by 4 and
+3https://pytorch.org/docs/stable/torchvision/index.html
+4https://github.com/kuangliu/pytorch-cifar/blob/master/models/resnet.py
+1516 respectivley. To tune the initial learning rate, the algorithm was run with the same constant learingrate for
+100 epochs. Then the learning rate which resulted in the best (i.e. smallest) test loss is chosen. The search
+space of possible learning rates was taken to be 9 values equally spaced in logarithmic scale over 10 5to101
+(inclusive).
+The numbers below are rounded values (2 signiﬁcant digits) of the actual learning rates:
+1:010 5;5:610 5;3:210 4;1:810 3;1:010 2;5:610 2;3:210 1;1:8100;1:0101:
+The best learning rate for each of the method is shown in table 2.
+Algorithm Resnet18 VGG19
+SGD M 1:010 21:010 2
+SIGN SGD 5:610 25:610 2
+SIGN SGD M 3:210 45:610 5
+EF-SIGN SGD 5:610 25:610 2
+Table 2: The best initial learning rates for the four algorithms for batch size 128 on VGG19 (CIFAR 10 data)
+and Resnet18 (CIFAR 100 data).
+A.4 Experiments with Resnet
+We report the complete results (including the losses) for Resnet in Fig. 6.
+Algorithm
+SGD M scaled SIGN SGD SIGN SGD M EF-SIGN SGD
+Batch
+size128 75.35 -2.21 -3.15 -0.92
+32 76.22 -3.04 -3.57 -0.79
+8 74.91 -36.35 -6.6 -0.64
+Table 3: Generalization gap on CIFAR-100 using Resnet18 for different batch-sizes. For SGD Mwe report
+the best mean test accuracy percentage, and for the other algorithms we report their difference to the SGD M
+accuracy (i.e. the generalization gap). EF-SIGN SGD has a much smaller gap which decreases with decreasing
+batchsize. The generalization gap of SIGN SGD Mand SIGN SGD increases as the batchsize decreases.
+A.5 Experiments with VGG
+We report the complete results (including the losses) for VGG in Fig. 7.
+Algorithm
+SGD M scaled SIGN SGD SIGN SGD M EF-SIGN SGD
+Batch
+size128 93.38 -1.31 -0.94 -0.68
+32 93.42 -1.49 -1.54 -0.71
+8 93.09 -20.22 -2.75 -0.27
+Table 4: Generalization gap on CIFAR-10 using VGG19 for different batch-sizes. For SGD Mwe report
+the best mean test accuracy percentage, and for the other algorithms we report their difference to the SGD M
+accuracy (i.e. the generalization gap). EF-SIGN SGD has a much smaller gap which decreases with decreasing
+batchsize. The generalization gap of SIGN SGD Mand SIGN SGD increases as the batchsize decreases.
+160 25 50 75 100 125 150 175 2000.00.51.01.52.0Train lossesBatch size 128
+SGDm
+signSGD
+signSGDm
+EF-signSGD
+0 25 50 75 100 125 150 175 2000.00.51.01.52.0Batch size 32
+0 25 50 75 100 125 150 175 2000.00.51.01.52.02.5Batch size 8
+0 25 50 75 100 125 150 175 2001.01.21.41.61.82.0Test losses
+0 25 50 75 100 125 150 175 2001.01.21.41.61.82.02.22.4
+0 25 50 75 100 125 150 175 2001.01.52.02.53.03.54.04.55.0
+0 25 50 75 100 125 150 175 2005060708090100Train accuracyBatch size 128
+SGDm
+signSGD
+signSGDm
+EF-signSGD
+0 25 50 75 100 125 150 175 2005060708090100Batch size 32
+0 25 50 75 100 125 150 175 200405060708090100Batch size 8
+0 25 50 75 100 125 150 175 200
+Epoch50556065707580Test accuracy
+0 25 50 75 100 125 150 175 200
+Epoch50556065707580
+0 25 50 75 100 125 150 175 200
+Epoch20304050607080Figure 6: Experimental results showing the loss values and accuracy percentages on the train and test datasets,
+on CIFAR-100 using Resnet18 for different batch-sizes. The solid curves represent the mean value and
+shaded region spans one standard deviation obtained over three repetitions. Note that the scale of the y-axis
+varies across the plots. The losses behave very similar to the accuracies— EF-SIGN SGD consistently and
+signiﬁcantly outperforms the other sign-based methods, is faster than SGD Mon train, and closely matches
+SGD Mon test.
+170 25 50 75 100 125 150 175 2000.000.050.100.150.20Train lossesBatch size 128
+SGDm
+signSGD
+signSGDm
+EF-signSGD
+0 25 50 75 100 125 150 175 2000.00.10.20.30.40.50.60.7Batch size 32
+0 25 50 75 100 125 150 175 2000.00.20.40.60.81.0Batch size 8
+0 25 50 75 100 125 150 175 2000.30.40.50.60.70.8Test losses
+0 25 50 75 100 125 150 175 2000.30.40.50.60.70.8
+0 25 50 75 100 125 150 175 2000.000.250.500.751.001.251.501.752.00
+0 25 50 75 100 125 150 175 2009596979899100Train accuracyBatch size 128
+SGDm
+signSGD
+signSGDm
+EF-signSGD
+0 25 50 75 100 125 150 175 20085.087.590.092.595.097.5100.0Batch size 32
+0 25 50 75 100 125 150 175 200707580859095100Batch size 8
+0 25 50 75 100 125 150 175 200
+Epoch8082848688909294Test accuracy
+0 25 50 75 100 125 150 175 200
+Epoch808284868890929496
+0 25 50 75 100 125 150 175 200
+Epoch5060708090Figure 7: Experimental results showing the loss values and accuracy percentages on the train and test datasets,
+on CIFAR-10 using VGG19 for different batch-sizes. The solid curves represent the mean value and shaded
+region spans one standard deviation obtained over three repetitions. Note that the scale of the y-axis varies
+across the plots. The plots for VGG19 behave very similarly to that of Resnet18, except that SIGN SGD Mper-
+forms better on the train dataset. On the test dataset, SIGN SGD Mand the other algorithms behave exactly as
+in Resnet. Here too, EF-SIGN SGD consistently and signiﬁcantly outperforms the other sign-based methods,
+is faster than SGD Mon train, and also closely matches the test performance of SGD M.
+18A.6 Data generation process (Section 5.2)
+The data is generated as in Section 3.3 of Wilson et al. [2017]. We ﬁx n= 200 (the number of data points)
+andd= 6n(dimension) in the below process. Each entry of the target label vector y2f  1;1gnis uniformly
+set as 1or1. Then thejth coordinate (column) of the ith data point (row) in the data matrix A2Rndis
+ﬁlled as follows:
+Ai;j=8
+>>><
+>>>:yij= 1;
+1j= 2;3;
+1j= 4 + 5(i1);:::; 4 + 5(i1) + 2(1yi);
+0 otherwise:
+Then the data matrix Aand labels yare randomly (and equally) split between the train and the test dataset.
+Hence there are 100 data points each of dimension 1200 in the test and train.
+B Missing Proofs
+In this section we ﬁll out the proofs of claims, lemmas, and theorems made in the main paper.
+B.1 Proof of counter-example (Theorem I)
+The stochastic gradient at iteration tis of the form
+gt=aitl0
+it(hait;xi):
+This means that
+sign(gt) = sign( ait)sign(lit(hait;xi)) =s:
+Thusxt+1=xt
+sand the iterates of SIGN SGD can only move along the direction s. Then, SIGN SGD
+can converge only if there exists 
+?2Rsuch that
+x0=x?+
+?s:
+Since the measure of this set in Rdford2is 0, we can conclude that SIGN SGD will not converge to x?
+almost surely.
+B.2 Proof of bounded error (Lemma 3)
+By deﬁnition of the error sequence,
+ket+1k2=kC(pt) ptk2
+2(1 )kptk2
+2= (1 )ket+
+gtk2
+2:
+In the inequality above we used that C()is a-approximate compressor. We thus have a recurrence relation
+on the bound of et. Using Young’s ineuqality, we have that for any >0:
+ket+1k2(1 )ket+
+gtk2
+2(1 )(1 +)ketk2
+2+
+2(1 )(1 + 1=)kgtk2
+2:
+19Here on is simple algebraic computations to solve the recurrence relation above:
+Eket+1k2(1 )(1 +)Eketk2
+2+
+2(1 )(1 + 1=)Ekgtk2
+2
+tX
+i=0[(1 )(1 +)]t i
+2(1 )(1 + 1=)Ekgik2
+2
+1X
+i=0[(1 )(1 +)]i
+2(1 )(1 + 1=)2
+=(1 )(1 + 1=)
+1 (1 )(1 +)
+22
+=(1 )(1 + 1=)
+ (1 )
+22
+=2(1 )(1 + 1=)
+
+22:
+Let us pick=
+2(1 )such that 1 + 1== (2 )=2=. Pluggint this in the above gives
+Eket+1k22(1 )(1 + 1=)
+
+224(1 )
+2
+22:
+B.3 Proof of non-convex convergence of EF-SIGN SGD (Theorem II)
+As outlined in the proof sketch, the analysis considers the actual sequence fxtgas an approximation to the
+sequencef~xtg, where ~xt=xt+et. It satisﬁes the recurence
+~xt+1=xt+et+1 C(pt) =xt pt=~xt 
+gt:
+Since the function fisL-smooth,
+Et[f(~xt+1)]f(~xt) +hrf(~xt);Et[~xt+1 ~xt]i+L
+2Eth
+k~xt+1 ~xtk2
+2i
+=f(~xt) 
+hrf(~xt);Et[gt]i+L
+2
+2Eth
+kgtk2
+2i
+f(~xt) 
+hrf(~xt);rf(xt)i+L
+22
+2:
+In the above we need to get rid of rf(~xt)since we never encounter it in the algorithm. We can do so using
+an alternate deﬁnition of smoothness of f:
+krf(x) rf(y)k2Lkx yk2:
+Using the above with x=xtandy=~xtwe continue as
+Et[f(~xt+1)]f(~xt) 
+hrf(xt);rf(xt)i+L
+22
+2+
+hrf(xt) rf(~xt);rf(xt)i
+f(~xt) 
+krf(xt)k2
+2+L
+22
+2+
+
+2krf(xt)k2
+2+
+2krf(xt) rf(~xt)k2
+2
+f(~xt) 
+krf(xt)k2
+2+L
+22
+2+
+
+2krf(xt)k2
+2+
+L2
+2kxt ~xtk2
+2
+f(~xt) 
+
+1 
+2
+krf(xt)k2
+2+L
+22
+2+
+L2
+2ketk2
+2:
+In the second inequality follows from the mean-value inequality and holds for any >0. Lemma 3 helps us
+bound the norm of et:
+Et[f(~xt+1)]f(~xt) 
+
+1 
+2
+krf(xt)k2
+2+L
+22
+2+
+3L22
+24(1 )
+2:
+20Rearranging the terms and averaging over tgives for<2
+1
+T+ 1TX
+t=0krf(xt)k2
+21
+
+ 
+1 
+2
+(T+ 1)TX
+t=0(E[f(~xt)] E[f(~xt+1)])
++L
+2
+2 +
+2L22
+(2 )4(1 )
+2
+f(x0) f?
+
+T(1 =2)+L
+2
+2 +4
+2L22(1 )
+(2 )2:
+Using= 1 gives the result as stated in Theorem II. Note that we can choose arbitarily close to 0. By
+choosingT=1 !0, we can show that the asymptotic convergence of EF-SIGN SGD is in fact exactly the same
+as SGD.
+B.4 Proof of non-convex convergence of SGD (Remark 4)
+The proof is exactly as above, but with some simpliﬁcations since (essentially) et= 0. So using the smooth-
+ness offas before and the fact that Et[xt+1] =xt 
+rf(xt)we get that
+Et[f(xt+1)]f(~xt) +hrf(xt);Et[xt+1 xt]i+L
+2Eth
+kxt+1 xtk2
+2i
+=f(xt) 
+krf(xt)k2+L2
+2
+2:
+Now rearranging the terms and averaging over Tgives Rearranging the terms and averaging over tgives
+1
+T+ 1TX
+t=0krf(xt)k2
+21
+
+(T+ 1)TX
+t=0(E[f(~xt)] E[f(~xt+1)]) +L
+2
+2
+f(x0) f?
+
+T+L
+2
+2:
+B.5 Proof of compression of unbiased estimators (Remark 5)
+Suppose that E[U(v)] =vand that E[kU(v)k]2kkvk2. Then
+Eh
+
+1
+kU(v) v
+
+2i
+=1
+k2Eh
+kU(v)k2i
+ 2
+khE[U(v)];vi+kvk2
+1
+kkvk2 2
+kkvk2+kvk2
+=
+1 1
+k
+kvk2:
+B.6 Proof of convex convergence of EF-SIGN SGD (Theorem III)
+As in the proof of Theorem II, we start by considering the sequence f~xtgwhere ~xt=xt+et. As we saw,
+~xt+1=~xt 
+gt. Suppose that x?
+tis an optimum solution. We will abuse notation here and use @f(x)to
+mean any subgradient of fatx.
+Eth
+k~xt+1 x?k2i
+=Eth
+k~xt 
+gt x?k2i
+=k~xt x?k2+
+2Eth
+kgtk2i
+ 
+hEt[gt];~xt x?i
+k~xt x?k2+
+22 
+h@f(xt);~xt x?i:
+21We do not want ~xtappearing in the right side of the equation and so we will replace it with xtand use Lemma
+3 to bound the error:
+Eth
+k~xt+1 x?k2i
+k~xt x?k2+
+22 
+h@f(xt);xt x?i+
+h@f(xt);xt ~xti
+=k~xt x?k2+
+22 
+h@f(xt);xt x?i 
+h@f(xt);eti
+k~xt x?k2+
+22 
+h@f(xt);xt x?i+
+k@f(xt)kketk
+k~xt x?k2+
+22 
+h@f(xt);xt x?i+2
+2p
+1 
+k@f(xt)k:
+We use Cauchy-Shwarzch in the third step, and Lemma 3 in the last step. We will use the loose bound
+k@f(xt)k . This is the key difference between the non-smooth case and the smooth (and strongly-
+convex) case considered in Stich et al. [2018]. In the smooth case, the term krf(xt)k2can be bounded by
+the errorf(xt) f?i.e. the ﬁnal term goes to 0 faster than 
+2, allowing the asymptotic rate to not depend on
+the compression quality . We now have
+Eth
+k~xt+1 x?k2i
+k~xt x?k2+
+22 
+h@f(xt);xt x?i+2
+22p
+1 
+: (1)
+Recall that e0= 0and so ~x0=x0. Rearranging the terms and averaging, we get
+1
+T+ 1TX
+t=0E[h@f(xt);xt x?i]1
+
+(T+ 1)TX
+t=0
+Eh
+k~xt x?k2i
+ Eh
+k~xt+1 x?k2i
++
+2+2
+2p
+1 
+
+kx0 x?k2
+
+T+
+2
+1 +2p
+1 
+
+:
+To ﬁnish the proof, we have to simply use the convexity of ftwice on the left hand side of the above
+inequality:
+1
+T+ 1TX
+t=0E[h@f(xt);xt x?i]1
+T+ 1TX
+t=0f(xt)f(1
+T+ 1TX
+t=0xt) =f(xT):
+For the standard rate of SGD in remark 6, we just set = 0.
+B.7 Proof relating linear span of gradients to pseudo-inverse (Lemma 9)
+Recall that A2Rndforn < d . Assume without loss of generality that the rows of Aare linearly
+independent and hence Ais of rankn. The stochastic gradient for f(x) =kAx bk2is of the formP
+iAi;:where Ai;:indicates the ith column of A. Ifxtis in the linear span of the stochastic gradients,
+then there exists a vector bt2Rnsuch that
+xt=A>bt:
+Suppose x?is the solution reached. Then Ax?=yand also x?=A>b?for some b?. Hence b?must
+satisfy
+AA>b?=y:
+Since the rank of Aisn, the matrix AA>2Rnnis full-rank and invertible. This means that there exists
+an unique solution to b?andx?:
+b?= 
+AA> 1yand x?=A>b?=A> 
+AA> 1y:
+22

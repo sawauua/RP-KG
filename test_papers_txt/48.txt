@@ -1,0 +1,468 @@
+On the Complexity of Linear Prediction:
+Risk Bounds, Margin Bounds, and Regularization
+ShamM.Kakade 
+TTIChicago
+Chicago,IL60637
+sham@tti-c.orgKarthikSridharan
+TTIChicago
+Chicago,IL60637
+karthik@tti-c.orgAmbujTewari
+TTIChicago
+Chicago,IL60637
+tewari@tti-c.org
+Abstract
+This work characterizes the generalization ability of algorithms whose predic-
+tions are linear in the input vector. To this end, we provide sharp bounds for
+RademacherandGaussiancomplexitiesof(constrained)linearclasses,whichdi-
+rectlyleadtoanumberofgeneralizationbounds. Thisderivationprovidessimpli-
+ﬁedproofsofanumberofcorollariesincluding: riskboundsforlinearprediction
+(including settings where the weight vectors are constrained by either L2orL1
+constraints),marginbounds(includingboth L2andL1margins,alongwithmore
+general notions based on relative entropy), a proof of the PAC-Bayes theorem,
+and upper bounds on L2covering numbers (with Lpnorm constraints and rela-
+tive entropy constraints). In addition to providing a uniﬁed analysis, the results
+herein provide some of the sharpest risk and margin bounds. Interestingly, our
+results show that the uniform convergence rates of empirical risk minimization
+algorithmstightlymatchtheregretboundsofonlinelearningalgorithmsforlinear
+prediction,uptoaconstantfactorof2.
+1 Introduction
+Linear prediction is the cornerstone of an extensive number of machine learning algorithms, in-
+cluding SVM’s, logistic and linear regression, the lasso, boosting, etc. A paramount question is to
+understand the generalization ability of these algorithms in terms of the attendant complexity re-
+strictions imposed by the algorithm. For example, for the sparse methods (e.g. regularizing based
+onL1normoftheweightvector)weseekgeneralizationboundsintermsofthesparsitylevel. For
+margin based methods (e.g. SVMs or boosting), we seek generalization bounds in terms of either
+theL2orL1margins. The focus of this paper is to provide a more uniﬁed analysis for methods
+whichuselinearprediction.
+Givenatrainingset {(xi,yi)}n
+i=1, theparadigmistocomputeaweightvector ˆwwhichminimizes
+theF-regularized ℓ-risk. Morespeciﬁcally,
+ˆw= argmin
+w1
+nn/summationdisplay
+i=1ℓ(/an}b∇acketle{tw,xi/an}b∇acket∇i}ht,yi) +λF(w) (1)
+where ℓisthelossfunction, Fistheregularizer,and /an}b∇acketle{tw,x/an}b∇acket∇i}htistheinnerproductbetweenvectors x
+andw. Inaformulationcloselyrelatedtothedualproblem,wehave:
+ˆw= argmin
+w:F(w)≤c1
+nn/summationdisplay
+i=1ℓ(/an}b∇acketle{tw,xi/an}b∇acket∇i}ht,yi) (2)
+where,insteadofregularizing,ahardrestrictionovertheparameterspaceisimposed(bytheconstant
+c). Thisworksprovidesgeneralizationboundsforanextensivefamilyofregularizationfunctions F.Rademacher complexities (a measure of the complexity of a function class) provide a direct route
+to obtaining such generalization bounds, and this is the route we take. Such bounds are analogous
+toVCdimensionsbounds,buttheyaretypicallymuchsharperandallowfordistributiondependent
+bounds. Thereareanumberofmethods intheliteraturetouseRademacher complexitiestoobtain
+either generalization bounds or margin bounds. Bartlett and Mendelson [2002] provide a general-
+ization bound for Lipschitz loss functions. For binary prediction, the results in Koltchinskii and
+Panchenko[2002]providemeanstoobtainmarginboundsthroughRademachercomplexities.
+Inthiswork,weprovidesharpboundsforRademacherandGaussiancomplexitiesoflinearclasses,
+withrespect toastronglyconvex complexity function F(asinEquation 1). Thesebounds provide
+simpliﬁedproofsofanumberofcorollaries: generalizationboundsfortheregularizationalgorithm
+in Equation 2 (including settings where the weight vectors are constrained by either L2orL1con-
+straints), margin bounds (including L2andL1margins, and, more generally, for Lpmargins), a
+proofofthePAC-Bayestheorem, and L2coveringnumbers(with Lpnormconstraintsandrelative
+entropyconstraints). Ourboundsareoftentighterthanpreviousresultsandourproofsareallunder
+thismoreuniﬁedmethodology.
+Ourprooftechniques—reminiscentofthosetechniquesforderivingregretboundsforonlinelearn-
+ing algorithms — are rooted in convex duality (following Meir and Zhang [2003]) and use a more
+generalnotionofstrongconvexity(asinShalev-ShwartzandSinger[2006]). Interestingly,therisk
+boundsweprovidecloselymatchtheregretboundsforonlinelearningalgorithms(uptoaconstant
+factorof2),thusshowingthattheuniformconvergeratesofempiricalriskminimizationalgorithms
+tightlymatchtheregretboundsofonlinelearningalgorithms(forlinearprediction). TheDiscussion
+providesthismoredetailedcomparison.
+1.1 RelatedWork
+A staggering number of results have focused on this problem in varied special cases. Perhaps the
+most extensively studied are margin bounds for the 0-1 loss. For L2-margins (relevant for SVM’s,
+perceptronbasedalgorithms, etc.), thesharpestboundsarethoseprovidedbyBartlettandMendel-
+son [2002] (using Rademacher complexities) and Langford and Shawe-Taylor [2003], McAllester
+[2003] (using the PAC-Bayes theorem). For L1-margins (relevant for Boosting, winnow, etc),
+bounds are provided by Schapire et al. [1998] (using a self-contained analysis) and Langford et al.
+[2001](usingPAC-Bayes,withadifferentanalysis). Anotheractivelineofworkisonsparsemeth-
+ods—particularlymethodswhichimposesparsityvia L1regularization(inlieuofthenon-convex
+L0norm). For L1regularization, Ng [2004] provides generalization bounds for this case, which
+follow from the covering number bounds of Zhang [2002]. However, these bounds are only stated
+aspolynomialintherelevantquantities(dependenciesarenotprovided).
+Previous to this work, the most uniﬁed framework for providing generalization bounds for linear
+prediction stem from the covering number bounds in Zhang [2002]. Using these covering number
+bounds, Zhang [2002] derives margin bounds in a variety of cases. However, providing sharp gen-
+eralizationboundsforproblemswith L1regularization(or L1constraintsinthedual)requiresmore
+delicatearguments. Asmentioned,Ng[2004]providesboundsforthiscase,butthetechniquesused
+byNg[2004]wouldresultinratherloosedependencies(thedependenceonthesamplesize nwould
+ben−1/4ratherthan n−1/2). WediscussthislaterinSection4.
+2 Preliminaries
+Ourinputspace, X,isasubsetofavectorspace,andouroutputspaceis Y. Oursamples (X,Y)∈
+X ×Yare distributed according to some unknown distribution P. The inner product between
+vectors xandwis denoted by /an}b∇acketle{tw,x/an}b∇acket∇i}ht, where w∈S(here, Sis a subset of the dual space to
+our input vector space). A norm of a vector xis denoted by/ba∇dblx/ba∇dbl, and the dual norm is deﬁned as
+/ba∇dblw/ba∇dbl⋆= sup{/an}b∇acketle{tw,x/an}b∇acket∇i}ht:/ba∇dblx/ba∇dbl≤ 1}. Wefurtherassumethatforall x∈X,/ba∇dblx/ba∇dbl≤ X.
+Letℓ:R×Y→ R+beourlossfunctionofinterest. Throughoutweshallconsiderlinearpredictors
+ofform/an}b∇acketle{tw,x/an}b∇acket∇i}ht. Theexpectedoflossof wisdenotedbyL(w) =E[ℓ(/an}b∇acketle{tw,x/an}b∇acket∇i}ht,y)]. Asusual,weare
+provided witha sequence of i.i.d. samples {(xi,yi)}n
+i=1, and our goal is tominimize our expected
+loss. Wedenotetheempiricallossas ˆL(w) =1
+n/summationtextn
+i=1ℓ(/an}b∇acketle{tw,xi/an}b∇acket∇i}ht,yi).The restriction we make on our complexity function Fis that it is a strongly convex function. In
+particular,weassumeitisstronglyconvexwithrespecttoourdualnorm: afunction F:S→Ris
+saidtobe σ-stronglyconvexw.r.t. to /ba∇dbl·/ba∇dbl∗iff∀u,v∈S,∀α∈[0,1],wehave
+F(αu+ (1−α)v)≤αF(u) + (1−α)F(v)−σ
+2α(1−α)/ba∇dblu−v/ba∇dbl2
+∗.
+See Shalev-Shwartz and Singer [2006] for more discussion on this generalized deﬁnition of strong
+convexity.
+RecallthedeﬁnitionoftheRademacherandGaussiancomplexityofafunctionclass F,
+Rn(F) =E/bracketleftBigg
+sup
+f∈F1
+nn/summationdisplay
+i=1f(xi)ǫi/bracketrightBigg
+Gn(F) =E/bracketleftBigg
+sup
+f∈F1
+nn/summationdisplay
+i=1f(xi)ǫi/bracketrightBigg
+where, intheformer, ǫiindependently takesvalues in {−1,+1}withequalprobability, and, inthe
+latter, ǫiareindependent,standardnormalrandomvariables. Inbothexpectations, (x1,... ,xn)are
+i.i.d.
+AsmentionedintheIntroduction,therearenumberofmethodsintheliteraturetouseRademacher
+complexities to obtain either generalization bounds or margin bounds. Two results are particularly
+useful to us. First, Bartlett and Mendelson [2002] provides the following generalization bound for
+Lipschitz loss functions. Here, L(f) =E[ℓ(f(x),y)]is the expected of loss of f:X → R, and
+ˆL(f) =1
+n/summationtextn
+i=1ℓ(f(xi),yi)istheempiricalloss.
+Theorem1. (BartlettandMendelson[2002]) Assume the loss ℓis Lipschitz (with respect to its
+ﬁrst argument) with Lipschitz constant Lℓand that ℓis bounded by c. For any δ >0and with
+probability at least 1−δsimultaneously for all f∈F, we have that
+L(f)≤ˆL(f) + 2LℓRn(F) +c/radicalbigg
+log(1/δ)
+2n
+whereRn(F)is the Rademacher complexity of a function class F, andnis the sample size.
+The second result, for binary prediction, from Koltchinskii and Panchenko [2002] provides a mar-
+gin bound in terms of the Rademacher complexity. The following is a variant of Theorem 2 in
+KoltchinskiiandPanchenko[2002]:
+Theorem 2. (Koltchinskii and Panchenko [2002]) The zero-one loss function is given by
+ℓ(f(x),y) =1[yf(x)≤0], where y∈ {+1,−1}. Denote the fraction of the data having γ-
+margin mistakes by Kγ(f) :=|{i:yif(xi)<γ}|
+n. Assume that ∀f∈Fwe have supx∈X|f(x)|≤C.
+Then,withprobabilityatleast 1−δoverthesample,forallmargins γ >0andall f∈Fwehave,
+L(f)≤Kγ(f) + 4Rn(F)
+γ+/radicalBigg
+log(log 24C
+γ)
+n+/radicalbigg
+log(1/δ)
+2n.
+(Weprovideaproofintheappendix.) Theaboveresultsshowthatifweprovidesharpboundsonthe
+Rademacher complexities then we obtain sharp generalization bounds. Typically, we desire upper
+boundsontheRademachercomplexitythatdecreasewith n.
+3 ComplexitiesofLinearFunctionClasses
+Givenasubset W⊆S,deﬁnetheassociatedclassoflinearfunctions FWasFW:={x/ma√sto→/an}b∇acketle{tw,x/an}b∇acket∇i}ht:
+w∈W}. Ourmaintheoremboundsthecomplexityof FWforcertainsets W.
+Theorem3. (Complexity Bounds) Let Sbe a closed convex set and let F:S→Rbeσ-strongly
+convex w.r.t./ba∇dbl·/ba∇dbl∗s.t.infw∈SF(w) = 0. Further, letX={x:/ba∇dblx/ba∇dbl≤ X}. DeﬁneW={w∈
+S:F(w)≤W2
+∗}. Then, we have
+Rn(FW)≤XW∗/radicalbigg
+2
+σn,Gn(FW)≤XW∗/radicalbigg
+2
+σn.
+Therestriction infw∈SF(w) = 0isnotasigniﬁcantonesinceaddingaconstantto Fstillkeepsit
+strongly convex. Interestingly, the complexity bounds above precisely match the regret bounds for
+onlinelearningalgorithms(forlinearprediction),apointwhichwereturntointheDiscussion. We
+ﬁrstprovideafewexamples,beforeprovingthisresult.3.1 Examples
+(1)Lp/Lqnorms.LetS=Rd. Take/ba∇dbl·/ba∇dbl,/ba∇dbl·/ba∇dbl∗tobethe Lp,Lqnormsfor p∈[2,∞),1/p+1/q= 1,
+where/ba∇dblx/ba∇dblp:=/parenleftBig/summationtextd
+j=1|xi|p/parenrightBig1/p
+. Choose F(w) =/ba∇dbl·/ba∇dbl2
+qandnotethatitis 2(q−1)-stronglyconvex
+onRdw.r.t. itself. Set X,WasinTheorem3. Then,wehave
+Rn(FW)≤XW∗/radicalbigg
+p−1
+n. (3)
+(2)L∞/L1norms.LetS={w∈Rd:/ba∇dblw/ba∇dbl1=W1,wj≥0}be the W1-scaled probability
+simplex. Take /ba∇dbl·/ba∇dbl,/ba∇dbl·/ba∇dbl∗to be the L∞,L1norms,/ba∇dblx/ba∇dbl∞= max 1≤j≤d|xj|. Fix a probability
+distribution µ >0and let F(w) = entro µ(w) :=/summationtext
+j(wj/W1)log(wj/(W1µj)). For any µ,
+entro µ(w)is1/W2
+1-strongly convex on Sw.r.t./ba∇dbl·/ba∇dbl1. SetXas in Theorem 3 and let W(E) =
+{w∈S: entro µ(w)≤E}. Then,wehave
+Rn(FW(E))≤XW1/radicalbigg
+2E
+n. (4)
+Notethatifwetake µtobetheuniformdistributionthenforany w∈Swehavethattrivialupper
+boundof entro µ(w)≤logd. Henceifwelet W:=W(logd)withuniform µandnotethatitisthe
+entirescaledprobabilitysimplex. Then
+Rn(FW)≤XW1/radicalbigg
+2logd
+n. (5)
+The restriction wj≥0can be removed in the deﬁnition of Sby the standard trick of doubling the
+dimension of xto include negated copies of each coordinate. So, if we have S={w∈Rd:
+/ba∇dblw/ba∇dbl1≤W1}andwesetXasaboveandW=S,thenwegetRn(FW)≤XW1/radicalbig
+2log(2 d)/n.
+In this way, even though the L1norm is not strongly convex (so our previous Theorem does not
+directlyapplytoit), theclassoffunctionsimposedbythis L1normrestrictionisequivalenttothat
+imposedbytheaboveentropyrestriction. Hence,weareabletoanalyzethegeneralizationproperties
+oftheoptimizationprobleminEquation2.
+(3)Smoothnorms. Anormis (2,D)-smoothon Sifforany x,y∈S,
+d2
+dt2/ba∇dblx+ty/ba∇dbl2≤2D2/ba∇dbly/ba∇dbl2.
+Let/ba∇dbl·/ba∇dblbea(2,D)-smoothnormand /ba∇dbl·/ba∇dbl∗beitsdual. Lemma11intheappendixprovesthat /ba∇dbl·/ba∇dbl∗
+is2/D2-stronglyconvexw.r.t. itself. Set X,WasinTheorem3. Then,wehave
+Rn(FW)≤XW∗D√n. (6)
+(4)Bregmandivergences. Forastronglyconvex F,deﬁnethe Bregman divergence ∆F(w/ba∇dblv) :=
+F(w)−F(v)−/an}b∇acketle{t∇F(v),w−v/an}b∇acket∇i}ht. ItisinterestingtonotethatTheorem3isstillvalidifwechoose
+W∗={w∈S: ∆F(w/ba∇dblv)≤W2
+∗}forsomeﬁxed v∈S. ThisisbecausetheBregmandivergence
+∆F(·/ba∇dblv)inheritsthestrongconvexityof F.
+Exceptfor(5),noneoftheaboveboundsdependexplicitlyonthedimensionoftheunderlyingspace
+andhencecanbeeasilyextendedtoinﬁnitedimensionalspacesunderappropriateassumptions.
+3.2 TheProof
+First, some background on convex duality is in order. The Fenchel conjugate of F:S→Ris
+deﬁnedas:
+F∗(θ) := sup
+w∈S/an}b∇acketle{tw,θ/an}b∇acket∇i}ht−F(w).
+AsimpleconsequenceofthisdeﬁnitionisFenchel-Younginequality,
+∀θ,w∈S,/an}b∇acketle{tw,θ/an}b∇acket∇i}ht≤F(w) +F∗(θ).IfFisσ-stronglyconvex,then F∗isdifferentiableand
+∀θ,η, F∗(θ+η)≤F∗(θ) +/an}b∇acketle{t∇F∗(θ),η/an}b∇acket∇i}ht+1
+2σ/ba∇dblη/ba∇dbl2
+∗. (7)
+See the Appendix in Shalev-Shwartz [2007] for proof. Using this inequality we can control the
+expectationof F∗appliedtoasumofindependentrandomvariables.
+Lemma4. LetSbeaclosedconvexsetandlet F:S→Rbeσ-stronglyconvexw.r.t. /ba∇dbl·/ba∇dbl∗. LetZi
+be mean zero independent random vectors such that E[/ba∇dblZi/ba∇dbl2]≤V2. Deﬁne Si:=/summationtext
+j≤iZi. Then
+F∗(Si)−iV2/2σis a supermartingale. Furthermore, if infw∈SF(w) = 0, then E[F∗(Sn)]≤
+nV2/2σ.
+Proof.Notethat infw∈SF(w) = 0implies F∗(0) = 0. Inequality(7)gives,
+F∗(Si−1+Zi)≤F∗(Si) +/an}b∇acketle{t∇F∗(Si−1),Zi/an}b∇acket∇i}ht+1
+2σ/ba∇dblZi/ba∇dbl2
+∗.
+Takingconditionalexpectationw.r.t. Z1,... ,Z i−1andnotingthat Ei−1[Zi] = 0andEi−1[/ba∇dblZi/ba∇dbl2
+∗]≤
+V2,weget
+Ei−1[F∗(Si)]≤F∗(Si−1) + 0 +V2
+2σ
+where Ei−1[·]abbreviates E[·|Z1,... ,Z i−1]. Toendtheproof,notethat infw∈SF(w) = 0implies
+F∗(0) = 0.
+Like MeirandZhang[2003](seeSection5therein),webeginbyusingconjugatedualitytobound
+the Rademacher complexity. To ﬁnish the proof, we exploit the strong convexity of Fby applying
+theabovelemma.
+Proof.Fixx1,... ,xnsuchthat/ba∇dblxi/ba∇dbl≤X. Letθ=1
+n/summationtext
+iǫixiwhere ǫi’sarei.i.d. Rademacheror
+Gaussianrandomvariables(ourproofonlyrequiresthat E[ǫi] = 0andE[ǫ2
+i] = 1). Choosearbitrary
+λ >0. ByFenchel’sinequality,wehave /an}b∇acketle{tw,λθ/an}b∇acket∇i}ht≤F(w) +F∗(λθ)whichimplies
+/an}b∇acketle{tw,θ/an}b∇acket∇i}ht≤F(w)
+λ+F∗(λθ)
+λ.
+Since, F(w)≤W2
+∗forallw∈W,wehave
+sup
+w∈W/an}b∇acketle{tw,θ/an}b∇acket∇i}ht≤W2
+∗
+λ+F∗(λθ)
+λ.
+Takingexpectation(w.r.t. ǫi’s),weget
+E/bracketleftbigg
+sup
+w∈W/an}b∇acketle{tw,θ/an}b∇acket∇i}ht/bracketrightbigg
+≤W2
+∗
+λ+1
+λE[F∗(λθ)].
+Now set Zi=λǫixi
+n(so that Sn=λθ) and note that the conditions of Lemma 4 are satisﬁed with
+V2=λ2B2/n2andhence E[F∗(λθ)]≤λ2X2
+2σn. Pluggingthisabove,wehave
+E/bracketleftbigg
+sup
+w∈W/an}b∇acketle{tw,θ/an}b∇acket∇i}ht/bracketrightbigg
+≤W2
+∗
+λ+λX2
+2σn.
+Setting λ=/radicalBig
+2σnW2
+∗
+X2gives
+E/bracketleftbigg
+sup
+w∈W/an}b∇acketle{tw,θ/an}b∇acket∇i}ht/bracketrightbigg
+≤XW∗/radicalbigg
+2
+σn.
+whichcompletestheproof.4 Corollaries
+4.1 RiskBounds
+We now provide generalization error bounds for any Lipschitz loss function ℓ, with Lipschitz con-
+stantLℓ. Based on the Rademacher generalization bound provided in the Introduction (see Theo-
+rem1)andtheboundsonRademachercomplexityprovedinprevioussection,weobtainthefollow-
+ingcorollaries.
+Corollary5. Eachofthefollowingstatementsholdswithprobabilityatleast 1−δoverthesample:
+•LetWbe as in the Lp/Lqnormsexample. For all w∈W,
+L(w)≤ˆL(w) + 2LℓXW∗/radicalbigg
+p−1
+n+LℓXW∗/radicalbigg
+log(1/δ)
+2n
+•LetWbe as in the L∞/L1normsexample. For all w∈W,
+L(ˆw)≤ˆL(w) + 2LℓXW1/radicalbigg
+2 log(d)
+n+LℓXW1/radicalbigg
+log(1/δ)
+2n
+Ng[2004]providesboundsformethodswhichuse L1regularization. Theseboundsareonlystated
+aspolynomialbounds,and,themethodsused(coveringnumbertechniquesfromPollard[1984]and
+coveringnumberboundsfromZhang[2002])wouldprovideratherloosebounds(the ndependence
+would be n−1/4). In fact, even a more careful analysis via Dudley’s entropy integral using the
+coveringnumbersfromZhang[2002]wouldresultinaworsebound(withadditional lognfactors).
+Theaboveargumentissharpandratherdirect.
+4.2 MarginBounds
+In this section we restrict ourselves to binary classiﬁcation where Y={+1,−1}. Our prediction
+is given by sign(/an}b∇acketle{tw,x/an}b∇acket∇i}ht). The zero-one loss function is given by ℓ(/an}b∇acketle{tw,x/an}b∇acket∇i}ht,y) =1[y/an}b∇acketle{tw,x/an}b∇acket∇i}ht ≤
+0]. Denote the fraction of the data having γ-margin mistakes by Kγ(f) :=|{i:yif(xi)<γ}|
+n. We
+now demonstrate how to get improved margin bounds using the upper bounds for the Rademacher
+complexityderivedinSection3.
+Based on the Rademacher margin bound provided in the Introduction (see Theorem 2), we get the
+followingcorollarywhichwilldirectlyimplythemarginboundsweareaimingfor. Theboundfor
+thep= 2casehasbeenusedtoexplaintheperformanceofSVMs. Ourboundessentiallymatches
+the best known bound [Bartlett and Mendelson, 2002] which was an improvement over previous
+bounds[BartlettandShawe-Taylor,1999]provedusingfat-shatteringdimensionestimates. Forthe
+L∞/L1case,ourboundimprovesthebestknownbound[Schapireetal.,1998]byremovingafactor
+of√logn.
+Corollary6. (LpMargins) Each of the following statements holds with probability at least 1−δ
+over the sample:
+•LetWbe as in the Lp/Lqnormsexample. For all γ >0,w∈W,
+L(w)≤Kγ(w) + 4XW∗
+γ/radicalbigg
+p−1
+n+/radicalBigg
+log(log 24XW∗
+γ)
+n+/radicalbigg
+log(1/δ)
+2n
+•LetWbe as in the L∞/L1normsexample. For all γ >0,w∈W,
+L(w)≤Kγ(w) + 4XW1
+γ/radicalbigg
+2 log(d)
+n+/radicalBigg
+log(log 24XW 1
+γ)
+n+/radicalbigg
+log(1/δ)
+2n
+Thefollowingresultimprovesthebestknownresultsofthesamekind,[Langfordetal.,2001,The-
+orem 5] and [Zhang, 2002, Theorem 7], by removing a factor of√logn. These results themselves
+wereanimprovementoverpreviousresultsobtainedusingfat-shatteringdimensionestimates.Corollary7. (Entropy Based Margins) Let Xbe such that for all x∈X,/ba∇dblx/ba∇dbl∞≤X. Consider
+the classW={w∈Rd:/ba∇dblw/ba∇dbl1≤W1}. Fix an arbitrary prior µ. We have that with probability
+at least 1−δover the sample, for all margins γ >0and all weight vector w∈W,
+L(w)≤Kγ(w) + 8.5XW1
+γ/radicalbigg
+entro µ(w) + 2.5
+n+/radicalBigg
+log(log 24XW 1
+γ)
+n+/radicalbigg
+log(1/δ)
+2n
+where entro µ(w) :=/summationtext
+i|wi|
+/bardblw/bardbl1log(|wi|
+µi/bardblw/bardbl1)
+Proof.Proofisprovidedintheappendix.
+4.3 PAC-BayesTheorem
+We now show that (a form of) the PAC Bayesian theorem [McAllester, 1999] is a consequence of
+Theorem 3. In the PAC Bayesian theorem, we have a set of hypothesis (possibly inﬁnite) C. We
+choosesomepriordistributionoverthishypothesissetsay µ, andafterobservingthetrainingdata,
+we choose any arbitrary posterior νand the loss we are interested in is ℓν(x,y) =Ec∼νℓ(c,x,y)
+thatisbasicallytheexpectationofthelosswhenhypothesis c∈Caredrawni.i.d. usingdistribution
+ν. Notethatinthissectionweareconsideringamoregeneralformoftheloss.
+The key observation as that we can view ℓν(x)as the inner product /an}b∇acketle{tdν(·),ℓ(·,x,y)/an}b∇acket∇i}htbetween the
+measure dν(·)andtheloss ℓ(·,x). Thisleadstothefollowingstraightforwardcorollary.
+Corollary8. (PAC-Bayes)Foraﬁxedprior µoverthehypothesisset C,andanylossboundedby 1,
+with probability at least 1−δover the sample, simultaneously for all choice of posteriors νoverC
+we have that,
+Lν≤ˆLν+ 4.5/radicalbigg
+max{KL(ν/ba∇dblµ),2}
+n+/radicalbigg
+log(1/δ)
+2n(8)
+Proof.Proofisprovidedintheappendix.
+Interestingly, this result is an improvement over the original statement, in which the last term was/radicalbig
+log(n/δ)/n. Our bound removes this extra log(n)factor, so, in the regime where we ﬁx νand
+examine large n, this bound is sharper. We note that our goal was not to prove the PAC-Bayes
+theorem,andwehavemadelittleattempttooptimizetheconstants.
+4.4 CoveringNumberBounds
+It is worth noting that using Sudakov’s minoration results we can obtain upper bound on the L2
+(and hence also L1) covering numbers using the Gaussian complexities. The following is a direct
+corollaryoftheSudakovminorationtheoremforGaussiancomplexities(Theorem3.18,Page80of
+LedouxandTalagrand[1991]).
+Corollary9. LetFWbethefunctionclassfromTheorem3. Thereexistsauniversalconstant K >0
+such that its L2covering number is bounded as follows:
+∀ǫ >0 log(N2(FW,ǫ,n))≤2K2X2W2
+∗
+σǫ2
+This bound is sharper than those that could be derived from the N∞covering number bounds of
+Zhang[2002].
+5 Discussion:RelationstoOnline,RegretMinimizing,Algorithms
+In this section, we make a further assumption that loss ℓ(/an}b∇acketle{tw,x/an}b∇acket∇i}ht,y)is convex in its ﬁrst argument.
+Wenowshowthatintheonlinesettingthattheregretboundsforlinearpredictioncloselymatchour
+riskbounds. Thealgorithmweconsiderperformstheupdate,
+wt+1=∇F−1(∇F(wt)−η∇wℓ(/an}b∇acketle{twt,xt/an}b∇acket∇i}ht,yt)) (9)Thisalgorithmcapturesbothgradientupdates,multiplicativeupdates,andupdatesbasedonthe Lp
+norms,throughappropriatechoicesof F. SeeShalev-Shwartz[2007]fordiscussion.
+For the algorithm given by the above update, the following theorem is a bound on the cumulative
+regret. ItisacorollaryofTheorem1inShalev-ShwartzandSinger[2006](andalsoofCorollary1
+inShalev-Shwartz[2007]),appliedtoourlinearcase.
+Corollary10. (Shalev-ShwartzandSinger[2006])Let Sbeaclosedconvexsetandlet F:S→R
+beσ-strongly convex w.r.t. /ba∇dbl·/ba∇dbl∗. Further, letX={x:/ba∇dblx/ba∇dbl≤ X}andW={w∈S:F(w)≤
+W2
+∗}. Then for the update given by Equation 9 if we start with w1= argmin F(w), we have that
+for all sequences {(xt,yt)}n
+t=1,
+n/summationdisplay
+t=1ℓ(/an}b∇acketle{twt,xt/an}b∇acket∇i}ht,yt)−argmin
+w∈Wn/summationdisplay
+t=1ℓ(/an}b∇acketle{tw,xt/an}b∇acket∇i}ht,yt)≤LℓXW∗/radicalbigg
+2n
+σ
+For completeness, we provide a direct proof in the Appendix. Interestingly, the regret above is
+precisely our complexity bounds (when Lℓ= 1). Also, our risk bounds are a factor of 2 worse,
+essentiallyduetothesymmetrizationstepusedinprovingTheorem1.
+References
+P. L. Bartlett and S. Mendelson. Rademacher and Gaussian complexities: Risk bounds and structural results.
+Journal of Machine Learning Research,3:463–482,2002.
+P. L. Bartlett and J. Shawe-Taylor. Generalization performance of support vector machines and other pattern
+classiﬁers. InB.Sch ¨olkopf,C.J.C.Burges,andA.J.Smola,editors, AdvancesinKernelMethods–Support
+Vector Learning,pages43–54.MITPress,1999.
+N.Cesa-BianchiandG.Lugosi. Prediction, learning, and games . CambridgeUniversityPress,2006.
+V. Koltchinskii and D. Panchenko. Empirical margin distributions and bounding the generalization error of
+combinedclassiﬁers. Annals of Statistics ,30(1):1–50,2002.
+J. Langford and J. Shawe-Taylor. PAC-Bayes & margins. In Advances in Neural Information Processing
+Systems 15,pages423–430,2003.
+J.Langford,M.Seeger,andNimrodMegiddo.Animprovedpredictiveaccuracyboundforaveragingclassiﬁers.
+InProceedings of the Eighteenth International Conference on Machine Learning,pages290–297,2001.
+M.LedouxandM.Talagrand. ProbabilityinBanachspaces: Isoperimetryandprocesses ,volume23of Ergeb-
+nisse der Mathematik und ihrer Grenzgebiete (3) . Springer-Verlag,1991.
+DavidA.McAllester. SimpliﬁedPAC-Bayesianmarginbounds. In Proceedings of the Sixteenth Annual Con-
+ference on Computational Learning Theory,pages203–215,2003.
+David A. McAllester. PAC-Bayesian model averaging. In Proceedings of the Twelfth Annual Conference on
+Computational Learning Theory,pages164–170,1999.
+RonMeirandTongZhang. GeneralizationerrorboundsforBayesianmixturealgorithms. Journal of Machine
+Learning Research,4:839–860,2003.
+A.Y.Ng.Featureselection, l1vs.l2regularization,androtationalinvariance.In P roceedingsoftheTwenty-First
+International Conference on Machine Learning,2004.
+DavidPollard. Convergence of Stochastic Processes . Springer-Verlag,1984.
+R.E.Schapire,Y.Freund,P.Bartlett,andW.S.Lee. Boostingthemargin: Anewexplanationfortheeffective-
+nessofvotingmethods. The Annalsof Statistics ,26(5):1651–1686,October1998.
+S.Shalev-Shwartz. Online Learning: Theory, Algorithms, and Applications . PhDthesis,TheHebrewUniver-
+sity,2007.
+S.Shalev-ShwartzandY.Singer. ConvexrepeatedgamesandFenchelduality. In AdvancesinNeuralInforma-
+tion Processing Systems 20,2006.
+M. Warmuth and A. K. Jagota. Continuous versus discrete-time non-linear gradient descent: Relative loss
+bounds and convergence. In Fifth International Symposium on Artiﬁcial Intelligence and Mathematics ,
+1997.
+T.Zhang. Coveringnumberboundsofcertainregularizedlinearfunctionclasses. JournalofMachineLearning
+Research,2:527–550,2002.

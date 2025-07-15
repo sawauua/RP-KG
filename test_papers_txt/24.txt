@@ -1,0 +1,550 @@
+Learning Overparameterized Neural Networks via
+Stochastic Gradient Descent on Structured Data
+Yuanzhi Li
+Computer Science Department
+Stanford University
+Stanford, CA 94305
+yuanzhil@stanford.eduYingyu Liang
+Department of Computer Sciences
+University of Wisconsin-Madison
+Madison, WI 53706
+yliang@cs.wisc.edu
+Abstract
+Neural networks have many successful applications, while much less theoretical
+understanding has been gained. Towards bridging this gap, we study the problem of
+learning a two-layer overparameterized ReLU neural network for multi-class clas-
+siﬁcation via stochastic gradient descent (SGD) from random initialization. In the
+overparameterized setting, when the data comes from mixtures of well-separated
+distributions, we prove that SGD learns a network with a small generalization
+error, albeit the network has enough capacity to ﬁt arbitrary labels. Furthermore,
+the analysis provides interesting insights into several aspects of learning neural
+networks and can be veriﬁed based on empirical studies on synthetic data and on
+the MNIST dataset.
+1 Introduction
+Neural networks have achieved great success in many applications, but despite a recent increase
+of theoretical studies, much remains to be explained. For example, it is empirically observed that
+learning with stochastic gradient descent (SGD) in the overparameterized setting (i.e., learning a large
+network with number of parameters larger than the number of training data points) does not lead to
+overﬁtting [ 24,31]. Some recent studies use the low complexity of the learned solution to explain the
+generalization, but usually do not explain how the SGD or its variants favors low complexity solutions
+(i.e., the inductive bias or implicit regularization) [ 3,23]. It is also observed that overparameterization
+and proper random initialization can help the optimization [ 28,12,26,18], but it is also not well
+understood why a particular initialization can improve learning. Moreover, most of the existing
+works trying to explain these phenomenons in general rely on unrealistic assumptions about the data
+distribution, such as Gaussian-ness and/or linear separability [32, 25, 10, 17, 7].
+This paper thus proposes to study the problem of learning a two-layer overparameterized neural
+network using SGD for classiﬁcation, on data with a more realistic structure. In particular, the data
+in each class is a mixture of several components, and components from different classes are well
+separated in distance (but the components in each class can be close to each other). This is motivated
+by practical data. For example, on the dataset MNIST [ 15], each class corresponds to a digit and can
+have several components corresponding to different writing styles of the digit, and an image in it is
+a small perturbation of one of the components. On the other hand, images that belong to the same
+component are closer to each other than to an image of another digit. Analysis in this setting can then
+help understand how the structure of the practical data affects the optimization and generalization.
+In this setting, we prove that when the network is sufﬁciently overparameterized, SGD provably
+learns a network close to the random initialization and with a small generalization error. This result
+shows that in the overparameterized setting and when the data is well structured, though in principle
+32nd Conference on Neural Information Processing Systems (NeurIPS 2018), Montréal, Canada.the network can overﬁt, SGD with random initialization introduces a strong inductive bias and leads
+to good generalization.
+Our result also shows that the overparameterization requirement and the learning time depends on the
+parameters inherent to the structure of the data but not on the ambient dimension of the data. More
+importantly, the analysis to obtain the result also provides some interesting theoretical insights for
+various aspects of learning neural networks. It reveals that the success of learning crucially relies
+on overparameterization and random initialization. These two combined together lead to a tight
+coupling around the initialization between the SGD and another learning process that has a benign
+optimization landscape. This coupling, together with the structure of the data, allows SGD to ﬁnd a
+solution that has a low generalization error, while still remains in the aforementioned neighborhood of
+the initialization. Our work makes a step towrads explaining how overparameterization and random
+initialization help optimization, and how the inductive bias and good generalization arise from the
+SGD dynamics on structured data. Some other more technical implications of our analysis will be
+discussed in later sections, such as the existence of a good solution close to the initialization, and the
+low-rankness of the weights learned. Complementary empirical studies on synthetic data and on the
+benchmark dataset MNIST provide positive support for the analysis and insights.
+2 Related Work
+Generalization of neural networks. Empirical studies show interesting phenomena about the
+generalization of neural networks: practical neural networks have the capacity to ﬁt random labels of
+the training data, yet they still have good generalization when trained on practical data [ 24,31,2].
+These networks are overparameterized in that they have more parameters than statistically necessary,
+and their good generalization cannot be explained by naïvely applying traditional theory. Several
+lines of work have proposed certain low complexity measures of the learned network and derived
+generalization bounds to better explain the phenomena. [ 3,23,21] proved spectrally-normalized
+margin-based generalization bounds, [ 9,23] derived bounds from a PAC-Bayes approach, and
+[1,33,4] derived bounds from the compression point of view. They, in general, do not address
+why the low complexity arises. This paper takes a step towards this direction, though on two-layer
+networks and a simpliﬁed model of the data.
+Overparameterization and implicit regularization. The training objectives of overparameterized
+networks in principle have many (approximate) global optima and some generalize better than the
+others [ 14,8,2], while empirical observations imply that the optimization process in practice prefers
+those with better generalization. It is then an interesting question how this implicit regularization or
+inductive bias arises from the optimization and the structure of the data. Recent studies are on SGD
+for different tasks, such as logistic regression [ 27] and matrix factorization [ 11,19,16]. More related
+to our work is [ 7], which studies the problem of learning a two-layer overparameterized network on
+linearly separable data and shows that SGD converges to a global optimum with good generalization.
+Our work studies the problem on data with a well clustered (and potentially not linearly separable)
+structure that we believe is closer to practical scenarios and thus can advance this line of research.
+Theoretical analysis of learning neural networks. There also exists a large body of work that
+analyzes the optimization landscape of learning neural networks [ 13,26,30,10,25,29,6,32,17,5].
+They in general need to assume unrealistic assumptions about the data such as Gaussian-ness, and/or
+have strong assumptions about the network such as using only linear activation. They also do not
+study the implicit regularization by the optimization algorithms.
+3 Problem Setup
+In this work, a two-layer neural network with ReLU activation for k-classes classiﬁcation is given by
+f= (f1,f2,···,fk)such that for each i∈[k]:
+fi(x) =m/summationdisplay
+r=1ai,rReLU (/angbracketleftwr,x/angbracketright)
+where{wr∈Rd}are the weights for the mneurons in the hidden layer, {ai,r∈R}are the weights
+of the top layer, and ReLU (z) = max{0,z}.
+2Assumptions about the data. The data is generated from a distribution Das follows. There are k×l
+unknown distributions {Di,j}i∈[k],j∈[l]overRdand probabilities pi,j≥0such that/summationtext
+i,jpi,j= 1.
+Each data point (x,y)is i.i.d. generated by: (1) Sample z∈[k]×[l]such that Pr[z= (i,j)] =pi,j;
+(2) Set label y=z[0], and sample xfromDz. Assume we sample Npoints{(xi,yi)}N
+i=1.
+Let us deﬁne the support of a distribution Dwith density poverRdassupp(D) ={x:p(x)>0},
+the distance between two sets S1,S2⊆Rdasdist(S1,S2) = minx∈S1,y∈S2{/bardblx−y/bardbl2},and the
+diameter of a setS1⊆Rdasdiam(S1) = maxx,y∈S1{/bardblx−y/bardbl2}.Then we are ready to make the
+assumptions about the data.
+(A1) (Separability) There exists δ > 0such that for every i1/negationslash=i2∈[k]and every
+j1,j2∈[l],dist(supp(Di1,j1),supp(Di2,j2))≥δ.Moreover, for every i∈[k],j∈[l],1
+diam(supp(Di,j))≤λδ,forλ≤1/(8l).
+(A2) (Normalization) Any xfrom the distribution has /bardblx/bardbl2= 1.
+A few remarks are worthy. Instead of having one distribution for one class, we allow an arbitrary
+l≥1distributions in each class, which we believe is a better ﬁt to the real data. For example, in
+MNIST, a class can be the number 1, and lcan be the different styles of writing 1(1or|or/).
+Assumption (A2) is for simplicity, while (A1) is our key assumption. With l≥1distributions
+inside each class, our assumption allows data that is not linearly separable, e.g., XOR type data in
+R2where there are two classes, one consisting of two balls of diameter 1/10with centers (0,0)
+and(2,2)and the other consisting of two of the same diameter with centers (0,2)and(2,0). See
+Figure 3 in Appendix C for an illustration. Moreover, essentially the only assumption we have
+here isλ=O(1/l). Whenl= 1,λ=O(1), which is the minimal requirement on the order of λ
+for the distribution to be efﬁciently learnable. Our work allows larger l, so that the data can be
+more complicated inside each class. In this case, we require the separation to also be higher. When
+we increase lto reﬁne the distributions inside each class, we should expect the diameters of each
+distribution become smaller as well. As long as the rate of diameter decreasing in each distribution is
+greater than the total number of distributions, then our assumption will hold.
+Assumptions about the learning process. We will only learn the weight wrto simplify the analysis.
+Since the ReLU activation is positive homogeneous, the effect of overparameterization can still be
+studied, and a similar approach has been adopted in previous work [ 7]. So the network is also written
+asy=f(x,w) = (f1(x,w),···,fk(x,w))forw= (w1,···,wr).
+We assume the learning is from a random initialization:
+(A3) (Random initialization) w(0)
+r∼N(0,σ2I),ai,r∼N(0,1), withσ=1
+m1/2.
+The learning process minimizes the cross entropy loss over the softmax, deﬁned as:
+L(w) =−1
+NN/summationdisplay
+s=1logoys(xs,w),whereoy(x,w) =efy(x,w)
+/summationtextk
+i=1efi(x,w).
+LetL(w,xs,ys) =−logoys(xs,w)denote the cross entropy loss for a particular point (xs,ys).
+We consider a minibatch SGD of batch size B, number of iterations T=N/B and learning rate ηas
+the following process: Randomly divide the total training examples into Tbatches, each of size B.
+Let the indices of the examples in the t-th batch beBt. At each iteration, the update is2
+w(t+1)
+r =w(t)
+r−η1
+B/summationdisplay
+s∈Bt∂L(w(t),xs,ys)
+∂w(t)
+r,∀r∈[m],where
+∂L(w,xs,ys)
+∂wr=
+/summationdisplay
+i/negationslash=ysai,roi(xs,w)−/summationdisplay
+i/negationslash=ysays,roi(xs,w)
+1/angbracketleftwr,xs/angbracketright≥0xs. (1)
+1The assumption 1/(8l)can be made to 1/[(1 +α)l]for anyα>0by paying a large polynomial in 1/αin
+the sample complexity. We will not prove it in this paper because we would like to highlight the key factors.
+2Strictly speaking, L(w,xs,ys)does not have gradient everywhere due to the non-smoothness of ReLU.
+One can view∂L(w,xs,ys)
+∂wras a convenient notation for the right hand side of (1).
+34 Main Result
+For notation simplicity, for a target error ε(to be speciﬁed later), with high probability (or w.h.p.)
+means with probability 1−1/poly(1/δ,k,l,m, 1/ε)for a sufﬁciently large polynomial poly, and ˜O
+hides factors of poly (log 1/δ,logk,logl,logm,log 1/ε).
+Theorem 4.1. Suppose the assumptions (A1)(A2)(A3) are satisﬁed. Then for every ε > 0,
+there isM=poly(k,l,1/δ,1/ε)such that for every m≥M, after doing a minibatch SGD
+with batch size B=poly(k,l,1/δ,1/ε,logm)and learning rate η=1
+m·poly(k,l,1/δ,1/ε,logm)for
+T=poly(k,l,1/δ,1/ε,logm)iterations, with high probability:
+Pr
+(x,y)∼D/bracketleftBig
+∀j∈[k],j/negationslash=y,fy(x,w(T))>fj(x,w(T))/bracketrightBig
+≥1−ε.
+Our theorem implies if the data satisﬁes our assumptions, and we parametrize the network properly,
+then we only need polynomial in k,l,1/δmany samples to achieve a good prediction error. This
+error is measured directly on the true distribution D, not merely on the input data used to train this
+network. Our result is also dimension free: There is no dependency on the underlying dimension
+dof the data, the complexity is fully captured by k,l,1/δ. Moreover, no matter how much the
+network is overparameterized, it will only increase the total iterations by factors of logm. So we can
+overparameterize by an sub-exponential amount without signiﬁcantly increasing the complexity.
+Furthermore, we can always treat each input example as an individual distribution, thus λis always
+zero. In this case, if we use batch size BforTiterations, we would have l=N=BT. Then our
+theorem indicate that as long as m=poly(N,1/δ/prime), whereδ/primeis the minimal distance between each
+examples, we can actually ﬁt arbitrary labels of the input data. However, since the total iteration only
+depends on logm, whenm=poly(N,1/δ/prime)but the input data is actually structured (with small k,l
+and largeδ), then SGD can actually achieve a small generalization error, even when the network has
+enough capacity to ﬁt arbitrary labels of the training examples (and can also be done by SGD). Thus,
+we prove that SGD has a strong inductive bias on structured data: Instead of ﬁnding a bad global
+optima that can ﬁt arbitrary labels, it actually ﬁnds those with good generalization guarantees. This
+gives more thorough explanation to the empirical observations in [24, 31].
+5 Intuition and Proof Sketch for A Simpliﬁed Case
+To train a neural network with ReLU activations, there are two questions need to be addressed:
+1Why can SGD optimize the training loss? Or even ﬁnding a critical point? Since the under-
+lying network is highly non-smooth, existing theorems do not give any ﬁnite convergence
+rate of SGD for training neural network with ReLUs activations.
+2Why can the trained network generalize? Even when the capacity is large enough to ﬁt
+random labels of the input data? This is known as the inductive bias of SGD.
+This work takes a step towards answering these two questions. We show that when the network is
+overparameterized, it becomes more “pseudo smooth”, which makes it easir for SGD to minimize
+the training loss, and furthermore, it will not hurt the generalization error. Our proof is based on the
+following important observation:
+The more we overparameterize the network, the less likely the activation pattern for one
+neuron and one data point will change in a ﬁxed number of iterations.
+This observation allows us to couple the gradient of the true neural network with a “pseudo gradient”
+where the activation pattern for each data point and each neuron is ﬁxed. That is, when computing the
+“pseudo gradient”, for ﬁxed r,i, whether the r-th hidden node is activated on the i-th data point xi
+will always be the same for different t. (But for ﬁxed t, for different rori, the sign can be different.)
+We are able to prove that unless the generalization error is small, the “pseudo gradient” will always
+be large. Moreover, we show that the network is actually smooth thus SGD can minimize the loss.
+We then show that when the number mof hidden neurons increases, with a properly decreasing
+learning rate, the total number of iterations it takes to minimize the loss is roughly not changed.
+However, the total number of iterations that we can couple the true gradient with the pseudo one
+4increases. Thus, there is a polynomially large mso that we can couple these two gradients until the
+network reaches a small generalization error.
+5.1 A Simpliﬁed Case: No Variance
+Here we illustrate the proof sketch for a simpliﬁed case and Appendix A provides the proof. The
+proof for the general case is provided in Appendix B. In the simpliﬁed case, we further assume:
+(S)(No variance) Each Da,bis a single data point (xa,b,a), and also we are doing full batch
+gradient descent as opposite to the minibatch SGD.
+Then we reload the loss notation as L(w) =/summationtext
+a∈[k],b∈[l]pa,bL(w,xa,b,a),and the gradient is
+∂L(w)
+∂wr=/summationdisplay
+a∈[k],b∈[l]pa,b
+/summationdisplay
+i/negationslash=aai,roi(xa,b,w)−/summationdisplay
+i/negationslash=aaa,roi(xa,b,w)
+1/angbracketleftwr,xa,b/angbracketright≥0xa,b.
+Following the intuition above, we deﬁne the pseudo gradient as
+˜∂L(w)
+∂wr=/summationdisplay
+a∈[k],b∈[l]pa,b
+/summationdisplay
+i/negationslash=aai,roi(xa,b,w)−/summationdisplay
+i/negationslash=aaa,roi(xa,b,w)
+1/angbracketleftw(0)
+r,xa,b/angbracketright≥0xa,b,
+where it uses 1/angbracketleftw(0)
+r,xa,b/angbracketright≥0instead of 1/angbracketleftwr,xa,b/angbracketright≥0as in the true gradient. That is, the activation
+pattern is set to be that in the initialization. Intuitively, the pseudo gradient is similar to the gradient for
+a pseudo network g(but not exactly the same), deﬁned as gi(x,w) :=/summationtextm
+r=1ai,r/angbracketleftwr,x/angbracketright1/angbracketleftBig
+w(0)
+r,x/angbracketrightBig
+≥0.
+Coupling the gradients is then similar to coupling the networks fandg.
+For simplicity, let va,a,b :=/summationtext
+i/negationslash=aoi(xa,b,w) =/summationtext
+i/negationslash=aefi(xa,b,w)
+/summationtextk
+i=1efi(xa,b,w)and whens/negationslash=a,vs,a,b :=
+−os(xa,b,w) =−efs(xa,b,w)
+/summationtextk
+i=1efi(xa,b,w).Roughly, if va,a,b is small, then fa(xa,b,w)is relatively larger
+compared to the other fi(xa,b,w), so the classiﬁcation error is small.
+We prove the following two main lemmas. The ﬁrst says that at each iteration, the total number of
+hidden units whose gradient can be coupled with the pseudo one is quite large.
+Lemma 5.1 (Coupling) .W.h.p. over the random initialization, for every τ >0, for everyt=˜O/parenleftBig
+τ
+η/parenrightBig
+,
+we have that for at least 1−eτkl
+σfraction ofr∈[m]:∂L(w(t))
+∂wr=˜∂L(w(t))
+∂wr.
+The second lemma says that the pseudo gradient is large unless the error is small.
+Lemma 5.2. Form=˜Ω/parenleftBig
+k3l2
+δ/parenrightBig
+, for every{pa,bvi,a,b}i,a∈[k],b∈[l]∈[−v,v](that depends on
+w(0)
+r,ai,r, etc.) with max{pa,bvi,a,b}i,a∈[k],b∈[l]=v, there exists at least Ω(δ
+kl)fraction ofr∈[m]
+such that/vextenddouble/vextenddouble/vextenddouble˜∂L(w)
+∂wr/vextenddouble/vextenddouble/vextenddouble
+2=˜Ω/parenleftbigvδ
+kl/parenrightbig
+.
+We now illustrate how to use these two lemmas to show the convergence for a small enough learning
+rateη. For simplicity, let us assume that kl/δ =O(1)andε=o(1). Thus, by Lemma 5.2 we know
+that unlessv≤ε, there are Ω(1) fraction ofrsuch that/vextenddouble/vextenddouble/vextenddouble˜∂L(w)/∂wr/vextenddouble/vextenddouble/vextenddouble
+2= Ω(ε). Moreover, by
+Lemma 5.1 we know that we can pick τ= Θ(σε)soeτ/σ = Θ(ε), which implies that there are Ω(1)
+fraction ofrsuch that/bardbl∂L(w)/∂wr/bardbl2= Ω(ε)as well. For small enough learning rate η, doing one
+step of gradient descent will thus decrease L(w)byΩ(ηmε2), so it converges in t=O/parenleftbig
+1/ηmε2/parenrightbig
+iterations. In the end, we just need to make sure that 1/ηmε2≤O(τ/η) = Θ(σε/η )so we can
+always apply the coupling Lemma 5.1. By σ=˜O(1/m−1/2)we know that this is true as long as
+m≥poly(1/ε). A smallvcan be shown to lead to a small generalization error.
+6 Discussion of Insights from the Analysis
+Our analysis, though for learning two-layer networks on well structured data, also sheds some light
+upon learning neural networks in more general settings.
+5Generalization. Several lines of recent work explain the generalization phenomenon of overparam-
+eterized networks by low complexity of the learned networks, from the point views of spectrally-
+normalized margins [3, 23, 21], compression [1, 33, 4], and PAC-Bayes [9, 23].
+Our analysis has partially explained how SGD (with proper random initialization) on structured data
+leads to the low complexity from the compression and PCA-Bayes point views. We have shown that
+in a neighborhood of the random initialization, w.h.p. the gradients are similar to those of another
+benign learning process, and thus SGD can reduce the error and reach a good solution while still
+in the neighborhood. The closeness to the initialization then means the weights (or more precisely
+the difference between the learned weights and the initialization) can be easily compressed. In fact,
+empirical observations have been made and connected to generalization in [ 22,1]. Furthermore, [ 1]
+explicitly point out such a compression using a helper string (corresponding to the initialization in
+our setting). [ 1] also point out that the compression view can be regarded as a more explicit form of
+the PAC-Bayes view, and thus our intuition also applies to the latter.
+The existence of a solution of a small generalization error near the initialization is itself not obvious.
+Intuitively, on structured data, the updates are structured signals spread out across the weights of the
+hidden neurons. Then for prediction, the random initialized part in the weights has strong cancellation,
+while the structured signal part in the weights collectively affects the output. Therefore, the latter can
+be much smaller than the former while the network can still give accurate predictions. In other words,
+there can be a solution not far from the initialization with high probability.
+Some insight is provided on the low rank of the weights. More precisely, when the data are well
+clustered around a few patterns, the accumulated updates (difference between the learned weights
+and the initialization) should be approximately low rank, which can be seen from checking the SGD
+updates. However, when the difference is small compared to the initialization, the spectrum of the
+ﬁnal weight matrix is dominated by that of the initialization and thus will tend to closer to that of a
+random matrix. Again, such observations/intuitions have been made in the literature and connected
+to compression and generalization (e.g., [1]).
+Implicit regularization v.s. structure of the data. Existing work has analyzed the implicit regular-
+ization of SGD on logistic regression [ 27], matrix factorization [ 11,19,16], and learning two-layer
+networks on linearly separable data [ 7]. Our setting and also the analysis techniques are novel
+compared to the existing work. One motivation to study on structured data is to understand the role
+of structured data play in the implicit regularization, i.e., the observation that the solution learned
+on less structured or even random data is further away from the initialization. Indeed, our analysis
+shows that when the network size is ﬁxed (and sufﬁciently overparameterized), learning over poorly
+structured data (larger kand/lscript) needs more iterations and thus the solution can deviate more from
+the initialization and has higher complexity. An extreme and especially interesting case is when the
+network is overparameterized so that in principle it can ﬁt the training data by viewing each point as a
+component while actually they come from structured distributions with small number of components.
+In this case, we can show that it still learns a network with a small generalization error; see the more
+technical discussion in Section 4.
+We also note that our analysis is under the assumption that the network is sufﬁciently overparam-
+eterized, i.e., mis a sufﬁciently large polynomial of k,/lscriptand other related parameters measuring
+the structure of the data. There could be the case that mis smaller than this polynomial but is more
+than sufﬁcient to ﬁt the data, i.e., the network is still overparameterized. Though in this case the
+analysis still provides useful insight, it does not fully apply; see our experiments with relatively small
+m. On the other hand, the empirical observations [ 24,31] suggest that practical networks are highly
+overparameterized, so our intuition may still be helpful there.
+Effect of random initialization. Our analysis also shows how proper random initializations helps
+the optimization and consequently generalization. Essentially, this guarantees that w.h.p. for weights
+close to the initialization, many hidden ReLU units will have the same activation patterns (i.e.,
+activated or not) as for the initializations, which means the gradients in the neighborhood look like
+those when the hidden units have ﬁxed activation patterns. This allows SGD makes progress when
+the loss is large, and eventually learns a good solution. We also note that it is essential to carefully
+set the scale of the initialization, which is a extensively studied topic [ 20,28]. Our initialization has
+a scale related to the number of hidden units, which is particularly useful when the network size is
+varying, and thus can be of interest in such practical settings.
+60 50 100 150 200 250 300 350 400
+Number of steps0.00.20.40.60.81.0Test AccuracyTest Accuracy v.s. number of steps
+Number of hidden nodes
+500
+1000
+2000
+4000
+8000
+16000
+32000(a) Test accuracy
+0 50 100 150 200 250 300 350 400
+Number of steps0.000.010.020.030.040.050.060.07Activation pattern difference ratioActivation difference v.s. number of steps
+Number of hidden nodes
+500
+1000
+2000
+4000
+8000
+16000
+32000 (b) Coupling
+0 50 100 150 200 250 300 350 400
+Number of steps0.0000.0050.0100.0150.0200.0250.0300.0350.040Relative distanceRelative distance v.s. number of steps
+Number of hidden nodes
+500
+1000
+2000
+4000
+8000
+16000
+32000
+(c) Distance from the initialization
+020 40 60 80100
+Singular value index10 610 510 410 310 210 1100Singular valueSingular values of weight matrix and accumulated upd ates
+Spectrum for
+Weight matrix
+Accumulated updates (d) Rank of accumulated updates ( y-axis in log-scale)
+Figure 1: Results on the synthetic data.
+7 Experiments
+This section aims at verifying some key implications: (1) the activation patterns of the hidden units
+couple with those at initialization; (2) The distance from the learned solution from the initialization is
+relatively small compared to the size of initialization; (3) The accumulated updates (i.e., the difference
+between the learned weight matrix and the initialization) have approximately low rank. These are
+indeed supported by the results on the synthetic and the MNIST data. Additional experiments are
+presented in Appendix D.
+Setup. The synthetic data are of 1000 dimension and consist of k= 10 classes, each having /lscript= 2
+components. Each component is of equal probability 1/(kl), and is a Gaussian with covariance
+σ2/dIand its mean is i.i.d. sampled from a Gaussian distribution N(0,σ2
+0/d), whereσ= 1 and
+σ0= 5.1000 training data points and 1000 test data points are sampled.
+The network structure and the learning process follow those in Section 3; the number of hidden units
+mvaries in the experiments, and the weights are initialized with N(0,1/√m). On the synthetic data,
+the SGD is run for T= 400 steps with batch size B= 16 and learning rate η= 10/m. On MNIST,
+the SGD is run for T= 2×104steps with batch size B= 64 and learning rate η= 4×103/m.
+Besides the test accuracy, we report three quantities corresponding to the three observa-
+tions/implications to be veriﬁed. First, for coupling, we compute the fraction of hidden units
+whose activation pattern changed compared to the time at initialization. Here, the activation pattern is
+deﬁned as 1if the input to the ReLU is positive and 0otherwise. Second, for distance, we compute
+the relative ratio/bardblw(t)−w(0)/bardblF//bardblw(0)/bardblF, wherew(t)is the weight matrix at time t. Finally, for the
+rank of the accumulated updates, we plot the singular values of w(T)−w(0)whereTis the ﬁnal step.
+All experiments are repeated 5 times, and the mean and standard deviation are reported.
+70 2500 5000 7500 10000 12500 15000 17500
+Number of steps0.20.40.60.8Test AccuracyTest Accuracy v.s. number of steps
+Number of hidden nodes
+1000
+2000
+4000
+8000
+16000
+32000(a) Test accuracy
+0 2500 5000 7500 10000 12500 15000 17500
+Number of steps0.00.10.20.30.4Activation pattern difference ratioActivation difference v.s. number of steps
+Number of hidden nodes
+1000
+2000
+4000
+8000
+16000
+32000 (b) Coupling
+0 2500 5000 7500 10000 12500 15000 17500
+Number of steps0.000.250.500.751.001.251.501.752.00Relative distanceRelative distance v.s. number of steps
+Number of hidden nodes
+1000
+2000
+4000
+8000
+16000
+32000
+(c) Distance from the initialization
+01020304050607080
+Singular value index10−1510−1310−1110−910−710−510−310−1101Singular valueSingular values of the  eight matrix and accumulated  updates
+Spectrum for
+Weight matrix
+Accumulated updates (d) Rank of accumulated updates ( y-axis in log-scale)
+Figure 2: Results on the MNIST data.
+Results. Figure 1 shows the results on the synthetic data. The test accuracy quickly converges
+to100% , which is even more signiﬁcant with larger number of hidden units, showing that the
+overparameterization helps the optimization and generalization. Recall that our analysis shows that
+for a learning rate linearly decreasing with the number of hidden nodes m, the number of iterations
+to get the accuracy to achieve a desired accuracy should be roughly the same, which is also veriﬁed
+here. The activation pattern difference ratio is less than 0.1, indicating a strong coupling. The relative
+distance is less than 0.1, so the ﬁnal solution is indeed close to the initialization. Finally, the top 20
+singular values of the accumulated updates are much larger than the rest while the spectrum of the
+weight matrix do not have such structure, which is also consistent with our analysis.
+Figure 2 shows the results on MNIST. The observation in general is similar to those on the synthetic
+data (though less signiﬁcant), and also the observed trend become more evident with more overpa-
+rameterization. Some additional results (e.g., varying the variance of the synthetic data) are provided
+in the appendix that also support our theory.
+8 Conclusion
+This work studied the problem of learning a two-layer overparameterized ReLU neural network
+via stochastic gradient descent (SGD) from random initialization, on data with structure inspired
+by practical datasets. While our work makes a step towards theoretical understanding of SGD for
+training neural networs, it is far from being conclusive. In particular, the real data could be separable
+with respect to different metric than /lscript2, or even a non-convex distance given by some manifold. We
+view this an important open direction.
+8Acknowledgements
+We would like to thank the anonymous reviewers of NIPS’18 and Jason Lee for helpful comments.
+This work was supported in part by FA9550-18-1-0166, NSF grants CCF-1527371, DMS-1317308,
+Simons Investigator Award, Simons Collaboration Grant, and ONR-N00014-16-1-2329. Yingyu
+Liang would also like to acknowledge that support for this research was provided by the Ofﬁce of the
+Vice Chancellor for Research and Graduate Education at the University of Wisconsin Madison with
+funding from the Wisconsin Alumni Research Foundation.
+References
+[1]Sanjeev Arora, Rong Ge, Behnam Neyshabur, and Yi Zhang. Stronger generalization bounds
+for deep nets via a compression approach. arXiv preprint arXiv:1802.05296 , 2018.
+[2]Devansh Arpit, Stanisław Jastrz˛ ebski, Nicolas Ballas, David Krueger, Emmanuel Bengio,
+Maxinder S Kanwal, Tegan Maharaj, Asja Fischer, Aaron Courville, Yoshua Bengio, et al. A
+closer look at memorization in deep networks. arXiv preprint arXiv:1706.05394 , 2017.
+[3] Peter L Bartlett, Dylan J Foster, and Matus J Telgarsky. Spectrally-normalized margin bounds
+for neural networks. In Advances in Neural Information Processing Systems , pages 6241–6250,
+2017.
+[4]Cenk Baykal, Lucas Liebenwein, Igor Gilitschenski, Dan Feldman, and Daniela Rus. Data-
+dependent coresets for compressing neural networks with applications to generalization bounds.
+arXiv preprint arXiv:1804.05345 , 2018.
+[5]Digvijay Boob and Guanghui Lan. Theoretical properties of the global optimizer of two layer
+neural network. arXiv preprint arXiv:1710.11241 , 2017.
+[6]Alon Brutzkus and Amir Globerson. Globally optimal gradient descent for a convnet with
+gaussian inputs. arXiv preprint arXiv:1702.07966 , 2017.
+[7]Alon Brutzkus, Amir Globerson, Eran Malach, and Shai Shalev-Shwartz. Sgd learns over-
+parameterized networks that provably generalize on linearly separable data. arXiv preprint
+arXiv:1710.10174 , 2017.
+[8]Laurent Dinh, Razvan Pascanu, Samy Bengio, and Yoshua Bengio. Sharp minima can generalize
+for deep nets. arXiv preprint arXiv:1703.04933 , 2017.
+[9] Gintare Karolina Dziugaite and Daniel M Roy. Computing nonvacuous generalization bounds
+for deep (stochastic) neural networks with many more parameters than training data. arXiv
+preprint arXiv:1703.11008 , 2017.
+[10] Rong Ge, Jason D Lee, and Tengyu Ma. Learning one-hidden-layer neural networks with
+landscape design. arXiv preprint arXiv:1711.00501 , 2017.
+[11] Suriya Gunasekar, Blake E Woodworth, Srinadh Bhojanapalli, Behnam Neyshabur, and Nati
+Srebro. Implicit regularization in matrix factorization. In Advances in Neural Information
+Processing Systems , pages 6152–6160, 2017.
+[12] Moritz Hardt and Tengyu Ma. Identity matters in deep learning. arXiv preprint
+arXiv:1611.04231 , 2016.
+[13] Kenji Kawaguchi. Deep learning without poor local minima. In Advances in Neural Information
+Processing Systems , pages 586–594, 2016.
+[14] Nitish Shirish Keskar, Dheevatsa Mudigere, Jorge Nocedal, Mikhail Smelyanskiy, and Ping
+Tak Peter Tang. On large-batch training for deep learning: Generalization gap and sharp minima.
+arXiv preprint arXiv:1609.04836 , 2016.
+[15] Yann LeCun, Léon Bottou, Yoshua Bengio, and Patrick Haffner. Gradient-based learning
+applied to document recognition. Proceedings of the IEEE , 86(11):2278–2324, 1998.
+9[16] Yuanzhi Li, Tengyu Ma, and Hongyang Zhang. Algorithmic regularization in over-parameterized
+matrix recovery. arXiv preprint arXiv:1712.09203 , 2017.
+[17] Yuanzhi Li and Yang Yuan. Convergence analysis of two-layer neural networks with relu
+activation. In Advances in Neural Information Processing Systems , pages 597–607, 2017.
+[18] Roi Livni, Shai Shalev-Shwartz, and Ohad Shamir. On the computational efﬁciency of training
+neural networks. In Advances in Neural Information Processing Systems , pages 855–863, 2014.
+[19] Cong Ma, Kaizheng Wang, Yuejie Chi, and Yuxin Chen. Implicit regularization in nonconvex
+statistical estimation: Gradient descent converges linearly for phase retrieval, matrix completion
+and blind deconvolution. arXiv preprint arXiv:1711.10467 , 2017.
+[20] James Martens. Deep learning via hessian-free optimization. In ICML , volume 27, pages
+735–742, 2010.
+[21] Cisse Moustapha, Bojanowski Piotr, Grave Edouard, Dauphin Yann, and Usunier Nicolas. Parse-
+val networks: Improving robustness to adversarial examples. arXiv preprint arXiv:1704.08847 ,
+2017.
+[22] Vaishnavh Nagarajan and Zico Kolter. Generalization in deep networks: The role of distance
+from initialization. NIPS workshop on Deep Learning: Bridging Theory and Practice , 2017.
+[23] Behnam Neyshabur, Srinadh Bhojanapalli, David McAllester, and Nathan Srebro. A pac-
+bayesian approach to spectrally-normalized margin bounds for neural networks. arXiv preprint
+arXiv:1707.09564 , 2017.
+[24] Behnam Neyshabur, Ryota Tomioka, and Nathan Srebro. In search of the real inductive bias:
+On the role of implicit regularization in deep learning. arXiv preprint arXiv:1412.6614 , 2014.
+[25] Mahdi Soltanolkotabi, Adel Javanmard, and Jason D Lee. Theoretical insights into the optimiza-
+tion landscape of over-parameterized shallow neural networks. arXiv preprint arXiv:1707.04926 ,
+2017.
+[26] Daniel Soudry and Yair Carmon. No bad local minima: Data independent training error
+guarantees for multilayer neural networks. arXiv preprint arXiv:1605.08361 , 2016.
+[27] Daniel Soudry, Elad Hoffer, and Nathan Srebro. The implicit bias of gradient descent on
+separable data. arXiv preprint arXiv:1710.10345 , 2017.
+[28] Ilya Sutskever, James Martens, George Dahl, and Geoffrey Hinton. On the importance of
+initialization and momentum in deep learning. In International conference on machine learning ,
+pages 1139–1147, 2013.
+[29] Yuandong Tian. An analytical formula of population gradient for two-layered relu network and
+its applications in convergence and critical point analysis. arXiv preprint arXiv:1703.00560 ,
+2017.
+[30] Bo Xie, Yingyu Liang, and Le Song. Diversity leads to generalization in neural networks. arXiv
+preprint Arxiv:1611.03131 , 2016.
+[31] Chiyuan Zhang, Samy Bengio, Moritz Hardt, Benjamin Recht, and Oriol Vinyals. Understanding
+deep learning requires rethinking generalization. arXiv preprint arXiv:1611.03530 , 2016.
+[32] Kai Zhong, Zhao Song, Prateek Jain, Peter L Bartlett, and Inderjit S Dhillon. Recovery
+guarantees for one-hidden-layer neural networks. arXiv preprint arXiv:1706.03175 , 2017.
+[33] Wenda Zhou, Victor Veitch, Morgane Austern, Ryan P Adams, and Peter Orbanz. Com-
+pressibility and generalization in large-scale deep learning. arXiv preprint arXiv:1804.05862 ,
+2018.
+10

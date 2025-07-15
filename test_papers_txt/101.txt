@@ -1,0 +1,781 @@
+On the Quantitative Analysis of Deep Belief Networks
+
+Ruslan Salakhutdinov RSALAKHU @CS.TORONTO .EDU
+Iain Murray MURRAY@CS.TORONTO .EDU
+DepartmentofComputerScience,UniversityofToronto,Tor onto,OntarioM5S3G4,Canada
+Abstract
+Deep Belief Networks (DBN’s) are generative
+models that contain many layers of hidden vari-
+ables. Efﬁcient greedy algorithms for learning
+and approximate inference have allowed these
+models to be applied successfully in many ap-
+plication domains. The main building block of
+a DBN is a bipartite undirected graphical model
+called a restricted Boltzmann machine (RBM).
+Due to the presence of the partition function,
+model selection, complexity control, and exact
+maximum likelihood learning in RBM’s are in-
+tractable. We show that Annealed Importance
+Sampling (AIS) can be used to efﬁciently es-
+timate the partition function of an RBM, and
+we present a novel AIS scheme for comparing
+RBM’s with different architectures. We further
+show how an AIS estimator, along with approx-
+imate inference, can be used to estimate a lower
+bound on the log-probability that a DBN model
+with multiple hidden layers assigns to the test
+data. This is, to our knowledge, the ﬁrst step
+towardsobtainingquantitativeresultsthat would
+allow us to directly assess the performance of
+Deep Belief Networks as generative models of
+data.
+1. Introduction
+Deep Belief Networks (DBN’s), recently introduced by
+Hintonetal.(2006)areprobabilisticgenerativemodelsth at
+contain many layers of hidden variables, in which each
+layer captures strong high-order correlations between the
+activities of hidden features in the layer below. The main
+breakthrough introduced by Hinton et al. was a greedy,
+layer-by-layerunsupervisedlearningalgorithmthat allo ws
+efﬁcient training of these deep, hierarchical models. The
+learning procedure also provides an efﬁcient way of per-
+formingapproximateinference,whichmakesthevaluesof
+Appearing in Proceedings of the 25thInternational Conference
+on Machine Learning , Helsinki, Finland, 2008. Copyright 2008
+bythe author(s)/owner(s).thelatentvariablesinthedeepestlayereasytoinfer. Thes e
+deep generative models have been successfully applied in
+manyapplicationdomains(Hinton&Salakhutdinov,2006;
+Bengio&LeCun,2007).
+ThemainbuildingblockofaDBNisabipartiteundirected
+graphical model called the Restricted Boltzmann Machine
+(RBM). RBM’s, and their generalizations to exponential
+family models, have been successfully applied in collab-
+orative ﬁltering (Salakhutdinov et al., 2007), informatio n
+and image retrieval (Gehler et al., 2006), and time series
+modeling (Taylor et al., 2006). A key feature of RBM’s
+is that inference in these models is easy. An unfortunate
+limitation is that the probabilityof data under the model is
+known only up to a computationally intractable normaliz-
+ing constant, known as the partition function. A good es-
+timateofthepartitionfunctionwouldbeextremelyhelpful
+for model selection and for controlling model complexity,
+whichareimportantformakingRBM’sgeneralizewell.
+There has been extensive research on obtaining determin-
+istic approximations (Yedidia et al., 2005) or determin-
+istic upper bounds (Wainwright et al., 2005) on the log-
+partition function of arbitrary discrete Markov random
+ﬁelds (MRF’s). These variational methods rely critically
+on an ability to approximate the entropy of the undirected
+graphical model. However, for densely connected MRF’s,
+such as RBM’s, these methods are unlikely to perform
+well. There have also been many developments in the
+use of Monte Carlo methods for estimating the partition
+function, including Annealed Importance Sampling (AIS)
+(Neal, 2001),Nested Sampling(Skilling,2004),and many
+others (see e.g. Neal (1993)). In this paper we show how
+onesuchmethod,AIS,bytakingadvantageofthebipartite
+structure of an RBM, can be used to efﬁciently estimate
+its partition function. We further show that this estimator ,
+alongwithapproximateinference,canbeusedtoestimatea
+lowerboundonthelog-probabilitythataDBN modelwith
+multiplehiddenlayersassignsto trainingortest data. Thi s
+resultallowsustoassesstheperformanceofDBN’sasgen-
+erative models and to compare them to other probabilistic
+models,suchasplainmixturemodels.Onthe QuantitativeAnalysis of DeepBelief Networks
+2. Restricted BoltzmannMachines
+A Restricted Boltzmann Machine is a particular type of
+MRF that has a two-layer architecture in which the visi-
+ble, binary stochastic units v∈ {0,1}Dare connected to
+hiddenbinarystochasticunits h∈ {0,1}M. Theenergyof
+thestate {v,h}is:
+E(v,h;θ) =−D/summationdisplay
+i=1M/summationdisplay
+j=1Wijvihj−D/summationdisplay
+i=1bivi−M/summationdisplay
+j=1ajhj,(1)
+where θ={W,b,a}arethemodelparameters: Wijrepre-
+sentsthe symmetricinteractiontermbetweenvisibleunit i
+andhiddenunit j;biandajarebiasterms. Theprobability
+thatthemodelassignsto avisible vector vis:
+p(v;θ) =p∗(v;θ)
+Z(θ)=1
+Z(θ)/summationdisplay
+hexp (−E(v,h;θ)),(2)
+Z(θ) =/summationdisplay
+v/summationdisplay
+hexp (−E(v,h;θ)),(3)
+where p∗denotesunnormalizedprobability,and Z(θ)isthe
+partitionfunctionornormalizingconstant. Thecondition al
+distributions over hidden units hand visible vector vare
+givenbylogisticfunctions:
+p(h|v) =/productdisplay
+jp(hj|v), p(v|h) =/productdisplay
+ip(vi|h)(4)
+p(hj= 1|v) =σ(/summationdisplay
+iWijvi+aj)(5)
+p(vi= 1|h) =σ(/summationdisplay
+jWijhj+bi),(6)
+where σ(x) = 1/(1+exp( −x)). Thederivativeofthelog-
+likelihood with respect to the model parameter Wcan be
+obtainedfromEq.2:
+∂lnp(v)
+∂Wij=EP0[vihj]−EPModel[vihj],
+where E P0[·]denotes an expectation with respect to the
+data distribution and E PModel[·]is an expectation with re-
+spect to the distribution deﬁned by the model. The ex-
+pectation E PModel[·]cannot be computed analytically. In
+practice learning is done by following an approximation
+to the gradient of a different objective function, called th e
+“ContrastiveDivergence”(CD)(Hinton,2002):
+∆Wij=/epsilon1/parenleftbig
+EP0[vihj]−EPT[vihj]/parenrightbig
+. (7)
+TheexpectationE PT[·]representsadistributionofsamples
+from running the Gibbs sampler (Eqs. 5, 6), initialized at
+the data, for Tfull steps. Setting T=∞recovers maxi-
+mumlikelihoodlearning,although Tistypicallysettoone.
+Even though CD learning may work well in practice, the
+problemofmodelselectionandcomplexitycontrolstillre-
+mains. SupposewehavetwoRBM’swithparametervaluesθAandθB. Suppose that each RBM has different num-
+berofhiddenunitsandwastrainedusingdifferentlearning
+ratesand differentnumbersof CD steps. On the validation
+set, weareinterestedincalculatingthe ratio:
+p(v;θA)
+p(v;θB)=p∗(v;θA)
+p∗(v;θB)Z(θB)
+Z(θA),
+whichrequiresknowingtheratioofpartitionfunctions.
+3. EstimatingRatios ofPartitionFunctions
+Suppose we have two distributions deﬁned on some space
+Vwith probabilitydensity functions: pA(v) =p∗
+A(v)/ZA
+andpB(v) =p∗
+B(v)/ZB. One way to estimate the ra-
+tio of normalizing constants is to use a simple importance
+sampling (IS) method. Suppose that pA(v)/negationslash= 0whenever
+pB(v)/negationslash= 0:
+ZB
+ZA=/integraltext
+p∗
+B(v)dv
+ZA=/integraldisplayp∗
+B(v)
+p∗
+A(v)pA(v)dv=EpA/bracketleftbiggp∗
+B(v)
+p∗
+A(v)/bracketrightbigg
+.
+Assuming we can draw independentsamples from pA, the
+unbiased estimate of the ratio of partitionfunctionscan be
+obtainedbyusinga simpleMonteCarlo approximation:
+ZB
+ZA≈1
+MM/summationdisplay
+i=1p∗
+B(v(i))
+p∗
+A(v(i))≡1
+MM/summationdisplay
+i=1w(i)= ˆrIS,(8)
+wherev(i)∼pA. IfpAandpBare not close enough,
+the estimator ˆrISwill be very poor. In high-dimensional
+spaces, the variance of ˆrISwill be very large (or possibly
+inﬁnite),unless pAisa near-perfectapproximationto pB.
+3.1.Annealed ImportanceSampling(AIS)
+Suppose that we can deﬁne a sequence of intermediate
+probability distributions: p0, ..., p K, with p0=pAandpK
+=pB, whichsatisfythefollowingconditions:
+C1pk(v)/negationslash= 0whenever pk+1(v)/negationslash= 0.
+C2 We must be able to easily evaluate the unnormalized
+probability p∗
+k(v),∀v∈ V,k= 0, ..., K.
+C3 For each k= 0, ..., K −1, we must be able to draw
+a sample v/primegivenvusing a Markov chain transition
+operator Tk(v/prime;v)thatleaves pk(v)invariant:
+/integraldisplay
+Tk(v/prime;v)pk(v)dv=pk(v/prime). (9)
+C4 We must be able to draw (preferably independent)
+samplesfrom pA.
+Thetransitionoperators Tk(v/prime;v)representtheprobability
+density of transitioning from state vtov/prime. Constructing a
+suitable sequence of intermediate probability distributi onsOnthe QuantitativeAnalysis of DeepBelief Networks
+willdependontheproblem. Onegeneralwaytodeﬁnethis
+sequenceisto set:
+pk(v)∝p∗
+A(v)1−βkp∗
+B(v)βk, (10)
+with0 =β0< β1< ... < β K= 1chosen by the user.
+Once the sequence of intermediate distributions has been
+deﬁnedwe have:
+AnnealedImportance Sampling(AIS)run:
+1. Generate v1,v2, ...,vKasfollows:
+•Sample v1frompA=p0
+•Sample v2givenv1usingT1
+•...
+•Sample vKgivenvK−1usingTK−1
+2. Set
+w(i)=p∗
+1(v1)
+p∗
+0(v1)p∗
+2(v2)
+p∗
+1(v2)...p∗
+K−1(vK−1)
+p∗
+K−2(vK−1)p∗
+K(vK)
+p∗
+K−1(vK)
+Notethatthereisnoneedtocomputethenormalizingcon-
+stants of any intermediate distributions. After performin g
+MrunsofAIS,theimportanceweights w(i)canbesubsti-
+tutedintoEq.8toobtainanestimateoftheratioofpartitio n
+functions:
+ZB
+ZA≈1
+MM/summationdisplay
+i=1w(i)= ˆrAIS. (11)
+Neal (2005)showsthat for sufﬁcientlylargenumberof in-
+termediate distributions K, the variance of ˆrAISwill be
+proportionalto 1/MK. Provided Kis kept large,the total
+amountofcomputationcanbesplitinanywaybetweenthe
+numberof intermediate distributions Kand the numberof
+annealingruns Mwithoutadverselyaffectingtheaccuracy
+of the estimator. If samples drawn from pAare indepen-
+dent, the number of AIS runs can be used to control the
+varianceintheestimate of ˆrAIS:
+Var(ˆrAIS) =1
+MVar(w(i))≈ˆs2
+M= ˆσ2,(12)
+where ˆs2is estimated simply from the sample variance of
+theimportanceweights.
+3.2.RatiosofPartitionFunctionsoftwoRBM’s
+Suppose we have two RBM’s with parametervalues θA=
+{WA,bA,aA}andθB={WB,bB,aB}thatdeﬁneprob-
+ability distributions pAandpBoverV ∈ { 0,1}D. Each
+RBM can have a different number of hidden units hA∈
+{0,1}MAandhB∈ {0,1}MB. The generic AIS interme-
+diatedistributions(Eq.10)wouldbehardertosamplefrom
+thananRBM. Insteadweintroducethefollowingsequence
+ofdistributionsfor k= 0, ..., K:
+pk(v) =p∗
+k(v)
+Zk=1
+Zk/summationdisplay
+hexp (−Ek(v,h)),(13)wheretheenergyfunctionis givenby:
+Ek(v,h) = (1 −βk)E(v,hA;θA) +βkE(v,hB;θB),(14)
+with0 =β0< β1< ... < β K= 1. Fori= 0, we have
+β0= 0and so p0=pA. Similarly, for i=K, we have
+pK=pB. For the intermediate values of k, we will have
+someinterpolationbetween pAandpB.
+Let us now deﬁne a Markov chain transition operator
+Tk(v/prime;v)that leaves pk(v)invariant. Using Eqs. 13, 14,
+it is straightforward to derive a block Gibbs sampler. The
+conditionaldistributionsaregivenbylogistic functions :
+p(hA
+j= 1|v) =σ/parenleftbigg
+(1−βk)(/summationdisplay
+iWA
+ijvi+aA
+j)/parenrightbigg
+(15)
+p(hB
+j= 1|v) =σ/parenleftbigg
+βk(/summationdisplay
+iWB
+ijvi+aB
+j)/parenrightbigg
+(16)
+p(v/prime
+i= 1|h) =σ/parenleftbigg
+(1−βk)(/summationdisplay
+jWA
+ijhA
+j+bA
+i)
++βk(/summationdisplay
+jWB
+ijhB
+j+bB
+i)/parenrightbigg
+.(17)
+Givenv,Eqs.15,16areusedtostochasticallyactivatehid-
+den units hAandhB. Eq. 17 is then used to draw a new
+sample v/primeasshowninFig.1(leftpanel). Duetothespecial
+structure of RBM’s, the cost of summing out his linear in
+the numberofhiddenunits. We can thereforeeasily evalu-
+ate:
+p∗
+k(v) =/summationdisplay
+hA,hBe(1−βk)E(v,hA;θA)+βkE(v,hB;θB)
+=e(1−βk)/summationtext
+ibA
+iviMA/productdisplay
+j=1(1 +e(1−βk)(/summationtext
+iWA
+ijvi+aA
+j))
+×eβk/summationtext
+ibB
+iviMB/productdisplay
+j=1(1 +eβk(/summationtext
+iWB
+ijvi+aB
+j)).
+We will assume that the parameter values of each RBM
+satisfy |θ|<∞, in which case p(v)>0for allv∈ V.
+This will ensure that condition C1 of the AIS procedureis
+always satisﬁed. We have already shown that conditions
+C2 and C3 are satisﬁed. For condition C4, we can run
+a blocked Gibbs sampler (Eqs. 5, 6) to generate samples
+frompA. Thesesamplepointswill notbeindependent,but
+the AIS estimator will still converge to the correct value,
+providedour Markov chain is ergodic (Neal, 2001). How-
+ever, assessing the accuracy of this estimator can be difﬁ-
+cult, as it depends on both the variance of the importance
+weightsandonautocorrelationsinthe Gibbssampler.
+3.3.Estimating PartitionFunctionsofRBM’s
+The partitionfunction of an RBM can be foundby ﬁnding
+the ratio to the normalizerfor θA={0,bA,aA}, an RBMOnthe QuantitativeAnalysis of DeepBelief Networks
+W
+W
+v v’h hModel B Model A
+β(1−   )Wββ(1−   )WβB
+BA B
+kk kAA kP(v|h ,W ) Q(h |v,W )P(h ,h |W )
+h
+W
+vh
+vhW
+hh
+11 111 2 2
+RBM1
+1122
+12
+RBM
+Figure 1. Left:TheGibbstransitionoperator Tk(v/prime;v)leaves pk(v)invariantwhenestimatingtheratioofpartitionfunctions ZB/ZA.
+Middle:Recursive greedy learningconsists of learninga stackof RB Ms.Right:Two-layer DBNas a generative model.
+witha zeroweightmatrix. FromEq.3,we know:
+ZA= 2MA/productdisplay
+i(1 +ebi). (18)
+Moreover,
+pA(v) =/productdisplay
+ipA(vi) =/productdisplay
+i1/(1 +e−bi),
+sowecandrawexactindependentsamplesfromthis“base-
+rate” RBM. AIS in this case allows us to obtain an unbi-
+asedestimate of the partition function ZB. This approach
+closely resembles simulated annealing, since the interme-
+diatedistributionsofEq.13takeform:
+pk(v) =exp((1 −βk)vTbA)
+Zk/summationdisplay
+hBexp(−βkE(v,hB;θB)).
+We gradually change βk(or inverse temperature) from 0
+to1,annealingfromasimple“base-rate”modeltotheﬁnal
+complex model. The importance weights w(i)ensure that
+AIS producescorrectestimates.
+4. DeepBelief Networks (DBN’s)
+In this section we brieﬂy review a greedy learning algo-
+rithm for training Deep Belief Networks. We then show
+how to obtain an estimate of the lower bound on the log-
+probabilitythatthe DBN assignsto thedata.
+4.1.GreedyLearningofDBN’s
+Consider learning a DBN with two layers of hidden fea-
+tures as shown in Fig. 1 (right panel). The greedystrategy
+developed by Hinton et al. (2006) uses a stack of RBM’s
+(Fig.1,middlepanel). We ﬁrst trainthebottomRBM with
+parameters W1, asdescribedin section2.
+A key observation is that the RBM’s joint distribution
+p(v,h1|W1)is identical to that of a DBN with second-
+layerweightstiedto W2=W1/latticetop. Wenowconsideruntying
+andreﬁning W2,improvingtheﬁt tothe trainingdata.
+For any approximating distribution Q(h1|v), the DBN’s
+log-likelihoodhasthefollowingvariationallowerbound:
+lnp(v|W1, W2)≥/summationdisplay
+h1Q(h1|v)/bracketleftbig
+lnp(h1|W2) +lnp(v|h1, W1)/bracketrightbig
++H(Q(h1|v)),(19)
+where H(·)is the entropy functional. We set Q(h1|v) =
+p(h1|v, W1)deﬁned by the RBM (Eq. 5). Initially, when
+W2=W1/latticetop,Qis the DBN’s true factorial posterior over
+h1, and the bound is tight. Therefore, any increase in the
+bound will lead to an increase in the true likelihood of the
+model. MaximizingtheboundofEq.19withfrozen W1is
+equivalentto maximizing:
+/summationdisplay
+h1Q(h1|v)lnp(h1|W2). (20)
+This is equivalent to training the second layer RBM with
+vectorsdrawnfrom Q(h1|v)asdata.
+This scheme can be extended by training a third RBM on
+h2vectors drawn from the second RBM. If we initialize
+W3=W2/latticetop,weareguaranteedtoimprovethelowerbound
+on the log-likelihood, though the log-likelihood itself ca n
+fall (Hinton et al., 2006). Repeating this greedy, layer-by -
+layer training several times results in a deep, hierarchica l
+model.
+Recursive GreedyLearningProcedurefor theDBN.
+1. Fitparameters W1of a 1-layer RBMtodata.
+2. Freezethe parameter vector W1anduse samples from
+p(h1|v, W1)as the data for training the next layer of
+binaryfeatures withanRBM.
+3. Proceedrecursively for asmany layers as desired.
+Inpractice,whenaddinganewlayer l,we typicallydonot
+initialize Wl=Wl−1/latticetop, so the number of hidden units of
+the new RBM does not need to be the same as the number
+ofthevisibleunitsofthe lower-levelRBM.
+4.2.Estimating LowerBoundsforDBN’s
+Consider the same DBN model with two layers of hidden
+featuresshowninFig. 1. Themodel’sjointdistributionis:
+p(v,h1,h2) =p(v|h1)p(h2,h1), (21)
+where p(v|h1)is deﬁned by Eq. 6), and p(h1,h2)is the
+joint distribution deﬁned by the second layer RBM. Note
+thatp(v|h1)is normalized.Onthe QuantitativeAnalysis of DeepBelief Networks
+By explicitly summing out h2, we can easily evaluate an
+unnormalizedprobability p∗(v,h1)=Zp(v,h1). Usingthe
+approximating factorial distribution Q, which we get as a
+byproductof the greedy learningprocedure,and the varia-
+tionallowerboundofEq.19,we obtain:
+ln/summationdisplay
+h1p(v,h1)≥/summationdisplay
+h1Q(h1|v) lnp∗(v,h1)
+−lnZ+H(Q(h1|v)) =B(v).(22)
+Theentropyterm H(·)canbecomputedanalytically,since
+Qisfactorial. Thepartitionfunction Zisestimatedbyrun-
+ning AIS on the top-levelRBM. And the expectationterm
+canbeestimatedbyasimple MonteCarloapproximation:
+/summationdisplay
+h1Q(h1|v)lnp∗(v,h1)≈1
+MM/summationdisplay
+i=1lnp∗(v,h1(i)),(23)
+whereh1(i)∼Q(h1|v). The varianceofthis MonteCarlo
+estimator will be proportional to 1/Mprovided the vari-
+ance of lnp∗(v,h1(i))is ﬁnite. In general, we will be in-
+terested in calculating the lower bound averaged over the
+test set containing Ntsamples,so
+1
+NtNt/summationdisplay
+n=1B(vn)≈1
+NtNt/summationdisplay
+n=1/bracketleftbigg1
+MM/summationdisplay
+i=1lnp∗(vn,h1(i)) +
+H(Q(h1|vn))/bracketrightbigg
+−lnˆZ= ˆrB−lnˆZ= ˆrBound.(24)
+In this case the variance of the estimator induced by the
+Monte Carlo approximation will asymptotically scale as
+1/(NtM). We will show in the experimental results sec-
+tionthatthevalueof Mcanbesmall provided Ntislarge.
+The error of the overall estimator ˆrBoundin Eq. 24 will be
+mostly dominated by the error in the estimate of lnZ. In
+our experiments,we obtainedunbiasedestimates of ˆZand
+its standard deviation ˆσusing Eqs. 11, 12. We report lnˆZ
+andln (ˆZ±ˆσ).
+EstimatingthislowerboundforDeepBeliefNetworkswith
+more layers is now straightforward. Consider a DBN with
+Lhidden layers. The model’s joint distribution and its ap-
+proximateposteriordistribution Qaregivenby:
+p(v,h1, ...,hL) =p(v|h1)...p(hL−2|hL−1)p(hL−1,hL)
+Q(h1, ...,hL|v) =Q(h1|v)Q(h2|h1)...Q(hL|hL−1).
+The bound can now be obtained by using Eq. 22. Note
+that most of the computation resources will be spent on
+estimatingthepartitionfunction ZofthetoplevelRBM.
+5. Experimental Results
+InourexperimentsweusedtheMNISTdigitdataset,which
+contains 60,000 training and 10,000 test images of tenhandwrittendigits(0to9),with28 ×28pixels. Thedataset
+was binarized: each pixel value was stochastically set to 1
+in proportionto its pixelintensity. Samplesfromthe train -
+ing set are shown in Fig. 2 (top left panel). Annealed im-
+portance sampling requires the βkthat deﬁne a sequence
+ofintermediatedistributions. Inall of ourexperimentsth is
+sequencewaschosenbyquicklyrunningafewpreliminary
+experiments and picking the spacing of βkso as to mini-
+mize the log varianceof the ﬁnal importanceweights. The
+biasesbAof a base-rate model (see Eq. 18) were set by
+maximumlikelihood,thensmoothedtoensurethat p(v)>
+0,∀v∈ V. Codethatcanbeusedtoreproduceexperimen-
+tal resultsisavailableat www.cs.toronto.edu/ ∼rsalakhu.
+5.1.Estimating partitionfunctionsofRBM’s
+In our ﬁrst experiment we trained three RBM’s on the
+MNIST digits. The ﬁrst two RBM’s had 25 hidden units
+and were learned using CD (section 2) with T=1 and T=3
+respectively. We call these models CD1(25) and CD3(25).
+The thirdRBM had20 hiddenunits andwas learnedusing
+CDwith T=1. Forallthreemodelswecancalculatetheex-
+act value of the partition function simply by summing out
+the 784visible units for each conﬁgurationof the hiddens.
+Forallthreemodelsweused500 βkspaceduniformlyfrom
+0 to 0.5, 4,000 βkspaced uniformly from 0.5 to 0.9, and
+10,000 βkspaceduniformlyfrom0.9to1.0,withatotalof
+14,500intermediatedistributions.
+Table 1 shows that for all three models, using only 10 AIS
+runs, we were able to obtain good estimates of partition
+functions in just 20 seconds on a Pentium Xeon 3.00GHz
+machine. For model CD1(25), however, the variance of
+the estimator was high, evenwith 100 AIS runs. However,
+ﬁgure 3 (top row) reveals that as the number of annealing
+runs is increased, AIS can almost exactly recover the true
+valueofthe partitionfunctionacrossall threemodels.
+We also estimated the ratio of normalizing constants of
+two RBM’s that have different numbers of hidden units:
+CD1(20) and CD1(25). This estimator could be used to
+do complexity control. In detail, using 100 AIS runs with
+uniform spacing of 10,000 βk, we obtained ln ˆrAIS=
+ln (ZCD1(20) /ZCD1(25) ) =−24.49with an error estimate
+ln (ˆrAIS±3ˆσ) = (−24.19,−24.93). Each sample from
+CD1(25) was generated by starting a Markov chain at the
+previous sample and running it for 10,000 steps. Com-
+pared to the true value of −24.18, this result suggests that
+our estimatesmay have a small systematic errordue to the
+Markovchainfailingtovisit somemodes.
+Our second experiment consisted of training two more re-
+alistic models: CD1(500)and CD3(500). We used exactly
+thesamespacingof βkasbeforeandexactlythesamebase-
+ratemodel. Resultsareshownintable1(bottomrow). For
+eachmodelwewereabletogetwhatappearstobearatherOnthe QuantitativeAnalysis of DeepBelief Networks
+Trainingsamples MoB (100) Base-rate β= 0 β= 0.5 β= 0.95 β= 1.0 Thecourse of AIS runfor modelCD25(500)
+CD1(500) CD3(500) CD25(500) DBN-CD1 DBN-CD3 DBN-CD25
+Figure 2. Toprow: Firsttwopanelsshowrandomsamplesfromthetrainingsetan damixtureofBernoullismodelwith100components.
+Thelast4panelsdisplaythecourseof16AISrunsforCD25(50 0) modelbystartingfromasimplebase-ratemodelandanneal ingtothe
+ﬁnal complexmodel. Bottom row: Random samples generated from three RBM’s andcorrespondin g three DBN’smodels.
+Table 1.Results of estimating partition functions of RBM’s along wi th the estimates of the average training and test log-probab ilities.
+Forall models we used 14,500 intermediate distributions.
+AIS TrueEstimatesTimeAvg. Testlog-prob. Avg. Trainlog-prob.
+Runs lnZ lnˆZ ln (ˆZ±ˆσ) ln( ˆZ±3ˆσ)(mins) true estimate true estimate
+100 CD1(25) 255.41 256.52 255.00,257.10 0 .0000,257.733.3 −151.57−152.68−152.35−153.46
+CD3(25) 307.47 307.63 307.44,307.79 306 .91,308.053.3 −143.03−143.20−143.94−144.11
+CD1(20) 279.59 279.57 279.43,279.68 279 .12,279.873.1 −164.52−164.50−164.89−164.87
+100 CD1(500) — 350.15 350.04,350.25 349 .77,350.4210.4 — −125.53— −122.86
+CD3(500) — 280.09 279.99,280.17 279 .76,280.3310.4 — −105.50— −102.81
+CD25(500) — 451.28 451.19,451.37 450 .97,451.5210.4 — −86.34— −83.10
+accurateestimateof Z. Ofcourse,wearerelyingonanem-
+pirical estimate of AIS’saccuracy,which couldpotentiall y
+bemisleading. Nonetheless,Fig.3(bottomrow)showsthat
+as we increase the number of annealing runs, the value of
+theestimatordoesnotoscillatedrastically.
+While performingthese tests, we observedthat contrastive
+divergencelearningwith T=3resultsinconsiderablybetter
+generative model than CD learning with T=1: the differ-
+ence of 20 nats is striking! Clearly, the widely used prac-
+tice of CD learning with T=1 is a rather poor “substitute”
+for maximum likelihood learning. Inspired by this result,
+we trained a model by starting with T=1, and gradually
+increasing Tto 25 during the course of CD training, as
+suggestedby (Carreira-Perpinan& Hinton,2005). We call
+this model CD25(500). Training this model was computa-
+tionally much more demanding. However, the estimate of
+the average test log-probability for this model was about
+−86,whichis39and19natsbetterthantheCD1(500)and
+CD3(500)modelsrespectively. Fig. 2 (bottom row) shows
+samples generated from all three models by randomly ini-
+tializingbinarystatesofthevisibleunitsandrunningalt er-
+nating Gibbs for 100,000 steps. Certainly, samples gener-atedbyCD25(500)lookmuchmoreliketherealhandwrit-
+tendigits,thaneitherCD1(500)orCD3(500).
+We also obtained an estimate of the log ratio of two parti-
+tion functions ˆrAIS= lnZCD25(500) /ZCD3(500) = 169 .96,
+using 10,000 βkand 100 annealing runs. The estimates of
+theindividuallog-partitionfunctionswere lnˆZCD25(500) =
+451.28andlnˆZCD3(500) = 280 .09, in which case the log
+ratio is 451.28−280.09=171 .19. Thisis in agreement(to
+withinthreestandarddeviations)withthedirectestimate of
+theratio, ˆrAIS=169.96.
+Forasimplecomparisonwealsotrainedseveralmixtureof
+Bernoullismodels(see Fig. 2,topleft panel)with 10,100,
+and 500 components. The correspondingaverage test log-
+probabilities were −168.95,−142.63, and−137.64. The
+data generated from the mixture model looks better than
+CD3(500),althoughourquantitiveresultsrevealthisisdu e
+toover-ﬁtting. TheRBM’s makemuchbetterpredictions.
+5.2.Estimating lowerboundsforDBN’s
+We greedily trained three DBN models with two hidden
+layers. The ﬁrst model, called DBN-CD1, was greedilyOnthe QuantitativeAnalysis of DeepBelief Networks
+ 10   100  500 1000 10000252253254255256257258259
+Number of AIS runslog Z
+  
+Large Variance20 sec3.3 min
+17 min33 min
+5.5 hrsEstimated logZ
+True logZ
+ 10   100  500 1000 10000304305306307308309310
+Number of AIS runslog Z
+  
+Estimated logZ
+True logZ
+ 10   100  500 1000 10000276277278279280281282
+Number of AIS runslog Z
+  
+Estimated logZ
+True logZCD1(25) CD3(25) CD1(20)
+ 10   100  500 1000 10000347348349350351352353
+Number of AIS runslog Z
+Large variance1.1 min
+10.4 min
+52 min 1.8 hrs17.4 hrs
+ 10   100  500 1000 10000277278279280281282283
+Number of AIS runslog Z
+ 10   100  500 1000 10000448449450451452453
+Number of AIS runslog ZCD1(500) CD3(500) CD25(500)
+Figure 3. Estimatesof the log-partition functions lnˆZas we increase the number ofannealing runs. The error bars sh owln(ˆZ±3ˆσ).
+learned by freezing the parameter vector of the CD1(500)
+model and learning the 2ndlayer RBM with 2000 hidden
+unitsusingCD with T=1. Similarly,the othertwomodels,
+DBN-CD3 and DBN-CD25, added 2000 hidden units on
+top of CD3(500) and CD25(500), using CD with T=3 and
+T=25respectively. Trainingthe DBN’s took roughlythree
+timeslongerthantheRBM’s.
+Table 2 shows the results. We used 15,000 intermediate
+distributions and 500 annealing runs to estimate the parti-
+tion function of the 2ndlayer RBM. This took 2.3 hours.
+Furthersampling was requiredfor the simple Monte Carlo
+approximation of Eq. 23. We used M=5 samples from
+the approximating distribution Q(h|v)for each data vec-
+torv. Setting M=100 did not make much difference. Ta-
+ble 2 also reportsthe empirical error in the estimate of the
+lowerbound ˆrBound. FromEq.24,wehaveVar (ˆrBound) =
+Var(ˆrB) +Var(lnˆZ), both of which are shown in table 2.
+Note that models DBN-CD1 and DBN-CD3 signiﬁcantly
+outperform their single layer counterparts: CD1(500) and
+CD3(500). Addingasecondlayerforthosetwomodelsim-
+proves model performance by at least 25 and 7 nats. This
+corresponds to a dramatic improvement in the quality of
+samplesgeneratedfromthemodels(Fig.2,bottomrow).
+Observe that greedy learning of DBN’s does not appear to
+suffer severely from overﬁtting. For single layer models,
+the difference between the estimates of training and test
+log-probabilities was about 3 nats. For DBN’s, the corre-
+sponding difference in the estimates of the lower bounds
+was about4 nats, eventhoughaddinga secondlayer intro-
+ducedovertwiceasmany(oronemillion)newparameters.Table 2.Results of estimating lower bounds ˆrBound(Eq. 24) on
+the average training and test log-probabilities for DBN’s. On av-
+erage, the total error ofthe estimator is about ±2nats.
+Avg. AISerror
+bound Error ˆrBln (ˆZ±3ˆσ)
+Model log-prob ±3std −lnˆZ
+Test DBN-CD1 −100.64 ±0.77 −1.43,+0.57
+DBN-CD3 −98.29 ±0.75 −0.91,+0.31
+DBN-CD25 −86.22 ±0.67 −0.84,+0.65
+Train DBN-CD1 −97.67 ±0.30 −1.43,+0.57
+DBN-CD3 −94.86 ±0.29 −0.91,+0.31
+DBN-CD25 −82.47 ±0.25 −0.84,+0.65
+The result of our experiments for DBN-CD25, however,
+was very different. For this model, on the test data we ob-
+tained ˆrBound =−86.22. This is comparable to the esti-
+mate of −86.34for the average test log-probability of the
+CD25(500) model. Clearly, we cannot conﬁdently assert
+that DBN-CD25 is a better generative model compared to
+thecarefullytrainedsinglelayerRBM. Thispeculiarresul t
+alsosupportspreviousclaimsthatiftheﬁrstlevelRBMal-
+ready models data well, adding extra layers will not help
+(LeRoux & Bengio, 2008; Hinton et al., 2006). As an ad-
+ditionaltest, insteadofrandomlyinitializingparameter sof
+the2ndlayer RBM, we initialized it by using the same pa-
+rametersas the 1stlayer RBM but with hiddenand visible
+units switched (see Fig. 1). This initialization ensures th at
+thedistributionoverthevisibleunits vdeﬁnedbythetwo-
+layer DBN is exactly the same as the distribution over v
+deﬁned by the 1stlayer RBM. Therefore, after learning
+parameters of the 2ndlayer RBM, the lower bound on the
+training data log-likelihood can only improve. After care-Onthe QuantitativeAnalysis of DeepBelief Networks
+fully training the second level RBM, our estimate of the
+lower bound on the test log-probability was only −85.97.
+Onceagain,wecannotconﬁdentlyclaimthataddinganex-
+tralayerinthiscase yieldsbettergeneralization.
+6. Discussions
+The original paper of Hinton et al. (2006) showed that for
+DBN’s, each additionallayer increases a lower bound(see
+Eq. 19) on the log-probability of the trainingdata, pro-
+vided the number of hidden units per layer does not de-
+crease. However, assessing generalization performance of
+these generative models is quite difﬁcult, since it require s
+enumeration over an exponential number of terms. In this
+paperwedevelopedanannealedimportancesamplingpro-
+cedurethattakesadvantageof thebipartitestructureof th e
+RBM. This can provide a good estimate of the partition
+functioninareasonableamountofcomputertime. Further-
+more, we showed that this estimator, along with approx-
+imate inference, can be used to obtain an estimate of the
+lowerboundonthelog-probabilityofthe testdata,thusal-
+lowingustoobtainsomequantitativeevaluationofthegen-
+eralizationperformanceofthese deephierarchicalmodels .
+There are some disadvantages to using AIS. There is a
+need to specify the βkthat deﬁne a sequence of interme-
+diate distributions. The numberand the spacing of βkwill
+be problem dependent and will affect the variance of the
+estimator. Wealsohavetorelyontheempiricalestimateof
+AIS accuracy, which could potentially be very misleading
+(Neal, 2001; Neal, 2005). Even though AIS provides an
+unbiasedestimatorof Z,itoccasionallygiveslargeoveres-
+timatesandusually givessmall underestimates,so inprac-
+tice, it is more likely to underestimate of the true value of
+the partition function, which will result in an overestimat e
+of the log-probability. But these drawbacks should not re-
+sult in disfavoring the use of AIS for RBM’s and DBN’s:
+it is much better to have a slightly unreliableestimate than
+no estimate at all, or an extremely indirect estimate, such
+asdiscriminativeperformance(Hintonetal., 2006).
+WeﬁndAISandotherstochasticmethodsattractiveasthey
+canjustaseasilybeappliedtoundirectedgraphicalmodels
+that generalize RBM’s and DBN’s to exponential family
+distributions. This will allow future application to mod-
+elsofreal-valueddata,suchasimagepatches(Osindero&
+Hinton,2008),orcountdata (Gehleret al.,2006).
+Another alternative would be to employ deterministic ap-
+proximations (Yedidia et al., 2005) or deterministic upper
+bounds(Wainwrightetal.,2005)onthelog-partitionfunc-
+tion. However, for densely connected MRF’s, we would
+notexpectthesemethodstoworkwell. Indeed,preliminary
+resultssuggestthat these methodsprovidequiteinaccurat e
+estimates of (or very loose upper bounds on) the partition
+function,evenforsmall RBM’swhen trainedonrealdata .Acknowledgments
+We thank Geoffrey Hinton and Radford Neal for many
+helpful suggestions. This research was supported by
+NSERC and CFI. Iain Murray is supported by the govern-
+mentofCanada.
+References
+Bengio, Y., & LeCun, Y. (2007). Scaling learning algorithms to-
+wards AI. Large-Scale Kernel Machines . MITPress.
+Carreira-Perpinan, M., & Hinton, G. (2005). On contrastive di-
+vergencelearning. 10thInt.WorkshoponArtiﬁcialIntelligence
+and Statistics(AISTATS’2005) .
+Gehler, P., Holub, A., & Welling, M. (2006). The Rate Adapt-
+ing Poisson (RAP) model for information retrieval and objec t
+recognition. Proceedings ofthe23rdInternational Conference
+onMachine Learning .
+Hinton,&Salakhutdinov (2006). Reducingthe dimensionali tyof
+data withneural networks. Science,313, 504 –507.
+Hinton,G.E.(2002). Trainingproductsofexpertsbyminimi zing
+contrastive divergence. Neural Computation ,14, 1711–1800.
+Hinton, G.E., Osindero, S., & Teh, Y. W.(2006). A fast learni ng
+algorithmfordeepbeliefnets. NeuralComputation ,18,1527–
+1554.
+LeRoux, N., & Bengio, Y. (2008). Representational power of
+restricted Boltzmann machines and deep belief networks. To
+appear inNeural Computation .
+Neal, R. M. (1993). Probabilistic inference using Markov chain
+Monte Carlo methods (Technical Report CRG-TR-93-1). De-
+partment of Computer Science, Universityof Toronto.
+Neal, R. M. (2001). Annealed importance sampling. Statistics
+and Computing ,11, 125–139.
+Neal, R. M. (2005). Estimating ratios of normalizing constants
+using linked importance sampling (Technical Report 0511).
+Department of Statistics,Universityof Toronto.
+Osindero, S.,& Hinton, G.(2008). Modeling image patches wi th
+a directed hierarchy of Markov random ﬁelds. NIPS20. Cam-
+bridge, MA: MIT Press.
+Salakhutdinov, R., Mnih, A., & Hinton, G. (2007). Restricte d
+Boltzmann machines for collaborative ﬁltering. Proceedings
+of the Twenty-fourthInternational Conference (ICML2004) .
+Skilling, J. (2004). Nested sampling. Bayesian inference and
+maximum entropy methods in science and engineering, AIP
+Conference Proceeedings ,735, 395–405.
+Taylor, G. W., Hinton, G. E., & Roweis, S. T. (2006). Model-
+ing human motion using binary latent variables. Advances in
+Neural Information ProcessingSystems . MIT Press.
+Wainwright, M. J., Jaakkola, T., & Willsky, A. S. (2005). A
+new class of upper bounds on the log partition function. IEEE
+Transactions onInformation Theory ,51, 2313–2335.
+Yedidia, J. S., Freeman, W. T., & Weiss, Y. (2005). Construct -
+ing free-energy approximations and generalized belief pro pa-
+gation algorithms. IEEE Transactions on Information Theory ,
+51, 2282–2312.

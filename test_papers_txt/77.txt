@@ -1,0 +1,800 @@
+Black-box Adversarial Attacks with Limited Queries and Information
+
+Andrew Ilyas* 1 2Logan Engstrom* 1 2Anish Athalye* 1 2Jessy Lin* 1 2
+Abstract
+Current neural network-based classiﬁers are sus-
+ceptible to adversarial examples even in the
+black-box setting, where the attacker only has
+query access to the model. In practice, the threat
+model for real-world systems is often more re-
+strictive than the typical black-box model where
+the adversary can observe the full output of the
+network on arbitrarily many chosen inputs. We
+deﬁne three realistic threat models that more
+accurately characterize many real-world clas-
+siﬁers: the query-limited setting, the partial-
+information setting, and the label-only setting.
+We develop new attacks that fool classiﬁers un-
+der these more restrictive threat models, where
+previous methods would be impractical or inef-
+fective. We demonstrate that our methods are ef-
+fective against an ImageNet classiﬁer under our
+proposed threat models. We also demonstrate a
+targeted black-box attack against a commercial
+classiﬁer, overcoming the challenges of limited
+query access, partial information, and other prac-
+tical issues to break the Google Cloud Vision
+API.
+1. Introduction
+Neural network-based image classiﬁers are susceptible to
+adversarial examples, minutely perturbed inputs that fool
+classiﬁers (Szegedy et al., 2013; Biggio et al., 2013). These
+adversarial examples can potentially be exploited in the real
+world (Kurakin et al., 2016; Athalye et al., 2017; Sharif
+et al., 2017; Evtimov et al., 2017). For many commercial
+or proprietary systems, adversarial examples must be con-
+sidered under a limited threat model. This has motivated
+black-box attacks that do not require access to the gradient
+of the classiﬁer.
+One approach to attacking a classiﬁer in this setting trains
+*Equal contribution1Massachusetts Institute of Technology
+2LabSix. Correspondence to: LabSix <team@labsix.org >.
+Proceedings of the 35thInternational Conference on Machine
+Learning , Stockholm, Sweden, PMLR 80, 2018. Copyright 2018
+by the author(s).a substitute network to emulate the original network and
+then attacks the substitute with ﬁrst-order white-box meth-
+ods (Papernot et al., 2016a; 2017). Recent works note
+that adversarial examples for substitute networks do not
+always transfer to the target model, especially when con-
+ducting targeted attacks (Chen et al., 2017; Narodytska &
+Kasiviswanathan, 2017). These works instead construct ad-
+versarial examples by estimating the gradient through the
+classiﬁer with coordinate-wise ﬁnite difference methods.
+We consider additional access and resource restrictions on
+the black-box model that characterize restrictions in real-
+world systems. These restrictions render targeted attacks
+with prior methods impractical or infeasible. We present
+new algorithms for generating adversarial examples that
+render attacks in the proposed settings tractable.
+1.1. Deﬁnitions
+At a high level, an adversarial example for a classiﬁer is an
+input that is slightly perturbed to cause misclassiﬁcation.
+Prior work considers various threat models (Papernot et al.,
+2016b; Carlini & Wagner, 2017). In this work, we consider
+`1-bounded perturbation that causes targeted misclassiﬁ-
+cation (i.e. misclassiﬁcation as a given target class). Thus,
+the task of the adversary is: given an input x, target class
+yadv, and perturbation bound , ﬁnd an input xadvsuch that
+jjxadv xjj1<andxadvis classiﬁed as yadv.
+All of the threat models considered in this work are addi-
+tional restrictions on the black-box setting:
+Black-box setting. In this paper, we use the deﬁnition of
+black-box access as query access (Chen et al., 2017; Liu
+et al., 2017; Hayes & Danezis, 2017). In this model, the
+adversary can supply any input xand receive the predicted
+class probabilities, P(yjx)for all classes y. This setting
+does not allow the adversary to analytically compute the
+gradientrP(yjx)as is doable in the white-box case.
+We introduce the following threat models as more limited
+variants of the black-box setting that reﬂect access and re-
+source restrictions in real-world systems:
+1.Query-limited setting. In the query-limited setting,
+the attacker has a limited number of queries to theBlack-box Adversarial Attacks with Limited Queries and Information
+classiﬁer. In this setting, we are interested in query-
+efﬁcient algorithms for generating adversarial exam-
+ples. A limit on the number of queries can be a result
+of limits on other resources, such as a time limit if in-
+ference time is a bottleneck or a monetary limit if the
+attacker incurs a cost for each query.
+Example. The Clarifai NSFW (Not Safe for Work)
+detection API1is a binary classiﬁer that outputs
+P(NSFWjx)for any image xand can be queried
+through an API. However, after the ﬁrst 2500 pre-
+dictions, the Clarifai API costs upwards of $2.40 per
+1000 queries. This makes a 1-million query attack, for
+example, cost $2400.
+2.Partial-information setting. In the partial-
+information setting, the attacker only has access to the
+probabilities P(yjx)foryin the topk(e.g.k= 5)
+classesfy1;:::;ykg. Instead of a probability, the clas-
+siﬁer may even output a score that does not sum to 1
+across the classes to indicate relative conﬁdence in the
+predictions.
+Note that in the special case of this setting where
+k= 1, the attacker only has access to the top la-
+bel and its probability—a partial-information attack
+should succeed in this case as well.
+Example. The Google Cloud Vision API2(GCV) only
+outputs scores for a number of the top classes (the
+number varies between queries). The score is not a
+probability but a “conﬁdence score” (that does not
+sum to one).
+3.Label-only setting. In the label-only setting, the
+adversary does not have access to class probabilities
+or scores. Instead, the adversary only has access to
+a list ofkinferred labels ordered by their predicted
+probabilities. Note that this is a generalization of the
+decision-only setting deﬁned in Brendel et al. (2018),
+wherek= 1, and the attacker only has access to the
+top label. We aim to devise an attack that works in
+this special case but can exploit extra information in
+the case where k>1.
+Example. Photo tagging apps such as Google Pho-
+tos3add labels to user-uploaded images. However, no
+“scores” are assigned to the labels, and so an attacker
+can only see whether or not the classiﬁer has inferred
+a given label for the image (and where that label ap-
+pears in the ordered list).
+1https://clarifai.com/models/
+nsfw-image-recognition-model-
+e9576d86d2004ed1a38ba0cf39ecb4b1
+2https://cloud.google.com/vision/
+3https://photos.google.com/1.2. Contributions
+Query-efﬁcient adversarial examples. Previous meth-
+ods using substitute networks or coordinate-wise gradient
+estimation for targeted black-box attacks require on the or-
+der of millions of queries to attack an ImageNet classi-
+ﬁer. Low throughput, high latency, and rate limits on com-
+mercially deployed black-box classiﬁers heavily impact the
+feasibility of current approaches to black-box attacks on
+real-world systems.
+We propose the variant of NES described in Salimans et al.
+(2017) (inspired by Wierstra et al. (2014)) as a method for
+generating adversarial examples in the query-limited set-
+ting. We use NES as a black-box gradient estimation tech-
+nique and employ PGD (as used in white-box attacks) with
+the estimated gradient to construct adversarial examples.
+We relate NES in this special case with the ﬁnite differ-
+ence method over Gaussian bases, providing a theoretical
+comparison with previous attempts at black-box adversar-
+ial examples. The method does not require a substitute net-
+work and is 2-3 orders of magnitude more query-efﬁcient
+than previous methods based on gradient estimation such
+as Chen et al. (2017). We show that our approach reli-
+ably produces targeted adversarial examples in the black-
+box setting.
+Adversarial examples with partial information. We
+present a new algorithm for attacking neural networks in
+the partial-information setting. The algorithm starts with an
+image of the target class and alternates between blending in
+the original image and maximizing the likelihood of the tar-
+get class. We show that our method reliably produces tar-
+geted adversarial examples in the partial-information set-
+ting, even when the attacker only sees the top probability.
+To our knowledge, this is the ﬁrst attack algorithm pro-
+posed for this threat model.
+We use our method to perform the ﬁrst targeted attack on
+the Google Cloud Vision API, demonstrating the applica-
+bility of the attack on large, commercial systems: the GCV
+API is an opaque (no published enumeration of labels),
+partial-information (queries return only up to 10 classes
+with uninterpretable “scores”), several-thousand-way com-
+mercial classiﬁer.
+Adversarial examples with scoreless feedback. Often,
+in deployed machine learning systems, even the score is
+hidden from the attacker. We introduce an approach for
+producing adversarial examples even when no scores of any
+kind are available. We assume the adversary only receives
+the topksorted labels when performing a query. We in-
+tegrate noise robustness as a proxy for classiﬁcation score
+into our partial-information attack to mount a targeted at-
+tack in the label-only setting. We show that even in theBlack-box Adversarial Attacks with Limited Queries and Information
+decision-only setting, where k= 1, we can mount a suc-
+cessful attack.
+2. Approach
+We outline the key components of our approach for con-
+ducting an attack in each of the proposed threat models.
+We begin with a description of our application of Natu-
+ral Evolutionary Strategies (Wierstra et al., 2014) to enable
+query-efﬁcient generation of black-box adversarial exam-
+ples. We then show the need for a new technique for attack
+in the partial-information setting, and we discuss our algo-
+rithm for such an attack. Finally, we describe our method
+for attacking a classiﬁer with access only to a sorted list of
+the topklabels (k1). We have released full source code
+for the attacks we describe4.
+We deﬁne some notation before introducing the approach.
+The projection operator [x ;x+](x0)is the`1projection
+ofx0onto an-ball around x. Whenxis clear from context,
+we abbreviate this as (x0), and in pseudocode we denote
+this projection with the function C LIP(x0;x ;x+). We
+deﬁne the function rank (yjx)to be the smallest ksuch that
+yis in the top- kclasses in the classiﬁcation of x. We use
+NandUto represent the normal and uniform distributions
+respectively.
+2.1. Query-Limited Setting
+In the query-limited setting, the attacker has a query bud-
+getLand aims to cause targeted misclassiﬁcation in L
+queries or less. To attack this setting, we can use “stan-
+dard” ﬁrst-order techniques for generating adversarial ex-
+amples Goodfellow et al. (2015); Papernot et al. (2016b);
+Madry et al. (2017); Carlini & Wagner (2017), substitut-
+ing the gradient of the loss function with an estimate of the
+gradient, which is approximated by querying the classiﬁer
+rather than computed by autodifferentiation. This idea is
+used in Chen et al. (2017), where the gradient is estimated
+via pixel-by-pixel ﬁnite differences, and then the CW at-
+tack (Carlini & Wagner, 2017) is applied. In this section,
+we detail our algorithm for efﬁciently estimating the gradi-
+ent from queries, based on the Natural Evolutionary Strate-
+gies approach of Wierstra et al. (2014), and then state how
+the estimated gradient is used to generate adversarial ex-
+amples.
+2.1.1. N ATURAL EVOLUTIONARY STRATEGIES
+To estimate the gradient, we use NES (Wierstra et al.,
+2014), a method for derivative-free optimization based on
+the idea of a search distribution (jx). Rather than max-
+imizing an objective function F(x)directly, NES maxi-
+4https://github.com/labsix/limited-
+blackbox-attacksmizes the expected value of the loss function under the
+search distribution. This allows for gradient estimation
+in far fewer queries than typical ﬁnite-difference methods.
+For a loss function F()and a current set of parameters x,
+we have from Wierstra et al. (2014):
+E(jx)[F()] =Z
+F()(jx) d
+rxE(jx)[F()] =rxZ
+F()(jx) d
+=Z
+F()rx(jx) d
+=Z
+F()(jx)
+(jx)rx(jx) d
+=Z
+(jx)F()rxlog ((jx)) d
+=E(jx)[F()rxlog ((jx))]
+In a manner similar to that in Wierstra et al. (2014), we
+choose a search distribution of random Gaussian noise
+around the current image x; that is, we have =x+,
+where N (0;I). Like Salimans et al. (2017), we
+employ antithetic sampling to generate a population of
+ivalues: instead of generating nvaluesi N (0;I),
+we sample Gaussian noise for i2 f1;:::;n
+2gand set
+j= n j+1forj2f(n
+2+ 1);:::;ng. This optimiza-
+tion has been empirically shown to improve performance of
+NES. Evaluating the gradient with a population of npoints
+sampled under this scheme yields the following variance-
+reduced gradient estimate:
+rE[F()]1
+nnX
+i=1iF(+i)
+Finally, we perform a projected gradient descent update
+(Madry et al., 2017) with momentum based on the NES
+gradient estimate.
+The special case of NES that we have described here can be
+seen as a ﬁnite-differences estimate on a random Gaussian
+basis.
+Gorban et al. (2016) shows that for an n-dimensional space
+andNrandomly sampled Gaussian vectors v1:::vN, we
+can lower bound the probability that Nrandom Gaussians
+arec-orthogonal:
+N ec2n
+4ln (p)1
+2=)Pvivj
+jjvijjjjvjjjc8(i;j)
+p
+Considering a matrix with columns i, NES gives the
+projection (rF), so we can use standard results from
+concentration theory to analyze our estimate. A more com-
+plex treatment is given in Dasgupta et al. (2006), but usingBlack-box Adversarial Attacks with Limited Queries and Information
+Algorithm 1 NES Gradient Estimate
+Input: ClassiﬁerP(yjx)for classy, imagex
+Output: Estimate ofrP(yjx)
+Parameters: Search variance , number of samples n,
+image dimensionality N
+g 0n
+fori= 1tondo
+ui N (0N;INN)
+g g+P(yjx+ui)ui
+g g P(yjx ui)ui
+end for
+return1
+2ng
+a straightforward application of the Johnson-Lindenstrauss
+Theorem, we can upper and lower bound the norm of our
+estimated gradient brin terms of the true gradient r. As
+!0, we have that:
+Pn
+(1 )jjrjj2jjbrjj2(1+)jjrjj2o
+1 2p
+where 0<< 1andN=O(  2log(p))
+More rigorous analyses of these “Gaussian-projected ﬁ-
+nite difference” gradient estimates and bounds (Nesterov
+& Spokoiny, 2017) detail the algorithm’s interaction with
+dimensionality, scaling, and various other factors.
+2.1.2. Q UERY -LIMITED ATTACK
+In the query-limited setting, we use NES as an unbiased,
+efﬁcient gradient estimator, the details of which are given
+in Algorithm 1. Projected gradient descent (PGD) is per-
+formed using the sign of the estimated gradient:
+x(t)=  [x0 ;x0+](x(t 1) sign(gt))
+The algorithm takes hyperparameters , the step size, and
+N, the number of samples to estimate each gradient. In
+the query-limited setting with a query limit of L, we useN
+queries to estimate each gradient and performL
+Nsteps of
+PGD.
+2.2. Partial-Information Setting
+In the partial-information setting, rather than beginning
+with the image x, we instead begin with an instance x0
+of the target class yadv, so thatyadvwill initially appear in
+the top-kclasses.
+At each step t, we then alternate between:
+(1) projecting onto `1boxes of decreasing sizes tcen-
+tered at the original image x0, maintaining that the adver-
+sarial class remains within the top- kat all times:
+t= min0s.t. rank
+yadvj0(x(t 1))
+<kAlgorithm 2 Partial Information Attack
+Input: Initial image x, Target class yadv, Classiﬁer
+P(yjx) :RnY! [0;1]k(access to probabilities for y
+in topk), imagex
+Output: Adversarial image xadvwithjjxadv xjj1
+Parameters: Perturbation bound adv, starting pertur-
+bation0, NES Parameters ( ;N;n ), epsilon decay ,
+maximum learning rate max, minimum learning rate
+min
+ 0
+xadv image of target class yadv
+xadv CLIP(xadv;x ;x+)
+while>advormaxyP(yjx)6=yadvdo
+g NESE STGRAD(P(yadvjxadv))
+ max
+^xadv xadv g
+while notyadv2TOP-K(P(j^xadv))do
+if<minthen
+ +
+ =2
+^xadv xadv
+break
+end if
+ 
+2
+^xadv CLIP(xadv g;x ;x+)
+end while
+xadv ^xadv
+  
+end while
+returnxadv
+(2) perturbing the image to maximize the probability of the
+adversarial target class,
+x(t)= arg max
+x0P(yadvjt 1(x0))
+We implement this iterated optimization using backtrack-
+ing line search to ﬁnd tthat maintains the adversarial class
+within the top- k, and several iterations of projected gradi-
+ent descent (PGD) to ﬁnd x(t). Pseudocode is shown in
+Algorithm 2. Details regarding further optimizations (e.g.
+learning rate adjustment) can be found in our source code.
+2.3. Label-Only Setting
+Now, we consider the setting where we only assume access
+to the top-ksorted labels. As previously mentioned, we
+explicitly include the setting where k= 1but aim to design
+an algorithm that can incorporate extra information when
+k>1.
+The key idea behind our attack is that in the absence of
+output scores, we ﬁnd an alternate way to characterize the
+success of an adversarial example. First, we deﬁne the dis-Black-box Adversarial Attacks with Limited Queries and Information
+cretized score R(x(t))of an adversarial example to quan-
+tify how adversarial the image is at each step tsimply based
+on the ranking of the adversarial label yadv:
+R(x(t)) =k rank(yadvjx(t))
+As a proxy for the softmax probability, we consider the ro-
+bustness of the adversarial image to random perturbations
+(uniformly chosen from a `1ball of radius ), using the
+discretized score to quantify adversariality:
+S(x(t)) =EU[ ;][R(x(t)+)]
+We estimate this proxy score with a Monte Carlo approxi-
+mation:
+bS(x(t)) =1
+nnX
+i=1R(x(t)+i)
+A visual representation of this process is given in Figure 1.
+Figure 1. An illustration of the derivation of the proxy score ^Sin
+the label-only setting.
+We proceed to treat bS(x)as a proxy for the output probabil-
+itiesP(yadvjx)and use the partial-information technique
+we introduce in Section 2.2 to ﬁnd an adversarial example
+using an estimate of the gradient rxbS(x).
+3. Evaluation
+We evaluate the methods proposed in Section 2 on their ef-
+fectiveness in producing targeted adversarial examples in
+the three threat models we consider: query-limited, partial-
+information, and label-only. First, we present our evalua-
+tion methodology. Then, we present evaluation results for
+our three attacks. Finally, we demonstrate an attack against
+a commercial system: the Google Cloud Vision (GCV)
+classiﬁer.
+3.1. Methodology
+We evaluate the effectiveness of our attacks against an
+ImageNet classiﬁer. We use a pre-trained InceptionV3 net-
+work (Szegedy et al., 2015) that has 78% top-1 accuracy,Threat model Success rate Median queries
+QL 99.2% 11;550
+PI 93.6% 49;624
+LO 90% 2:7106
+Table 1. Quantitative analysis of targeted = 0:05adversarial at-
+tacks in three different threat models: query-limited (QL), partial-
+information (PI), and label-only (LO). We perform attacks over
+1000 randomly chosen test images (100 for label-only) with ran-
+domly chosen target classes. For each attack, we use the same
+hyperparameters across all images. Here, we report the overall
+success rate (percentage of times the adversarial example was
+classiﬁed as the target class) and the median number of queries
+required.
+and for each attack, we restrict our access to the classiﬁer
+according to the threat model we are considering.
+For each evaluation, we randomly choose 1000 images
+from the ImageNet test set, and we randomly choose a
+target class for each image. We limit `1perturbation to
+= 0:05. We use a ﬁxed set of hyperparameters across all
+images for each attack algorithm, and we run the attack un-
+til we produce an adversarial example or until we time out
+at a chosen query limit (e.g. L= 106for the query-limited
+threat model).
+We measure the success rate of the attack, where an attack
+is considered successful if the adversarial example is clas-
+siﬁed as the target class and considered unsuccessful oth-
+erwise (whether it’s classiﬁed as the true class or any other
+incorrect class). This is a strictly harder task than produc-
+ing untargeted adversarial examples. We also measure the
+number of queries required for each attack.
+3.2. Evaluation on ImageNet
+In our evaluation, we do not enforce a particular limit on
+the number of queries as there might be in a real-world
+attack. Instead, we cap the number of queries at a large
+number, measure the number of queries required for each
+attack, and present the distribution of the number of queries
+required. For both the the partial-information attack and
+the label-only attack, we consider the special case where
+k= 1, i.e. the attack only has access to the top label. Note
+that in the partial-information attack the adversary also has
+access to the probability score of the top label.
+Table 1 summarizes evaluation results our attacks for the
+three different threat models we consider, and Figure 2
+shows the distribution of the number of queries. Figure 3
+shows a sample of the adversarial examples we produced.
+Table 2 gives our hyperparameters; for each attack, we use
+the same set of hyperparameters across all images.Black-box Adversarial Attacks with Limited Queries and Information
+0
+50000100000 150000 200000
+Queries Required050100150200250300350
+0
+100000 200000 300000 400000 500000 600000 700000
+Queries Required050100150200250300
+Figure 2. The distribution of the number of queries required for
+the query-limited (top) and partial-information with k= 1 (bot-
+tom) attacks.
+Figure 3.= 0:05targeted adversarial examples for the
+InceptionV3 network. The top row contains unperturbed images,
+and the bottom row contains corresponding adversarial examples
+(with randomly chosen target classes).General
+for NES 0.001
+n, size of each NES population 50
+,l1distance to the original image 0.05
+, learning rate 0.01
+Partial-Information Attack
+0, initial distance from source image 0.5
+, rate at which to decay  0.001
+Label-Only Attack
+m, number of samples for proxy score 50
+,`1radius of sampling ball 0.001
+Table 2. Hyperparameters used for evaluation
+3.3. Real-world attack on Google Cloud Vision
+To demonstrate the relevance and applicability of our ap-
+proach to real-world systems, we attack the Google Cloud
+Vision (GCV) API, a publicly available computer vision
+suite offered by Google. We attack the most general object
+labeling classiﬁer, which performs n-way classiﬁcation on
+images. Attacking GCV is considerably more challenging
+than attacking a system in the typical black-box setting be-
+cause of the following properties:
+The number of classes is large and unknown — a full
+enumeration of labels is unavailable.
+The classiﬁer returns “conﬁdence scores” for each la-
+bel it assigns to an image, which seem to be neither
+probabilities nor logits.
+The classiﬁer does not return scores for all labels, but
+instead returns an unspeciﬁed-length list of labels that
+varies based on image.
+This closely mirrors our partial-information threat model,
+with the additional challenges that a full list of classes is
+unavailable and the length of the results is unspeciﬁed and
+varies based on the input. Despite these challenges, we suc-
+ceed in constructing targeted adversarial examples against
+this classiﬁer.
+Figure 4 shows an unperturbed image being correctly la-
+beled as several skiing-related classes, including “skiing”
+and “ski.” We run our partial-information attack to force
+this image to be classiﬁed as “dog” (an arbitrarily chosen
+target class). Note that the label “dog” does not appear in
+the output for the unperturbed image. Using our partial-
+information algorithm, we initialize our attack with a pho-
+tograph of a dog (classiﬁed by GCV as a dog) and success-
+fully synthesize an image that looks like the skiers but isBlack-box Adversarial Attacks with Limited Queries and Information
+Figure 4. The Google Cloud Vision Demo labeling on the unper-
+turbed image.
+Figure 5. The Google Cloud Vision Demo labeling on the ad-
+versarial image generated with `1bounded perturbation with
+= 0:1: the image is labeled as the target class.
+classiﬁed as “dog,” as shown in Figure 55.
+4. Related work
+Biggio et al. (2012) and Szegedy et al. (2013) discovered
+that machine learning classiﬁers are vulnerable to adversar-
+ial examples. Since then, a number of techniques have been
+developed to generate adversarial examples in the white-
+box case (Goodfellow et al., 2015; Carlini & Wagner, 2017;
+Moosavi-Dezfooli et al., 2016; Moosavi-Dezfooli et al.,
+2017; Hayes & Danezis, 2017), where an attacker has full
+access to the model parameters and architecture.
+In this section, we focus on prior work that speciﬁcally ad-
+dress the black-box case and practical attack settings more
+generally and compare them to our contributions. Through-
+out this section, it is useful to keep in the mind the axes for
+comparison: (1) white-box vs. black-box; (2) access to
+train-time information + query access vs. only query ac-
+cess; (3) the scale of the targeted model and the dataset it
+was trained on (MNIST vs. CIFAR-10 vs. ImageNet); (4)
+untargeted vs. targeted.
+5https://www.youtube.com/watch?v=
+1h9bU7WBTUg demonstrates our algorithm transforming
+the image of a dog into an image of the skier while retaining the
+original classiﬁcation4.1. Black-box adversarial attacks
+Several papers have investigated practical black-box at-
+tacks on real-world systems such as speech recognition sys-
+tems (Carlini et al., 2016), malware detectors (Hu & Tan,
+2017; Xu et al., 2016), and face recognition systems (Sharif
+et al., 2017). Current black-box attacks use either substitute
+networks or gradient estimation techniques.
+4.1.1. B LACK -BOX ATTACKS WITH SUBSTITUTE
+NETWORKS
+One approach to generating adversarial examples in the
+black-box case is with a substitute model, where an ad-
+versary trains a new model with synthesized data labeled
+by using the target model as an oracle. Adversarial exam-
+ples can then be generated for the substitute with white-
+box methods, and they will often transfer to the target
+model, even if it has a different architecture or training
+dataset (Szegedy et al., 2013; Goodfellow et al., 2015).
+Papernot et al. (2016a; 2017) have successfully used this
+method to attack commercial classiﬁers like the Google
+Cloud Prediction API, the Amazon Web Services Oracle,
+and the MetaMind API, even evading various defenses
+against adversarial attacks. A notable subtlety is that the
+Google Cloud Vision API6we attack in this work is not
+the same as the Google Cloud Prediction API7(now the
+Google Cloud Machine Learning Engine) attacked in Pa-
+pernot et al. (2016a; 2017). Both systems are black-box,
+but the Prediction API is intended to be trained with the
+user’s own data, while the Cloud Vision API has been
+trained on large amounts of Google’s own data and works
+“out-of-the-box.” In the black-box threat model we con-
+sider in our work, the adversary does not have access to the
+internals of the model architecture and has no knowledge
+of how the model was trained or what datasets were used.
+Papernot et al. (2016a; 2017) trained the Cloud Predic-
+tion API with small datasets like MNIST and successfully
+demonstrated an untargeted attack. As Liu et al. (2017)
+demonstrated, it is more difﬁcult to transfer targeted ad-
+versarial examples with or without their target labels, par-
+ticularly when attacking models trained on large datasets
+like ImageNet. Using ensemble-based methods, Liu et al.
+(2017) overcame these limitations to attack the Clarifai
+API. Their threat model speciﬁes that the adversary does
+not have any knowledge of the targeted model, its training
+process, or training and testing data, matching our deﬁni-
+tion of black-box. While Liu et al.’s substitute network at-
+tack does not require any queries to the target model (the
+models in the ensemble are all trained on ImageNet), only
+18% of the targeted adversarial examples generated by the
+ensemble model are transferable in the Clarifai attack. In
+6https://cloud.google.com/vision/
+7https://cloud.google.com/prediction/docs/Black-box Adversarial Attacks with Limited Queries and Information
+contrast, our method needs to query the model many times
+to perform a similar attack but has better guarantees that an
+adversarial example will be generated successfully (94%
+even in the partial-information case, and over 99% in the
+standard black-box setting).
+4.1.2. B LACK -BOX ATTACKS WITH GRADIENT
+ESTIMATION
+Chen et al. (2017) explore black-box gradient estimation
+methods as an alternative to substitute networks, where
+we have noted that transferability is not always reliable.
+They work under the same threat model, restricting an
+adversary solely to querying the target model as an or-
+acle. As they note, applying zeroth order optimization
+naively in this case is not a tractable solution, requiring
+22992993 = 536406 queries to estimate the gradi-
+ents with respect to all pixels. To resolve this problem, they
+devise an iterative coordinate descent procedure to decrease
+the number of evaluations needed and successfully perform
+untargeted and targeted attacks on MNIST and CIFAR-10
+and untargeted attacks on ImageNet. Although we do not
+provide a direct comparison due to the incompability of the
+`2and`1metric as well as the ﬁxed-budget nature of the
+optimization algorithm in Chen et al. (2017), our method
+takes far fewer queries to generate imperceptible adversar-
+ial examples.
+Narodytska & Kasiviswanathan (2017) propose a black-
+box gradient estimation attack using a local-search based
+technique, showing that perturbing only a small fraction of
+pixels in an image is often sufﬁcient for it to be misclassi-
+ﬁed. They successfully perform targeted black-box attacks
+on an ImageNet classiﬁer with only query access and ad-
+ditionally with a more constrained threat model where an
+adversary only has access to a “proxy” model. For the most
+successful misclassiﬁcation attack on CIFAR-10 (70% suc-
+cess) the method takes 17,000 queries on average. Targeted
+adversarial attacks on ImageNet are not considered.
+4.2. Adversarial attacks with limited information
+Our work is concurrent with Brendel et al. (2018), which
+also explores the label-only case using their “Boundary At-
+tack,” which is similar to our two-step partial information
+algorithm. Starting with an image of the target adversarial
+class, they alternate between taking steps on the decision
+boundary to maintain the adversarial classiﬁcation of the
+image and taking steps towards the original image.
+4.3. Other adversarial attacks
+Several notable works in adversarial examples use simi-
+lar techniques but with different adversarial goals or threat
+models. Xu et al. (2016) explore black-box adversarial ex-
+amples to fool PDF malware classiﬁers. To generate anadversarial PDF, they start with an instance of a malicious
+PDF and use genetic algorithms to evolve it into a PDF that
+is classiﬁed as benign but preserves its malicious behavior.
+This attack is similar in spirit to our partial-information al-
+gorithm, although our technique (NES) is more similar to
+traditional gradient-based techniques than evolutionary al-
+gorithms, and we consider multiway image classiﬁers un-
+der a wider set of threat models rather than binary classi-
+ﬁers for PDFs. Nguyen et al. (2014) is another work that
+uses genetic algorithms and gradient ascent to produce im-
+ages that fool a classiﬁer, but their adversarial goal is dif-
+ferent: instead of aiming to make a interpretable image of
+some class (e.g. skiiers) be misclassiﬁed as another class
+(e.g. a dog), they generate entirely unrecognizable images
+of noise or abstract patterns that are classiﬁed as a paricu-
+lar class. Another work generates adversarial examples by
+inverting the image instead of taking local steps; their goal
+is to show that CNNs do not generalize to inverted images,
+rather than to demonstrate a novel attack or to consider a
+new threat model (Hosseini et al., 2017).
+5. Conclusion
+Our work deﬁnes three new black-box threat models that
+characterize many real world systems: the query-limited
+setting, partial-information setting, and the label-only set-
+ting. We introduce new algorithms for attacking classiﬁers
+under each of these threat models and show the effective-
+ness of these algorithms by attacking an ImageNet classi-
+ﬁer. Finally, we demonstrate targeted adversarial examples
+for the Google Cloud Vision API, showing that our meth-
+ods enable black-box attacks on real-world systems in chal-
+lenging settings. Our results suggest that machine learning
+systems remain vulnerable even with limited queries and
+information.
+Acknowledgements
+We wish to thank Nat Friedman and Daniel Gross for pro-
+viding compute resources for this work.
+References
+Athalye, A., Engstrom, L., Ilyas, A., and Kwok, K. Synthesizing
+robust adversarial examples. 2017. URL https://arxiv.
+org/abs/1707.07397 .
+Biggio, B., Nelson, B., and Laskov, P. Poisoning attacks against
+support vector machines. In Proceedings of the 29th Inter-
+national Coference on International Conference on Machine
+Learning , ICML’12, pp. 1467–1474, 2012. ISBN 978-1-4503-
+1285-1. URL http://dl.acm.org/citation.cfm?
+id=3042573.3042761 .
+Biggio, B., Corona, I., Maiorca, D., Nelson, B., ˇSrndi ´c, N.,
+Laskov, P., Giacinto, G., and Roli, F. Evasion attacks against
+machine learning at test time. In Joint European ConferenceBlack-box Adversarial Attacks with Limited Queries and Information
+on Machine Learning and Knowledge Discovery in Databases ,
+pp. 387–402. Springer, 2013.
+Brendel, W., Rauber, J., and Bethge, M. Decision-based adversar-
+ial attacks: Reliable attacks against black-box machine learn-
+ing models. In Proceedings of the International Conference
+on Learning Representations (ICLR) , 2018. URL https:
+//arxiv.org/abs/1712.04248 .
+Carlini, N. and Wagner, D. Towards evaluating the robustness of
+neural networks. In IEEE Symposium on Security & Privacy ,
+2017.
+Carlini, N., Mishra, P., Vaidya, T., Zhang, Y ., Sherr, M., Shields,
+C., Wagner, D., and Zhou, W. Hidden voice commands. In 25th
+USENIX Security Symposium (USENIX Security 16), Austin,
+TX, 2016.
+Chen, P.-Y ., Zhang, H., Sharma, Y ., Yi, J., and Hsieh, C.-
+J. Zoo: Zeroth order optimization based black-box attacks
+to deep neural networks without training substitute models.
+InProceedings of the 10th ACM Workshop on Artiﬁcial In-
+telligence and Security , AISec ’17, pp. 15–26, New York,
+NY , USA, 2017. ACM. ISBN 978-1-4503-5202-4. doi:
+10.1145/3128572.3140448. URL http://doi.acm.org/
+10.1145/3128572.3140448 .
+Dasgupta, S., Hsu, D., and Verma, N. A concentration theorem
+for projections. In Conference on Uncertainty in Artiﬁcial In-
+telligence , 2006.
+Evtimov, I., Eykholt, K., Fernandes, E., Kohno, T., Li, B.,
+Prakash, A., Rahmati, A., and Song, D. Robust physical-world
+attacks on machine learning models. CoRR , abs/1707.08945,
+2017.
+Goodfellow, I. J., Shlens, J., and Szegedy, C. Explaining and har-
+nessing adversarial examples. In Proceedings of the Interna-
+tional Conference on Learning Representations (ICLR) , 2015.
+Gorban, A. N., Tyukin, I. Y ., Prokhorov, D. V ., and Sofeikov,
+K. I. Approximation with random bases. Inf. Sci. , 364(C):
+129–145, October 2016. ISSN 0020-0255. doi: 10.1016/j.ins.
+2015.09.021. URL http://dx.doi.org/10.1016/j.
+ins.2015.09.021 .
+Hayes, J. and Danezis, G. Machine learning as an adversar-
+ial service: Learning black-box adversarial examples. CoRR ,
+abs/1708.05207, 2017.
+Hosseini, H., Xiao, B., Jaiswal, M., and Poovendran, R. On the
+limitation of convolutional neural networks in recognizing neg-
+ative images. 2017 16th IEEE International Conference on
+Machine Learning and Applications (ICMLA) , pp. 352–358,
+2017.
+Hu, W. and Tan, Y . Black-box attacks against RNN based mal-
+ware detection algorithms. CoRR , abs/1705.08131, 2017.
+Kurakin, A., Goodfellow, I., and Bengio, S. Adversarial examples
+in the physical world. 2016. URL https://arxiv.org/
+abs/1607.02533 .
+Liu, Y ., Chen, X., Liu, C., and Song, D. Delving into transferable
+adversarial examples and black-box attacks. In Proceedings
+of the International Conference on Learning Representations
+(ICLR) , 2017.Madry, A., Makelov, A., Schmidt, L., Tsipras, D., and Vladu, A.
+Towards deep learning models resistant to adversarial attacks.
+2017. URL https://arxiv.org/abs/1706.06083 .
+Moosavi-Dezfooli, S., Fawzi, A., Fawzi, O., and Frossard, P. Uni-
+versal adversarial perturbations. In CVPR , pp. 86–94. IEEE
+Computer Society, 2017.
+Moosavi-Dezfooli, S.-M., Fawzi, A., and Frossard, P. Deepfool:
+a simple and accurate method to fool deep neural networks. In
+IEEE Conference on Computer Vision and Pattern Recognition
+(CVPR) , 2016.
+Narodytska, N. and Kasiviswanathan, S. P. Simple black-box ad-
+versarial perturbations for deep networks. In IEEE Conference
+on Computer Vision and Pattern Recognition (CVPR) , 2017.
+Nesterov, Y . and Spokoiny, V . Random gradient-free minimiza-
+tion of convex functions. Found. Comput. Math. , 17(2):527–
+566, April 2017. ISSN 1615-3375. doi: 10.1007/s10208-015-
+9296-2. URL https://doi.org/10.1007/s10208-
+015-9296-2 .
+Nguyen, A. M., Yosinski, J., and Clune, J. Deep neural networks
+are easily fooled: High conﬁdence predictions for unrecogniz-
+able images. CoRR , abs/1412.1897, 2014.
+Papernot, N., McDaniel, P., and Goodfellow, I. Transferability in
+machine learning: from phenomena to black-box attacks using
+adversarial samples. 2016a.
+Papernot, N., McDaniel, P., Jha, S., Fredrikson, M., Celik, Z. B.,
+and Swami, A. The limitations of deep learning in adversarial
+settings. In IEEE European Symposium on Security & Privacy ,
+2016b.
+Papernot, N., McDaniel, P., Goodfellow, I., Jha, S., Celik, Z. B.,
+and Swami, A. Practical black-box attacks against machine
+learning. In Proceedings of the 2017 ACM on Asia Conference
+on Computer and Communications Security , ASIA CCS ’17,
+pp. 506–519, New York, NY , USA, 2017. ACM. ISBN 978-1-
+4503-4944-4. doi: 10.1145/3052973.3053009. URL http:
+//doi.acm.org/10.1145/3052973.3053009 .
+Salimans, T., Ho, J., Chen, X., and Sutskever, I. Evolution strate-
+gies as a scalable alternative to reinforcement learning. CoRR ,
+abs/1703.03864, 2017. URL http://arxiv.org/abs/
+1703.03864 .
+Sharif, M., Bhagavatula, S., Bauer, L., and Reiter, M. K. Adver-
+sarial generative nets: Neural network attacks on state-of-the-
+art face recognition. 2017.
+Szegedy, C., Zaremba, W., Sutskever, I., Bruna, J., Erhan, D.,
+Goodfellow, I., and Fergus, R. Intriguing properties of neu-
+ral networks. 2013. URL https://arxiv.org/abs/
+1312.6199 .
+Szegedy, C., Vanhoucke, V ., Ioffe, S., Shlens, J., and Wojna,
+Z. Rethinking the inception architecture for computer vision.
+2015. URL https://arxiv.org/abs/1512.00567 .
+Wierstra, D., Schaul, T., Glasmachers, T., Sun, Y ., Peters, J.,
+and Schmidhuber, J. Natural evolution strategies. J. Mach.
+Learn. Res. , 15(1):949–980, January 2014. ISSN 1532-
+4435. URL http://dl.acm.org/citation.cfm?
+id=2627435.2638566 .Black-box Adversarial Attacks with Limited Queries and Information
+Xu, W., Yi, Y ., and Evans, D. Automatically evading classiﬁers: A
+case study on pdf malware classiﬁers. Network and Distributed
+System Security Symposium (NDSS) , 2016.

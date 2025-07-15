@@ -1,0 +1,670 @@
+Generalization Bounds of Stochastic Gradient
+Descent for Wide and Deep Neural Networks
+Yuan Cao
+Department of Computer Science
+University of California, Los Angeles
+CA 90095, USA
+yuancao@cs.ucla.eduQuanquan Gu
+Department of Computer Science
+University of California, Los Angeles
+CA 90095, USA
+qgu@cs.ucla.edu
+Abstract
+We study the training and generalization of deep neural networks (DNNs) in the
+over-parameterized regime, where the network width (i.e., number of hidden nodes
+per layer) is much larger than the number of training data points. We show that, the
+expected 0-1loss of a wide enough ReLU network trained with stochastic gradient
+descent (SGD) and random initialization can be bounded by the training loss of
+a random feature model induced by the network gradient at initialization, which
+we call a neural tangent random feature (NTRF) model. For data distributions
+that can be classiﬁed by NTRF model with sufﬁciently small error, our result
+yields a generalization error bound in the order of rOpn1{2qthat is independent
+of the network width. Our result is more general and sharper than many existing
+generalization error bounds for over-parameterized neural networks. In addition,
+we establish a strong connection between our generalization error bound and the
+neural tangent kernel (NTK) proposed in recent work.
+1 Introduction
+Deep learning has achieved great success in a wide range of applications including image processing
+[20], natural language processing [ 17] and reinforcement learning [ 34]. Most of the deep neural
+networks used in practice are highly over-parameterized, such that the number of parameters is much
+larger than the number of training data. One of the mysteries in deep learning is that, even in an
+over-parameterized regime, neural networks trained with stochastic gradient descent can still give
+small test error and do not overﬁt. In fact, a famous empirical study by Zhang et al. [38] shows the
+following phenomena:
+Even if one replaces the real labels of a training data set with purely random labels, an over-
+parameterized neural network can still ﬁt the training data perfectly. However since the labels are
+independent of the input, the resulting neural network does not generalize to the test dataset.
+If the same over-parameterized network is trained with real labels, it not only achieves small
+training loss, but also generalizes well to the test dataset.
+While a series of recent work has theoretically shown that a sufﬁciently over-parameterized (i.e.,
+sufﬁciently wide) neural network can ﬁt random labels [ 12,2,11,39], the reason why it can generalize
+well when trained with real labels is less understood. Existing generalization bounds for deep neural
+networks [ 29,6,27,15,13,5,24,35,28] based on uniform convergence usually cannot provide
+non-vacuous bounds [ 21,13] in the over-parameterized regime. In fact, the empirical observation by
+Zhang et al. [38] indicates that in order to understand deep learning, it is important to distinguish the
+true data labels from random labels when studying generalization. In other words, it is essential to
+quantify the “classiﬁability” of the underlying data distribution, i.e., how difﬁcult it can be classiﬁed.
+33rd Conference on Neural Information Processing Systems (NeurIPS 2019), Vancouver, Canada.Certain effort has been made to take the “classiﬁability” of the data distribution into account for
+generalization analysis of neural networks. Brutzkus et al. [7]showed that stochastic gradient descent
+(SGD) can learn an over-parameterized two-layer neural network with good generalization for linearly
+separable data. Li and Liang [25] proved that, if the data satisfy certain structural assumption, SGD
+can learn an over-parameterized two-layer network with ﬁxed second layer weights and achieve a
+small generalization error. Allen-Zhu et al. [1]studied the generalization performance of SGD and
+its variants for learning two-layer and three-layer networks, and used the risk of smaller two-layer or
+three-layer networks with smooth activation functions to characterize the classiﬁability of the data
+distribution. There is another line of studies on the algorithm-dependent generalization bounds of
+neural networks in the over-parameterized regime [ 10,4,8,37,14], which quantiﬁes the classiﬁability
+of the data with a reference function class deﬁned by random features [ 31,32] or kernels1. Speciﬁcally,
+Daniely [10] showed that a neural network of large enough size is competitive with the best function
+in the conjugate kernel class of the network. Arora et al. [4]gave a generalization error bound for two-
+layer ReLU networks with ﬁxed second layer weights based on a ReLU kernel function. Cao and Gu
+[8]showed that deep ReLU networks trained with gradient descent can achieve small generalization
+error if the data can be separated by certain random feature model [ 32] with a margin. Yehudai and
+Shamir [37] used the expected loss of a similar random feature model to quantify the generalization
+error of two-layer neural networks with smooth activation functions. A similar generalization error
+bound was also given by E et al. [14], where the authors studied the optimization and generalization
+of two-layer networks trained with gradient descent. However, all the aforementioned results are still
+far from satisfactory: they are either limited to two-layer networks, or restricted to very simple and
+special reference function classes.
+In this paper, we aim at providing a sharper and generic analysis on the generalization of deep ReLU
+networks trained by SGD. In detail, we base our analysis upon the key observations that near random
+initialization, the neural network function is almost a linear function of its parameters and the loss
+function is locally almost convex. This enables us to prove a cumulative loss bound of SGD, which
+further leads to a generalization bound by online-to-batch conversion [ 9]. The main contributions of
+our work are summarized as follows:
+We give a bound on the expected 0-1error of deep ReLU networks trained by SGD with random
+initialization. Our result relates the generalization bound of an over-parameterized ReLU network
+with a random feature model deﬁned by the network gradients, which we call neural tangent
+random feature (NTRF) model. It also suggests an algorithm-dependent generalization error bound
+of orderrOpn1{2q, which is independent of network width, if the data can be classiﬁed by the
+NTRF model with small enough error.
+Our analysis is general enough to cover recent generalization error bounds for neural networks
+with random feature based reference function classes, and provides better bounds. Our expected
+0-1error bound directly covers the result by Cao and Gu [8], and gives a tighter sample complexity
+when reduced to their setting, i.e., rOp1{2qversusrOp1{4qwhereis the target generalization
+error. Compared with recent results by Yehudai and Shamir [37], E et al. [14] who only studied
+two-layer networks, our bound not only works for deep networks, but also uses a larger reference
+function class when reduced to the two-layer setting, and therefore is sharper.
+Our result has a direct connection to the neural tangent kernel studied in Jacot et al. [18]. When
+interpreted in the language of kernel method, our result gives a generalization bound in the form of
+rOpLa
+yJppLqq1y{nq, where yis the training label vector, and pLqis the neural tangent
+kernel matrix deﬁned on the training input data. This form of generalization bound is similar to,
+but more general and tighter than the bound given by Arora et al. [4].
+Notation We use lower case, lower case bold face, and upper case bold face letters to denote scalars,
+vectors and matrices respectively. For a vector vpv1;:::;v dqTPRdand a number 1¤p 8 ,
+let}v}pp°d
+i1|vi|pq1{p. We also deﬁne }v}8max i|vi|. For a matrix ApAi;jqmn, we
+use}A}0to denote the number of non-zero entries of A, and denote}A}F p°d
+i;j1A2
+i;jq1{2
+and}A}pmax}v}p1}Av}pforp¥1. For two matrices A;BPRmn, we deﬁnexA;By
+TrpAJBq. We denote by A©BifABis positive semideﬁnite. In addition, we deﬁne the
+1Since random feature models and kernel methods are highly related [ 31,32], we group them into the same
+category. More details are discussed in Section 3.2.
+2asymptotic notations Opq,rOpq,
+pqandr
+pqas follows. Suppose that anandbnbe two sequences.
+We writeanOpbnqiflim supnÑ8|an{bn| 8 , andan
+pbnqiflim inf nÑ8|an{bn|¡0.
+We userOpqandr
+pqto hide the logarithmic factors in Opqand
+pq.
+2 Problem Setup
+In this section we introduce the basic problem setup. Following the same standard setup implemented
+in the line of recent work [ 2,11,39,8], we consider fully connected neural networks with width m,
+depthLand input dimension d. Such a network is deﬁned by its weight matrices at each layer: for
+L¥2, letW1PRmd,WlPRmm,l2;:::;L1andWLPR1mbe the weight matrices
+of the network. Then the neural network with input xPRdis deﬁned as
+fWpxq?mWLpWL1pWL2pW1xqqq; (2.1)
+wherepqis the entry-wise activation function. In this paper, we only consider the ReLU activation
+functionpzqmaxt0;zu, which is the most commonly used activation function in applications. It
+is also arguably one of the most difﬁcult activation functions to analyze, due to its non-smoothess. We
+remark that our result can be generalized to many other Lipschitz continuous and smooth activation
+functions. For simplicity, we follow Allen-Zhu et al. [2], Du et al. [11] and assume that the widths of
+each hidden layer are the same. Our result can be easily extended to the setting that the widths of
+each layer are not equal but in the same order, as discussed in Zou et al. [39], Cao and Gu [8].
+WhenL1, the neural network reduces to a linear function, which has been well-studied. Therefore,
+for notational simplicity we focus on the case L¥2, where the parameter space is deﬁned as
+W:RmdpRmmqL2R1m:
+We also use WpW1;:::;WLqPWto denote the collection of weight matrices for all layers.
+ForW;W1PW, we deﬁne their inner product as xW;W1y:°L
+l1TrpWJ
+lW1
+lq.
+The goal of neural network learning is to minimize the expected risk, i.e.,
+min
+WLDpWq:Epx;yqDLpx;yqpWq; (2.2)
+whereLpx;yqpWq`ryfWpxqsis the loss deﬁned on any example px;yq, and`pzqis the loss
+function. Without loss of generality, we consider the cross-entropy loss in this paper, which is deﬁned
+as`pzqlogr1 exppzqs. We would like to emphasize that our results also hold for most convex
+and Lipschitz continuous loss functions such as hinge loss. We now introduce stochastic gradient
+descent based training algorithm for minimizing the expected risk in (2.2) . The detailed algorithm is
+given in Algorithm 1.
+Algorithm 1 SGD for DNNs starting at Gaussian initialization
+Input: Number of iterations n, step size.
+Generate each entry of Wp0q
+lindependently from Np0;2{mq,lPrL1s.
+Generate each entry of Wp0q
+Lindependently from Np0;1{mq.
+fori1;2;:::;n do
+Drawpxi;yiqfromD.
+Update WpiqWpi1qrWLpxi;yiqpWpiqq.
+end for
+Output: Randomly choose xWuniformly from tWp0q;:::;Wpn1qu.
+The initialization scheme for Wp0qgiven in Algorithm 1 generates each entry of the weight matrices
+from a zero-mean independent Gaussian distribution, whose variance is determined by the rule that
+the expected length of the output vector in each hidden layer is equal to the length of the input.
+This initialization method is also known as He initialization [ 16]. Here the last layer parameter is
+initialized with variance 1{minstead of 2{msince the last layer is not associated with the ReLU
+activation function.
+33 Main Results
+In this section we present the main results of this paper. In Section 3.1 we give an expected 0-1error
+bound against a neural tangent random feature reference function class. In Section 3.2, we discuss
+the connection between our result and the neural tangent kernel proposed in Jacot et al. [18].
+3.1 An Expected 0-1Error Bound
+In this section we give a bound on the expected 0-1errorL01
+DpWq:Epx;yqDr1tyfWpxq 0us
+obtained by Algorithm 1. Our result is based on the following assumption.
+Assumption 3.1. The data inputs are normalized: }x}21for allpx;yqPsupppDq.
+Assumption 3.1 is a standard assumption made in almost all previous work on optimization and
+generalization of over-parameterized neural networks [ 12,2,11,39,30,14]. As is mentioned in
+Cao and Gu [8], this assumption can be relaxed to c1¤}x}2¤c2for allpx;yqPsupppDq, where
+c2¡c1¡0are absolute constants.
+For any WPW, we deﬁne its !-neighborhood as
+BpW;!q:tW1PW:}W1
+lWl}F¤!;lPrLsu:
+Below we introduce the neural tangent random feature function class, which serves as a reference
+function class to measure the “classiﬁability” of the data, i.e., how easy it can be classiﬁed.
+Deﬁnition 3.2 (Neural Tangent Random Feature) .LetWp0qbe generated via the initialization
+scheme in Algorithm 1. The neural tangent random feature (NTRF) function class is deﬁned as
+FpWp0q;Rq 
+fpqfWp0qpq xrWfWp0qpq;Wy:WPBp0;Rm1{2q(
+;
+whereR¡0measures the size of the function class, and mis the width of the neural network.
+The name “neural tangent random feature” is inspired by the neural tangent kernel proposed by
+Jacot et al. [18], because the random features are the gradients of the neural network with random
+weights. Connections between the neural tangent random features and the neural tangent kernel will
+be discussed in Section 3.2.
+We are ready to present our main result on the expected 0-1error bound of Algorithm 1.
+Theorem 3.3. For anyPp0;e1sandR¡0, there exists
+mp;R;L;nqrO 
+polypR;Lq
+n7logp1{q
+such that ifm¥mp;R;L;nq, then with probability at least 1over the randomness of Wp0q,
+the output of Algorithm 1 with step size R{pm?nqfor some small enough absolute constant
+satisﬁes
+E
+L01
+DpxWq
+¤ inf
+fPFpWp0q;Rq#
+4
+nn¸
+i1`ryifpxiqs+
+ O
+LR?n c
+logp1{q
+n
+; (3.1)
+where the expectation is taken over the uniform draw of xWfromtWp0q;:::;Wpn1qu.
+The expected 0-1error bound given by Theorem 3.3 consists of two terms: The ﬁrst term in (3.1)
+relates the expected 0-1error achieved by Algorithm 1 with a reference function class–the NTRF
+function class in Deﬁnition 3.2. The second term in (3.1) is a standard large-deviation error term. As
+long asRrOp1q, this term matches the standard rOpn1{2qrate in PAC learning bounds [33].
+Remark 3.4. The parameter Rin Theorem 3.3 is from the NTRF class and introduces a trade-off
+in the bound: when Ris small, the corresponding NTRF class FpWp0q;Rqis small, making the
+ﬁrst term in (3.1) large, and the second term in (3.1) is small. When Ris large, the corresponding
+function classFpWp0q;Rqis large, so the ﬁrst term in (3.1) is small, and the second term will be
+large. In particular, if we set RrOp1q, the second term in (3.1) will berOpn1{2q. In this case, the
+“classiﬁability” of the underlying data distribution Dis determined by how well its i.i.d. samples
+can be classiﬁed by FpWp0q;rOp1qq. In other words, Theorem 3.3 suggests that if the data can be
+classiﬁed by a function in the NTRF function class FpWp0q;rOp1qqwith a small training error, the
+over-parameterized ReLU network learnt by Algorithm 1 will have a small generalization error.
+4Remark 3.5. The expected 0-1error bound given by Theorem 3.3 is in a very general form. It
+directly covers the result given by Cao and Gu [8]. In Appendix A.1, we show that under the same
+assumptions made in Cao and Gu [8], to achieveexpected 0-1error, our result requires a sample
+complexity of order rOp2q, which outperforms the result in Cao and Gu [8] by a factor of 2.
+Remark 3.6. Our generalization bound can also be compared with two recent results [ 37,14] for
+two-layer neural networks. When L2, the NTRF function class FpWp0q;rOp1qqcan be written as
+ 
+fWp0qpq xrW1fWp0qpq;W1y xrW2fWp0qpq;W2y:}W1}F;}W2}F¤rOpm1{2q(
+:
+In contrast, the reference function classes studied by Yehudai and Shamir [37] and E et al. [14] are
+contained in the following random feature class:
+F 
+fWp0qpq xrW2fWp0qpq;W2y:}W2}F¤rOpm1{2q(
+;
+where Wp0qpWp0q
+1;Wp0q
+2qPRmdR1mare the random weights generated by the initial-
+ization schemes in Yehudai and Shamir [37], E et al. [14]2. Evidently, our NTRF function class
+FpWp0q;rOp1qqis richer thanF–it also contains the features corresponding to the ﬁrst layer gradient
+of the network at random initialization, i.e., rW1fWp0qpq. As a result, our generalization bound is
+sharper than those in Yehudai and Shamir [37], E et al. [14] in the sense that we can show that neural
+networks trained with SGD can compete with the best function in a larger reference function class.
+As previously mentioned, the result of Theorem 3.3 can be easily extended to the setting where the
+widths of different layers are different. We should expect that the result remains almost the same,
+except that we assume the widths of hidden layers are all larger than or equal to mp;R;L;nq.
+We would also like to point out that although this paper considers the cross-entropy loss, the proof
+of Theorem 3.3 offers a general framework based on the fact that near initialization, the neural
+network function is almost linear in terms of its weights. We believe that this proof framework can
+potentially be applied to most practically useful loss functions: whenever `pqis convex/Lipschitz
+continuous/smooth, near initialization, LipWqis also almost convex/Lipschitz continuous/smooth
+inWfor alliP rns, and therefore standard online optimization analysis can be invoked with
+online-to-batch conversion to provide a generalization bound. We refer to Section 4 for more details.
+3.2 Connection to Neural Tangent Kernel
+Besides quantifying the classiﬁability of the data with the NTRF function class FpWp0q;rOp1qq, an
+alternative way to apply Theorem 3.3 is to check how large the parameter Rneeds to be in order to
+make the ﬁrst term in (3.1) small enough (e.g., smaller than n1{2). In this subsection, we show that
+this type of analysis connects Theorem 3.3 to the neural tangent kernel proposed in Jacot et al. [18]
+and later studied by Yang [36], Lee et al. [23], Arora et al. [3]. Speciﬁcally, we provide an expected
+0-1error bound in terms of the neural tangent kernel matrix deﬁned over the training data. We ﬁrst
+deﬁne the neural tangent kernel matrix for the neural network function in (2.1).
+Deﬁnition 3.7 (Neural Tangent Kernel Matrix) .For anyi;jPrns, deﬁne
+rp1q
+i;jp1q
+i;jxxi;xjy;Aplq
+ij
+plq
+i;iplq
+i;j
+plq
+i;jplq
+j;j
+;
+pl 1q
+i;j2Epu;vqN 
+0;Aplq
+ijrpuqpvqs;
+rpl 1q
+i;jrplq
+i;j2Epu;vqN 
+0;Aplq
+ijr1puq1pvqs pl 1q
+i;j:
+Then we call pLqrprpLq
+i;j pLq
+i;jq{2snnthe neural tangent kernel matrix of an L-layer ReLU
+network on training inputs x1;:::;xn.
+Deﬁnition 3.7 is the same as the original deﬁnition in Jacot et al. [18] when restricting the kernel
+function ontx1;:::;xnu, except that there is an extra coefﬁcient 2in the second and third lines. This
+extra factor is due to the difference in initialization schemes–in our paper the entries of hidden layer
+2Normalizing weights to the same scale is necessary for a proper comparison. See Appendix A.2 for details.
+5matrices are randomly generated with variance 2{m, while in Jacot et al. [18] the variance of the
+random initialization is 1{m. We remark that this extra factor 2in Deﬁnition 3.7 will remove the
+exponential dependence on the network depth Lin the kernel matrix, which is appealing. In fact, it is
+easy to check that under our scaling, the diagonal entries of pLqare all 1’s, and the diagonal entries
+ofrpLqare allL’s.
+The following lemma is a summary of Theorem 1 and Proposition 2 in Jacot et al. [18], which ensures
+thatpLqis the inﬁnite-width limit of the Gram matrix pm1xrWfWp0qpxiq;rWfWp0qpxjqyqnn,
+and is positive-deﬁnite as long as no two training inputs are parallel.
+Lemma 3.8 (Jacot et al. [18]).For anLlayer ReLU network with parameter set Wp0qinitialized in
+Algorithm 1, as the network width mÑ83, it holds that
+m1xrWfWp0qpxiq;rWfWp0qpxjqyPÝ ÑpLq
+i;j;
+where the expectation is taken over the randomness of Wp0q. Moreover, as long as each pair of inputs
+among x1;:::;xnPSd1are not parallel, pLqis positive-deﬁnite.
+Remark 3.9. Lemmas 3.8 clearly shows the difference between our neural tangent kernel matrix
+pLqin Deﬁnition 3.7 and the Gram matrix KpLqdeﬁned in Deﬁnition 5.1 in Du et al. [11]. For any
+i;jPrns, by Lemma 3.8 we have
+pLq
+i;jlim
+mÑ8m1°L
+l1xrWlfWp0qpxiq;rWlfWp0qpxjqy:
+In contrast, the corresponding entry in KpLqis
+KpLq
+i;jlim
+mÑ8m1xrWL1fWp0qpxiq;rWL1fWp0qpxjqy:
+It can be seen that our deﬁnition of kernel matrix takes all layers into consideration, while Du
+et al. [11] only considered the last hidden layer (i.e., second last layer). Moreover, it is clear that
+pLq©KpLq. Since the smallest eigenvalue of the kernel matrix plays a key role in the analysis of
+optimization and generalization of over-parameterized neural networks [ 12,11,4], our neural tangent
+kernel matrix can potentially lead to better bounds than the Gram matrix studied in Du et al. [11].
+Corollary 3.10. Letypy1;:::;y nqJand0minppLqq. For anyPp0;e1s, there exists
+rmp;L;n; 0qthat only depends on ;L;n and0such that if m¥rmp;L;n; 0q, then with
+probability at least 1over the randomness of Wp0q, the output of Algorithm 1 with step size
+infryiyi¥1a
+ryJppLqq1ry{pm?nqfor some small enough absolute constant satisﬁes
+E
+L01
+DpxWq
+¤rO
+Linf
+ryiyi¥1c
+ryJppLqq1ry
+n
+ Oc
+logp1{q
+n
+;
+where the expectation is taken over the uniform draw of xWfromtWp0q;:::;Wpn1qu.
+Remark 3.11. Corollary 3.10 gives an algorithm-dependent generalization error bound of over-
+parameterized L-layer neural networks trained with SGD. It is worth noting that recently Arora et al.
+[4]gives a generalization bound rO a
+yJpH8q1y{n
+for two-layer networks with ﬁxed second
+layer weights, where H8is deﬁned as
+H8
+i;jxxi;xjyEwNp0;Iqr1pwJxiq1pwJxjqs:
+Our result in Corollary 3.10 can be specialized to two-layer neural networks by choosing L2, and
+yields a bound rO a
+yJpp2qq1y{n
+, where
+p2q
+i;jH8
+i;j 2EwNp0;IqrpwJxiqpwJxjqs:
+Here the extra term 2EwNp0;IqrpwJxiqpwJxjqscorresponds to the training of the second
+layer–it is the limit of1
+mxrW2fWp0qpxiq;rW2fWp0qpxjqy. Since we have p2q©H8, our bound
+is sharper than theirs. This comparison also shows that, our result generalizes the result in Arora et al.
+[4] from two-layer, ﬁxed second layer networks to deep networks with all parameters being trained.
+3The original result by Jacot et al. [18] requires that the widths of different layers go to inﬁnity sequen-
+tially. Their result was later improved by Yang [36] such that the widths of different layers can go to inﬁnity
+simultaneously.
+6Remark 3.12. Corollary 3.10 is based on the asymptotic convergence result in Lemma 3.8, which
+does not show how wide the network need to be in order to make the Gram matrix close enough
+to the NTK matrix. Very recently, Arora et al. [3]provided a non-asymptotic convergence result
+for the Gram matrix, and showed the equivalence between an inﬁnitely wide network trained by
+gradient ﬂow and a kernel regression predictor using neural tangent kernel, which suggests that the
+generalization of deep neural networks trained by gradient ﬂow can potentially be measured by the
+corresponding NTK. Utilizing this non-asymptotic convergence result, one can potentially specify
+the detailed dependency of rmp;L;n; 0qon,L,nand0in Corollary 3.10.
+Remark 3.13. Corollary 3.10 demonstrates that the generalization bound given by Theorem 3.3
+does not increase with network width m, as long asmis large enough. Moreover, it provides a clear
+characterization of the classiﬁability of data. In fact, thea
+ryJppLqq1ryfactor in the generalization
+bound given in Corollary 3.10 is exactly the NTK-induced RKHS norm of the kernel regression
+classiﬁer on data tpxi;ryiqun
+i1. Therefore, if yfpxqfor somefpqwith bounded norm in the
+NTK-induced reproducing kernel Hilbert space (RKHS), then over-parameterized neural networks
+trained with SGD generalize well. In Appendix E, we provide some numerical evaluation of the
+leading terms in the generalization bounds in Theorem 3.3 and Corollary 3.10 to demonstrate that
+they are very informative on real-world datasets.
+4 Proof of Main Theory
+In this section we provide the proof of Theorem 3.3 and Corollary 3.10, and explain the intuition
+behind the proof. For notational simplicity, for iPrnswe denoteLipWqLpxi;yiqpWq.
+4.1 Proof of Theorem 3.3
+Before giving the proof of Theorem 3.3, we ﬁrst introduce several lemmas. The following lemma
+states that near initialization, the neural network function is almost linear in terms of its weights.
+Lemma 4.1. There exists an absolute constant such that, with probability at least 1OpnL2q
+expr
+pm!2{3Lqsover the randomness of Wp0q, for alliPrnsandW;W1PBpWp0q;!qwith
+!¤L6rlogpmqs3{2, it holds uniformly that
+|fW1pxiqfWpxiqxrfWpxiq;W1Wy|¤O
+!1{3L2a
+mlogpmq	
+°L1
+l1}W1
+lWl}2:
+Since the cross-entropy loss `pqis convex, given Lemma 4.1, we can show in the following lemma
+that near initialization, LipWqis also almost a convex function of Wfor anyiPrns.
+Lemma 4.2. There exists an absolute constant such that, with probability at least 1OpnL2q
+expr
+pm!2{3Lqsover the randomness of Wp0q, for any¡0,iPrnsandW;W1PBpWp0q;!q
+with!¤L6m3{8rlogpmqs3{23{4, it holds uniformly that
+LipW1q¥LipWq xrWLipWq;W1Wy:
+The locally almost convex property of the loss function given by Lemma 4.2 implies that the dynamics
+of Algorithm 1 is similar to the dynamics of convex optimization. We can therefore derive a bound of
+the cumulative loss. The result is given in the following lemma.
+Lemma 4.3. For any;;R¡0, there exists
+mp;;R;LqrO 
+polypR;Lq
+14logp1{q
+such that ifm¥mp;;R;Lq, then with probability at least 1over the randomness of Wp0q,
+for any WPBpWp0q;Rm1{2q, Algorithm 1 with {pLmq,nL2R2{p22qfor some
+small enough absolute constant has the following cumulative loss bound:
+°n
+i1LipWpi1qq¤°n
+i1LipWq 3n:
+We now ﬁnalize the proof by applying an online-to-batch conversion argument [ 9], and use Lemma 4.1
+to relate the neural network function with a function in the NTRF function class.
+7Proof of Theorem 3.3. ForiP rns, letL01
+ipWpi1qq 1 
+yifWpi1qpxiq  0(
+. Since cross-
+entropy loss satisﬁes 1tz¤0u ¤ 4`pzq, we haveL01
+ipWpi1qq ¤ 4LipWpi1qq. Therefore,
+settingLR{?
+2nin Lemma 4.3 gives that, if is set asa
+{2R{pm?nq, then with probability
+at least 1,
+1
+nn¸
+i1L01
+ipWpi1qq¤4
+nn¸
+i1LipWq 12?
+2LR?n: (4.1)
+Note that for any iPrns,Wpi1qonly depends on px1;y1q;:::;pxi1;yi1qand is independent of
+pxi;yiq. Therefore by Proposition 1 in Cesa-Bianchi et al. [9], with probability at least 1we have
+1
+nn¸
+i1L01
+DpWpi1qq¤1
+nn¸
+i1L01
+ipWpi1qq c
+2 logp1{q
+n: (4.2)
+By deﬁnition, we have1
+n°n
+i1L01
+DpWpi1qq E
+L01
+DpxWq
+. Therefore combining (4.1) and
+(4.2) and applying union bound, we obtain that with probability at least 12,
+E
+L01
+DpxWq
+¤4
+nn¸
+i1LipWq 12?
+2LR?n c
+2 logp1{q
+n(4.3)
+for all WPBpWp0q;Rm1{2q. We now compare the neural network function fWpxiqwith the
+functionFWp0q;Wpxiq:fWp0qpxiq xrfWp0qpxiq;WWp0qyPFpWp0q;Rq. We have
+LipWq¤`ryiFWp0q;Wpxiqs O
+pRm1{2q1{3L2a
+mlogpmq	
+°L1
+l1W
+lWp0q
+l
+2
+¤`ryiFWp0q;Wpxiqs O
+L3a
+mlogpmq	
+R4{3m2{3
+¤`ryiFWp0q;Wpxiqs LRn1{2;
+where the ﬁrst inequality is by the 1-Lipschitz continuity of `pqand Lemma 4.1, the second inequality
+is byWPBpWp0q;Rm1{2q, and last inequality holds as long as m¥C1R2L12rlogpmqs3n3for
+some large enough absolute constant C1. Plugging the inequality above into (4.3) gives
+E
+L01
+DpxWq
+¤4
+nn¸
+i1`ryiFWp0q;Wpxiqs 
+1 12?
+2
+LR?n c
+2 logp1{q
+n:
+Taking inﬁmum over WPBpWp0q;Rm1{2qand rescaling ﬁnishes the proof.
+4.2 Proof of Corollary 3.10
+In this subsection we prove Corollary 3.10. The following lemma shows that at initialization, with
+high probability, the neural network function value at all the training inputs are of order rOp1q.
+Lemma 4.4. For any¡0, ifm¥KLlogpnL{qfor a large enough absolute constant K, then
+with probability at least 1,|fWp0qpxiq|¤Opa
+logpn{qqfor alliPrns.
+We now present the proof of Corollary 3.10. The idea is to construct suitable target values py1;:::;pyn,
+and then bound the norm of the solution of the linear equations pyixrfWp0qpxiq;Wy,iPrns. In
+speciﬁc, for any rywithryiyi¥1, we examine the minimum distance solution toWp0qthat ﬁt the
+datatpxi;ryiqun
+i1well and use it to construct a speciﬁc function in F 
+Wp0q;rO a
+ryJppLqq1ry
+.
+Proof of Corollary 3.10. SetBlogt1{rexppn1{2q1suOplogpnqq, then for cross-entropy
+loss we have `pzq ¤n1{2forz¥B. Moreover, let B1max iPrns|fWp0qpxiq|. Then by
+Lemma 4.4, with probability at least 1,B1¤Opa
+logpn{qqfor alliPrns. For any rywith
+ryiyi¥1, letBB B1andpyBry, then it holds that for any iPrns,
+yirpyi fWp0qpxiqsyipyi yifWp0qpxiq¥B B1B1¥B;
+8and therefore
+`tyirpyi fWp0qpxiqsu¤n1{2; iPrns: (4.4)
+Denote Fm1{2pvecrrfWp0qpx1qs;:::; vecrrfWp0qpxnqsqPRrmd m m2pL2qsn. Note that
+entries of pLqare all bounded by L. Therefore, the largest eigenvalue of pLqis at mostnL, and
+we haveryJppLqq1ry¥n1L1}ry}2
+2L1. By Lemma 3.8 and standard matrix perturbation
+bound, there exists mp;L;n; 0qsuch that, if m¥mp;L;n; 0q, then with probability at least
+1,FJFis strictly positive-deﬁnite and
+}pFJFq1ppLqq1}2¤inf
+ryiyi¥1ryJppLqq1ry{n: (4.5)
+LetFPQJbe the singular value decomposition of F, where PPRmn;QPRnnhave
+orthogonal columns, and PRnnis a diagonal matrix. Let wvecP1QJpy, then we have
+FJwvecpQPJqpP1QJpyqpy: (4.6)
+Moreover, by direct calculation we have
+}wvec}2
+2}P1QJpy}2
+2}1QJpy}2
+2pyJQ2QJpypyJpFJFq1py:
+Therefore by (4.5) and the fact that }py}2
+2B2n, we have
+}wvec}2
+2pyJrpFJFq1ppLqq1spy pyJppLqq1py
+¤B2n}pFJFq1ppLqq1}2 B2ryJppLqq1ry
+¤2B2ryJppLqq1ry:
+LetWPWbe the parameter collection reshaped from m1{2wvec. Then clearly
+}Wl}F¤m1{2}wvec}2¤rOb
+ryJppLqq1rym1{2	
+;
+and therefore WPB 
+0;O a
+ryJppLqq1rym1{2
+. Moreover, by (4.6) , we have pyi
+xrWfWp0qpxiq;Wy. Plugging this into (4.4) then gives
+` 
+yi
+fWp0qpxiq xrWfWp0qpxiq;Wy(
+¤n1{2:
+Sincepfpq fWp0qpq xrWfWp0qpq;Wy PF 
+Wp0q;rO a
+ryJppLqq1ry
+, applying Theo-
+rem 3.3 and taking inﬁmum over rycompletes the proof.
+5 Conclusions and Future Work
+In this paper we provide an expected 0-1error bound for wide and deep ReLU networks trained with
+SGD. This generalization error bound is measured by the NTRF function class. The connection to
+the neural tangent kernel function studied in Jacot et al. [18] is also discussed. Our result covers a
+series of recent generalization bounds for wide enough neural networks, and provides better bounds.
+An important future work is to improve the over-parameterization condition in Theorem 3.3 and
+Corollary 3.10. Other future directions include proving sample complexity lower bounds in the
+over-parameterized regime, implementing the results in Jain et al. [19] to obtain last iterate bound
+of SGD, and establishing uniform convergence based generalization bounds for over-parameterized
+neural networks with methods developped in Bartlett et al. [6], Neyshabur et al. [27], Long and
+Sedghi [26].
+Acknowledgement
+We would like to thank Peter Bartlett for a valuable discussion, and Simon S. Du for pointing out a
+related work [ 3]. We also thank the anonymous reviewers and area chair for their helpful comments.
+This research was sponsored in part by the National Science Foundation CAREER Award IIS-
+1906169, IIS-1903202, and Salesforce Deep Learning Research Award. The views and conclusions
+contained in this paper are those of the authors and should not be interpreted as representing any
+funding agencies.
+9References
+[1]ALLEN -ZHU, Z.,LI, Y.andLIANG , Y.(2018). Learning and generalization in overparameter-
+ized neural networks, going beyond two layers. arXiv preprint arXiv:1811.04918 .
+[2]ALLEN -ZHU, Z.,LI, Y.andSONG , Z.(2018). A convergence theory for deep learning via
+over-parameterization. arXiv preprint arXiv:1811.03962 .
+[3]ARORA , S.,DU, S. S. ,HU, W.,LI, Z.,SALAKHUTDINOV , R.andWANG , R.(2019). On
+exact computation with an inﬁnitely wide neural net. arXiv preprint arXiv:1904.11955 .
+[4]ARORA , S.,DU, S. S. ,HU, W.,LI, Z. andWANG , R. (2019). Fine-grained analysis of
+optimization and generalization for overparameterized two-layer neural networks. arXiv preprint
+arXiv:1901.08584 .
+[5]ARORA , S.,GE, R.,NEYSHABUR , B.andZHANG , Y.(2018). Stronger generalization bounds
+for deep nets via a compression approach. arXiv preprint arXiv:1802.05296 .
+[6]BARTLETT , P. L. ,FOSTER , D. J. andTELGARSKY , M. J. (2017). Spectrally-normalized
+margin bounds for neural networks. In Advances in Neural Information Processing Systems .
+[7]BRUTZKUS , A.,GLOBERSON , A.,MALACH , E.andSHALEV -SHWARTZ , S.(2017). Sgd
+learns over-parameterized networks that provably generalize on linearly separable data. arXiv
+preprint arXiv:1710.10174 .
+[8]CAO, Y.andGU, Q. (2019). A generalization theory of gradient descent for learning over-
+parameterized deep relu networks. arXiv preprint arXiv:1902.01384 .
+[9]CESA-BIANCHI , N.,CONCONI , A.andGENTILE , C.(2004). On the generalization ability of
+on-line learning algorithms. IEEE Transactions on Information Theory 502050–2057.
+[10] DANIELY , A. (2017). Sgd learns the conjugate kernel class of the network. In Advances in
+Neural Information Processing Systems .
+[11] DU, S. S. ,LEE, J. D. ,LI, H.,WANG , L.andZHAI, X.(2018). Gradient descent ﬁnds global
+minima of deep neural networks. arXiv preprint arXiv:1811.03804 .
+[12] DU, S. S. ,ZHAI, X.,POCZOS , B.andSINGH , A.(2018). Gradient descent provably optimizes
+over-parameterized neural networks. arXiv preprint arXiv:1810.02054 .
+[13] DZIUGAITE , G. K. andROY, D. M. (2017). Computing nonvacuous generalization bounds for
+deep (stochastic) neural networks with many more parameters than training data. arXiv preprint
+arXiv:1703.11008 .
+[14] E, W. ,MA, C.,WU, L. ET AL .(2019). A comparative analysis of the optimization and
+generalization property of two-layer neural network and random feature models under gradient
+descent dynamics. arXiv preprint arXiv:1904.04326 .
+[15] GOLOWICH , N.,RAKHLIN , A.andSHAMIR , O.(2017). Size-independent sample complexity
+of neural networks. arXiv preprint arXiv:1712.06541 .
+[16] HE, K.,ZHANG , X.,REN, S.andSUN, J.(2015). Delving deep into rectiﬁers: Surpassing
+human-level performance on imagenet classiﬁcation. In Proceedings of the IEEE international
+conference on computer vision .
+[17] HINTON , G.,DENG, L.,YU, D.,DAHL, G. E. ,MOHAMED , A.- R.,JAITLY , N.,SENIOR ,
+A.,VANHOUCKE , V.,NGUYEN , P.,SAINATH , T. N. ET AL .(2012). Deep neural networks
+for acoustic modeling in speech recognition: The shared views of four research groups. IEEE
+Signal Processing Magazine 2982–97.
+[18] J ACOT , A., G ABRIEL , F. and H ONGLER , C. (2018). Neural tangent kernel: Convergence and
+generalization in neural networks. arXiv preprint arXiv:1806.07572 .
+[19] JAIN, P.,NAGARAJ , D.andNETRAPALLI , P.(2019). Making the last iterate of sgd information
+theoretically optimal. arXiv preprint arXiv:1904.12443 .
+10[20] KRIZHEVSKY , A.,SUTSKEVER , I.andHINTON , G. E. (2012). Imagenet classiﬁcation with
+deep convolutional neural networks. In Advances in neural information processing systems .
+[21] LANGFORD , J.andCARUANA , R.(2002). (not) bounding the true error. In Advances in Neural
+Information Processing Systems .
+[22] LECUN, Y.,BOTTOU , L.,BENGIO , Y.,HAFFNER , P. ET AL .(1998). Gradient-based learning
+applied to document recognition. Proceedings of the IEEE 862278–2324.
+[23] LEE, J.,XIAO, L.,SCHOENHOLZ , S. S. ,BAHRI , Y.,SOHL-DICKSTEIN , J.andPENNINGTON ,
+J.(2019). Wide neural networks of any depth evolve as linear models under gradient descent.
+arXiv preprint arXiv:1902.06720 .
+[24] LI, X.,LU, J.,WANG , Z.,HAUPT , J.andZHAO, T.(2018). On tighter generalization bound
+for deep neural networks: Cnns, resnets, and beyond. arXiv preprint arXiv:1806.05159 .
+[25] LI, Y. andLIANG , Y. (2018). Learning overparameterized neural networks via stochastic
+gradient descent on structured data. arXiv preprint arXiv:1808.01204 .
+[26] LONG, P. M. andSEDGHI , H.(2019). Size-free generalization bounds for convolutional neural
+networks. arXiv preprint arXiv:1905.12600 .
+[27] NEYSHABUR , B.,BHOJANAPALLI , S.,MCALLESTER , D.andSREBRO , N.(2017). A pac-
+bayesian approach to spectrally-normalized margin bounds for neural networks. arXiv preprint
+arXiv:1707.09564 .
+[28] NEYSHABUR , B.,LI, Z.,BHOJANAPALLI , S.,LECUN, Y.andSREBRO , N.(2018). The role
+of over-parametrization in generalization of neural networks .
+[29] NEYSHABUR , B.,TOMIOKA , R.andSREBRO , N. (2015). Norm-based capacity control in
+neural networks. In Conference on Learning Theory .
+[30] OYMAK , S. and SOLTANOLKOTABI , M. (2019). Towards moderate overparameteriza-
+tion: global convergence guarantees for training shallow neural networks. arXiv preprint
+arXiv:1902.04674 .
+[31] RAHIMI , A. andRECHT , B. (2008). Random features for large-scale kernel machines. In
+Advances in neural information processing systems .
+[32] RAHIMI , A. andRECHT , B. (2009). Weighted sums of random kitchen sinks: Replacing
+minimization with randomization in learning. In Advances in neural information processing
+systems .
+[33] SHALEV -SHWARTZ , S.andBEN-DAVID , S.(2014). Understanding machine learning: From
+theory to algorithms . Cambridge university press.
+[34] SILVER , D.,HUANG , A.,MADDISON , C. J. ,GUEZ, A.,SIFRE , L.,VANDENDRIESSCHE ,
+G.,SCHRITTWIESER , J.,ANTONOGLOU , I.,PANNEERSHELVAM , V.,LANCTOT , M. ET AL .
+(2016). Mastering the game of go with deep neural networks and tree search. Nature 529
+484–489.
+[35] WEI, C.,LEE, J. D. ,LIU, Q.andMA, T.(2018). On the margin theory of feedforward neural
+networks. arXiv preprint arXiv:1810.05369 .
+[36] YANG , G. (2019). Scaling limits of wide neural networks with weight sharing: Gaussian
+process behavior, gradient independence, and neural tangent kernel derivation. arXiv preprint
+arXiv:1902.04760 .
+[37] YEHUDAI , G.andSHAMIR , O.(2019). On the power and limitations of random features for
+understanding neural networks. arXiv preprint arXiv:1904.00687 .
+[38] ZHANG , C.,BENGIO , S.,HARDT , M.,RECHT , B.andVINYALS , O.(2016). Understanding
+deep learning requires rethinking generalization. arXiv preprint arXiv:1611.03530 .
+[39] ZOU, D.,CAO, Y.,ZHOU , D. andGU, Q. (2018). Stochastic gradient descent optimizes
+over-parameterized deep relu networks. arXiv preprint arXiv:1811.08888 .
+11

@@ -1,0 +1,2346 @@
+Fine-Grained Analysis of Optimization and Generalization for
+Overparameterized Two-Layer Neural Networks
+Sanjeev Arora* 1 2Simon S. Du* 3Wei Hu* 1Zhiyuan Li* 1Ruosong Wang* 3
+Abstract
+Recent works have cast some light on the mys-
+tery of why deep nets ﬁt any data and generalize
+despite being very overparametrized. This paper
+analyzes training and generalization for a simple
+2-layer ReLU net with random initialization, and
+provides the following improvements over recent
+works:
+(i)Using a tighter characterization of training
+speed than recent papers, an explanation for
+why training a neural net with random la-
+bels leads to slower training, as originally
+observed in [Zhang et al. ICLR’17].
+(ii)Generalization bound independent of net-
+work size, using a data-dependent complex-
+ity measure. Our measure distinguishes
+clearly between random labels and true la-
+bels on MNIST and CIFAR, as shown by
+experiments. Moreover, recent papers re-
+quire sample complexity to increase (slowly)
+with the size, while our sample complexity is
+completely independent of the network size.
+(iii) Learnability of a broad class of smooth func-
+tions by 2-layer ReLU nets trained via gradi-
+ent descent.
+The key idea is to track dynamics of training and
+generalization via properties of a related kernel.
+1. Introduction
+The well-known work of Zhang et al. (2017) highlighted
+intriguing experimental phenomena about deep net train-
+ing – speciﬁcally, optimization and generalization – and
+asked whether theory could explain them. They showed
+*Alphabetical order1Princeton University, Princeton, NJ, USA
+2Institute for Advanced Study, Princeton, NJ, USA3Carnegie
+Mellon University, Pittsburgh, PA, USA. Correspondence to: Wei
+Hu<huwei@cs.princeton.edu >.
+Proceedings of the 36thInternational Conference on Machine
+Learning , Long Beach, California, PMLR 97, 2019. Copyright
+2019 by the author(s).that sufﬁciently powerful nets (with vastly more parameters
+than number of training samples) can attain zero training
+error, regardless of whether the data is properly labeled or
+randomly labeled. Obviously, training with randomly la-
+beled data cannot generalize, whereas training with properly
+labeled data generalizes. See Figure 2 replicating some of
+these results.
+Recent papers have begun to provide explanations, showing
+that gradient descent can allow an overparametrized multi-
+layer net to attain arbitrarily low training error on fairly
+generic datasets (Du et al., 2018a;c; Li & Liang, 2018; Allen-
+Zhu et al., 2018b; Zou et al., 2018), provided the amount
+of overparametrization is a high polynomial of the relevant
+parameters (i.e. vastly more than the overparametrization in
+(Zhang et al., 2017)). Under further assumptions it can also
+be shown that the trained net generalizes (Allen-Zhu et al.,
+2018a). But some issues were not addressed in these papers,
+and the goal of the current paper is to address them.
+First, the experiments in (Zhang et al., 2017) show that
+though the nets attain zero training error on even random
+data, the convergence rate is much slower. See Figure 1.
+Question 1. Why do true labels give faster convergence
+rate than random labels for gradient descent?
+The above papers do not answer this question, since their
+proof of convergence does not distinguish between good
+and random labels.
+The next issue is about generalization: clearly, some prop-
+erty of properly labeled data controls generalization, but
+what? Classical measures used in generalization theory
+such as VC-dimension and Rademacher complexity are
+much too pessimistic. A line of research proposed norm-
+based (e.g. (Bartlett et al., 2017a)) and compression-based
+bounds (Arora et al., 2018). But the sample complexity
+upper bounds obtained are still far too weak. Furthermore
+they rely on some property of the trained net that is re-
+vealed/computed at the end of training. There is no property
+of data alone that determine upfront whether the trained net
+will generalize. A recent paper (Allen-Zhu et al., 2018a)
+assumed that there exists an underlying (unknown) neural
+network that achieves low error on the data distribution, and
+the amount of data available is quite a bit more than the min-Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+imum number of samples needed to learn this underlying
+neural net. Under this condition, the overparametrized net
+(which has way more parameters) can learn in a way that
+generalizes. However, it is hard to verify from data whether
+this assumption is satisﬁed, even after the larger net has
+ﬁnished training.1Thus the assumption is in some sense
+unveriﬁable.
+Question 2. Is there an easily veriﬁable complexity measure
+that can differentiate true labels and random labels?
+Without explicit regularization, to attack this problem, one
+must resort to algorithm-dependent generalization analysis.
+One such line of work established that ﬁrst-order methods
+can automatically ﬁnd minimum-norm/maximum-margin
+solutions that ﬁt the data in the settings of logistic regres-
+sion, deep linear networks, and symmetric matrix factor-
+ization (Soudry et al., 2018; Gunasekar et al., 2018a;b;
+Ji & Telgarsky, 2018; Li et al., 2018b). However, how
+to extend these results to non-linear neural networks re-
+mains unclear (Wei et al., 2018). Another line of algorithm-
+dependent analysis of generalization (Hardt et al., 2015;
+Mou et al., 2017; Chen et al., 2018) used stability of speciﬁc
+optimization algorithms that satisfy certain generic proper-
+ties like convexity, smoothness, etc. However, as the number
+of epochs becomes large, these generalization bounds are
+vacuous.
+Our results. We give a new analysis that provides answers
+to Questions 1 and 2 for overparameterized two-layer neural
+networks with ReLU activation trained by gradient descent
+(GD), when the number of neurons in the hidden layer is
+sufﬁciently large. In this setting, Du et al. (2018c) have
+proved that GD with random initialization can achieve zero
+training error for any non-degenerate data. We give a more
+reﬁned analysis of the trajectory of GD which enables us to
+provide answers to Questions 1 and 2. In particular:
+In Section 4, using the trajectory of the network pre-
+dictions on the training data during optimization, we
+accurately estimate the magnitude of training loss in
+each iteration. Our key ﬁnding is that the number of
+iterations needed to achieve a target accuracy depends
+on the projections of data labels on the eigenvectors
+of a certain Gram matrix to be deﬁned in Equation (3).
+On MNIST and CIFAR datasets, we ﬁnd that such pro-
+jections are signiﬁcantly different for true labels and
+random labels, and as a result we are able to answer
+Question 1.
+In Section 5, we give a generalization bound for the
+solution found by GD, based on accurate estimates of
+how much the network parameters can move during
+optimization (in suitable norms). Our generalization
+1In Section 2, we discuss the related works in more details.bound depends on a data-dependent complexity mea-
+sure (c.f. Equation (10)), and notably, is completely in-
+dependent of the number of hidden units in the network.
+Again, we test this complexity measure on MNIST and
+CIFAR, and ﬁnd that the complexity measures for true
+and random labels are signiﬁcantly different, which
+thus answers Question 2.
+Notice that because zero training error is achieved by
+the solution found by GD, a generalization bound is an
+upper bound on the error on the data distribution (test
+error). We also remark that our generalization bound is
+valid for any data labels – it does not require the exis-
+tence of a small ground-truth network as in (Allen-Zhu
+et al., 2018a). Moreover, our bound can be efﬁciently
+computed for any data labels.
+In Section 6, we further study what kind of functions
+can be provably learned by two-layer ReLU networks
+trained by GD. Combining the optimization and gener-
+alization results, we uncover a broad class of learnable
+functions, including linear functions, two-layer neural
+networks with polynomial activation (z) =z2lor co-
+sine activation, etc. Our requirement on the smoothness
+of learnable functions is weaker than that in (Allen-Zhu
+et al., 2018a).
+Finally, we note that the intriguing generalization phenom-
+ena in deep learning were observed in kernel methods as
+well (Belkin et al., 2018). The analysis in the current pa-
+per is also related to a kernel from the ReLU activation
+(c.f. Equation (3)).
+2. Related Work
+In this section we survey previous works on optimization
+and generalization aspects of neural networks.
+Optimization. Many papers tried to characterize geomet-
+ric landscapes of objective functions (Safran & Shamir,
+2017; Zhou & Liang, 2017; Freeman & Bruna, 2016; Hardt
+& Ma, 2016; Nguyen & Hein, 2017; Kawaguchi, 2016;
+Venturi et al., 2018; Soudry & Carmon, 2016; Du & Lee,
+2018; Soltanolkotabi et al., 2018; Haeffele & Vidal, 2015).
+The hope is to leverage recent advance in ﬁrst-order algo-
+rithms (Ge et al., 2015; Lee et al., 2016; Jin et al., 2017)
+which showed that if the landscape satisﬁes (1) all local
+minima are global and (2) all saddle points are strict (i.e.,
+there exists a negative curvature), then ﬁrst-order methods
+can escape all saddle points and ﬁnd a global minimum.
+Unfortunately, these desired properties do not hold even for
+simple non-linear shallow neural networks (Yun et al., 2018)
+or 3-layer linear neural networks (Kawaguchi, 2016).
+Another approach is to directly analyze trajectory of the op-
+timization method and to show convergence to global mini-Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+mum. A series of papers made strong assumptions on input
+distribution as well as realizability of labels, and showed
+global convergence of (stochastic) gradient descent for some
+shallow neural networks (Tian, 2017; Soltanolkotabi, 2017;
+Brutzkus & Globerson, 2017; Du et al., 2017a;b; Li &
+Yuan, 2017). Some local convergence results have also been
+proved (Zhong et al., 2017; Zhang et al., 2018). However,
+these assumptions are not satisﬁed in practice.
+For two-layer neural networks, a line of papers used mean
+ﬁeld analysis to establish that for inﬁnitely wide neural
+networks, the empirical distribution of the neural network
+parameters can be described as a Wasserstein gradient
+ﬂow (Mei et al., 2018; Chizat & Bach, 2018a; Sirignano &
+Spiliopoulos, 2018; Rotskoff & Vanden-Eijnden, 2018; Wei
+et al., 2018). However, it is unclear whether this framework
+can explain the behavior of ﬁrst-order methods on ﬁnite-size
+neural networks.
+Recent breakthroughs were made in understanding opti-
+mization of overparameterized neural networks through
+the trajectory-based approach. They proved global poly-
+nomial time convergence of (stochastic) gradient descent on
+non-linear neural networks for minimizing empirical risk.
+Their proof techniques can be roughly classiﬁed into two
+categories. Li & Liang (2018); Allen-Zhu et al. (2018b);
+Zou et al. (2018) analyzed the trajectory of parameters and
+showed that on the trajectory, the objective function satisﬁes
+certain gradient dominance property. On the other hand,
+(Du et al., 2018a;c) analyzed the trajectory of network pre-
+dictions on training samples and showed that it enjoys a
+strongly-convex-like property.
+Generalization. It is well known that the VC-dimension
+of neural networks is at least linear in the number of pa-
+rameters (Bartlett et al., 2017b), and therefore classical VC
+theory cannot explain the generalization ability of mod-
+ern neural networks with more parameters than training
+samples. Researchers have proposed norm-based general-
+ization bounds (Bartlett & Mendelson, 2002; Bartlett et al.,
+2017a; Neyshabur et al., 2015; 2017; 2019; Konstantinos
+et al., 2017; Golowich et al., 2017; Li et al., 2018a) and
+compression-based bounds (Arora et al., 2018). Dziugaite
+& Roy (2017); Zhou et al. (2019) used the PAC-Bayes ap-
+proach to compute non-vacuous generalization bounds for
+MNIST and ImageNet, respectively. All these bounds are
+posterior in nature – they depend on certain properties of
+thetrained neural networks. Therefore, one has to ﬁnish
+training a neural network to know whether it can general-
+ize. Comparing with these results, our generalization bound
+only depends on training data and can be calculated without
+actually training the neural network.
+Another line of work assumed the existence of a true model,
+and showed that the (regularized) empirical risk minimizerhas good generalization with sample complexity that de-
+pends on the true model (Du et al., 2018b; Ma et al., 2018;
+Imaizumi & Fukumizu, 2018). These papers ignored the
+difﬁculty of optimization, while we are able to prove gener-
+alization of the solution found by gradient descent. Further-
+more, our generic generalization bound does not assume the
+existence of any true model.
+Our paper is closely related to (Allen-Zhu et al., 2018a)
+which showed that two-layer overparametrized neural net-
+works trained by randomly initialized stochastic gradient
+descent can learn a class of inﬁnite-order smooth functions.
+In contrast, our generalization bound depends on a data-
+dependent complexity measure that can be computed for
+any dataset, without assuming any ground-truth model. Fur-
+thermore, as a consequence of our generic bound, we also
+show that two-layer neural networks can learn a class of
+inﬁnite-order smooth functions, with a less strict require-
+ment for smoothness. Allen-Zhu et al. (2018a) also studied
+the generalization performance of three-layer neural nets.
+Lastly, our work is related to kernel methods, especially
+recent discoveries of the connection between deep learn-
+ing and kernels (Jacot et al., 2018; Chizat & Bach, 2018b;
+Daniely et al., 2016; Daniely, 2017). Our analysis utilized
+several properties of a related kernel from the ReLU activa-
+tion (c.f. Equation (3)).
+3. Preliminaries and Overview of Results
+Notation. We use bold-faced letters for vectors and matri-
+ces. For a matrix A, letAijbe its (i;j)-th entry. We use
+kk2to denote the Euclidean norm of a vector or the spectral
+norm of a matrix, and use kkFto denote the Frobenius norm
+of a matrix. Denote by min(A)the minimum eigenvalue of
+a symmetric matrix A. Let vec(A)be the vectorization of a
+matrix Ain column-ﬁrst order. Let Ibe the identity matrix
+and[n] =f1;2;:::;ng. Denote byN(;)the Gaussian
+distribution with mean and covariance . Denote by()
+the ReLU function (z) = maxfz;0g. Denote by IfEg
+the indicator function for an event E.
+3.1. Setting: Two-Layer Neural Network Trained by
+Randomly Initialized Gradient Descent
+We consider a two-layer ReLU activated neural network
+withmneurons in the hidden layer:
+fW;a(x) =1pmmX
+r=1ar 
+w>
+rx
+;
+where x2Rdis the input, w1;:::;wm2Rdare weight
+vectors in the ﬁrst layer, a1;:::;am2Rare weights
+in the second layer. For convenience we denote W=
+(w1;:::;wm)2Rdmanda= (a1;:::;am)>2Rm.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+We are given ninput-label samples S=f(xi;yi)gn
+i=1
+drawn i.i.d. from an underlying data distribution Dover
+RdR. We denote X= (x1;:::;xn)2Rdnand
+y= (y1;:::;yn)>2Rn. For simplicity, we assume that
+for(x;y)sampled fromD, we havekxk2= 1andjyj1.
+We train the neural network by randomly initialized gradient
+descent (GD) on the quadratic loss over data S. In particular,
+we ﬁrst initialize the parameters randomly:
+wr(0)N(0;2I);arunif (f 1;1g);8r2[m];
+(1)
+where 0<1controls the magnitude of initialization,
+and all randomnesses are independent. We then ﬁx the
+second layer aand optimize the ﬁrst layer Wthrough GD
+on the following objective function:
+(W) =1
+2nX
+i=1(yi fW;a(xi))2: (2)
+The GD update rule can be written as:2
+wr(k+ 1) wr(k) = @(W(k))
+@wr
+= arpmnX
+i=1(fW(k);a(xi) yi)I
+wr(k)>xi0	
+xi;
+where>0is the learning rate.
+3.2. The Gram Matrix from ReLU Kernel
+Givenfxign
+i=1, we deﬁne the following Gram matrix H12
+Rnnas follows:
+H1
+ij=EwN(0;I)
+x>
+ixjI
+w>xi0;w>xj0	
+=x>
+ixj 
+ arccos( x>
+ixj)
+2;8i;j2[n]:
+(3)
+This matrix can be viewed as a Gram matrix from a kernel
+associated with the ReLU function, and has been studied
+in (Xie et al., 2017; Tsuchida et al., 2017; Du et al., 2018c).
+In our setting of training a two-layer ReLU network, Du
+et al. (2018c) showed that if H1is positive deﬁnite, GD
+converges to 0training loss if mis sufﬁciently large:
+Theorem 3.1 ((Du et al., 2018c)3).Assume0=
+min(H1)>0. For2(0;1), ifm= 
+
+n6
+4
+023
+and
+=O 0
+n2
+, then with probability at least 1 over the
+random initialization (1), we have:
+(W(0)) =O(n=);
+2Since ReLU is not differentiable at 0, we just deﬁne “gradient”
+using this formula, and this is indeed what is used in practice.
+3Du et al. (2018c) only considered the case = 1, but it is
+straightforward to generalize their result to general at the price
+of an extra 1=2factor inm.(W(k+ 1))
+1 0
+2
+(W(k));8k0.
+Our results on optimization and generalization also crucially
+depend on this matrix H1.
+3.3. Overview of Our Results
+Now we give an informal description of our main results.
+It assumes that the initialization magnitude is sufﬁciently
+small and the network width mis sufﬁciently large (to be
+quantiﬁed later).
+The following theorem gives a precise characterization of
+how the objective decreases to 0. It says that this process
+is essentially determined by a power method for matrix
+I H1applied on the label vector y.
+Theorem 3.2 (Informal version of Theorem 4.1) .With high
+probability we have:
+(W(k))1
+2(I H1)ky2
+2;8k0:
+As a consequence, we are able to distinguish the conver-
+gence rates for different labels y, which can be determined
+by the projections of yon the eigenvectors of H1. This
+allows us to obtain an answer to Question 1. See Section 4
+for details.
+Our main result for generalization is the following:
+Theorem 3.3 (Informal version of Theorem 5.1) .For any
+1-Lipschitz loss function, the generalization error of the
+two-layer ReLU network found by GD is at most
+r
+2y>(H1) 1y
+n: (4)
+Notice that our generalization bound (4)can be computed
+from dataf(xi;yi)gn
+i=1, and is completely independent of
+the network width m. We observe that this bound can clearly
+distinguish true labels and random labels, thus providing an
+answer to Question 2. See Section 5 for details.
+Finally, using Theorem 3.3, we prove that we can use our
+two-layer ReLU network trained by GD to learn a broad
+class of functions, including linear functions, two-layer neu-
+ral networks with polynomial activation (z) =z2lor co-
+sine activation, etc. See Section 6 for details.
+3.4. Additional Notation
+We introduce some additional notation that will be used.
+Deﬁneui=fW;a(xi), i.e., the network’s prediction on the
+i-th input. We also use u= (u1;:::;un)>2Rnto denote
+allnpredictions. Then we have (W) =1
+2ky uk2
+2andFine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+the gradient of can be written as:
+@(W)
+@wr=1pmarnX
+i=1(ui yi)Ir;ixi;8r2[m];(5)
+where Ir;i=I
+w>
+rxi0	
+.
+We deﬁne two matrices ZandHwhich will play a key role
+in our analysis of the GD trajectory:
+Z=1pm0
+B@I1;1a1x1 I1;na1xn
+.........
+Im;1amx1Im;namxn1
+CA2Rmdn;
+andH=Z>Z. Note that
+Hij=x>
+ixj
+mmX
+r=1Ir;iIr;j;8i;j2[n]:
+With this notation we have a more compact form of the
+gradient (5):
+vec(r(W)) =Z(u y):
+Then the GD update rule is:
+vec(W(k+ 1)) = vec(W(k)) Z(k)(u(k) y);(6)
+fork= 0;1;:::. Throughout the paper, we use kas the itera-
+tion number, and also use kto index all variables that depend
+onW(k). For example, we have ui(k) =fW(k);a(xi),
+Ir;i(k) =I
+wr(k)>xi0	
+, etc.
+4. Analysis of Convergence Rate
+Although Theorem 3.1 already predicts linear convergence
+of GD to 0loss, it only provides an upper bound on the
+loss and does not distinguish different types of labels. In
+particular, it cannot answer Question 1. In this section we
+give a ﬁne-grained analysis of the convergence rate.
+Recall the loss function (W) =1
+2ky uk2
+2. Thus, it
+is equivalent to study how fast the sequence fu(k)g1
+k=0
+converges to y. Key to our analysis is the observation that
+when the size of initialization is small and the network
+widthmis large, the sequence fu(k)g1
+k=0stays close to
+another sequence f~u(k)g1
+k=0which has a linear update
+rule:
+~u(0) = 0;
+~u(k+ 1) = ~u(k) H1(~u(k) y);(7)
+where H1is the Gram matrix deﬁned in (3).
+Write the eigen-decomposition H1=Pn
+i=1iviv>
+i,
+where v1;:::;vn2Rnare orthonormal eigenvectors of
+H1and1;:::;nare corresponding eigenvalues. Our
+main theorem in this section is the following:Theorem 4.1. Suppose0=min(H1)>0,=
+O
+pn
+,m= 
+
+n7
+4
+0242
+and=O 0
+n2
+. Then with
+probability at least 1 over the random initialization, for
+allk= 0;1;2;:::we have:
+ky u(k)k2=vuutnX
+i=1(1 i)2k 
+v>
+iy2: (8)
+The proof of Theorem 4.1 is given in Appendix C.
+In fact, the dominating termqPn
+i=1(1 i)2k 
+v>
+iy2
+is exactly equal to ky ~u(k)k2, which we prove in Sec-
+tion 4.1.
+In light of (8), it sufﬁces to understand how fastPn
+i=1(1 
+i)2k 
+v>
+iy2converges to 0askgrows. Deﬁne
+i(k) = (1 i)2k(v>
+iy)2, and notice that each se-
+quencefi(k)g1
+k=0is a geometric sequence which starts
+ati(0) = ( v>
+iy)2and decreases at ratio (1 i)2. In
+other words, we can think of decomposing the label vec-
+toryinto its projections onto all eigenvectors viofH1:
+kyk2
+2=Pn
+i=1(v>
+iy)2=Pn
+i=1i(0), and thei-th portion
+shrinks exponentially at ratio (1 i)2. The larger iis,
+the fasterfi(k)g1
+k=0decreases to 0, so in order to have
+faster convergence we would like the projections of yonto
+top eigenvectors to be larger. Therefore we obtain the fol-
+lowing intuitive rule to compare the convergence rates on
+two sets of labels in a qualitative manner (for ﬁxed kyk2):
+For a set of labels y, if they align with the top eigen-
+vectors, i.e., (v>
+iy)2is large for large i, then gradient
+descent converges quickly.
+For a set of labels y, if the projections on eigenvectors
+f 
+v>
+iy2gn
+i=1are uniform, or labels align with eigen-
+vectors with respect to small eigenvalues, then gradient
+descent converges with a slow rate.
+Answer to Question 1. We now use this reasoning to
+answer Question 1. In Figure 1(b), we compute the eigen-
+values of H1(blue curve) for the MNIST dataset. The plot
+shows the eigenvalues of H1admit a fast decay. We further
+compute the projections fv>
+iygn
+i=1of true labels (red) and
+random labels (cyan). We observe that there is a signiﬁcant
+difference between the projections of true labels and random
+labels: true labels align well with top eigenvectors whereas
+projections of random labels are close to being uniform.
+Furthermore, according to our theory, if a set of labels align
+with the eigenvector associated with the least eigenvalue,
+the convergence rate of gradient descent will be extremely
+slow. We construct such labels and in Figure 1(a) we indeed
+observe slow convergence. We repeat the same experiments
+on CIFAR and have similar observations (Figures 1(c) andFine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+0 2e5 4e5 6e5 8e5 1e60.00.10.20.30.40.5lossworst case
+random label
+mnist label
+(a) Convergence Rate, MNIST.
+0 2000 4000 6000 8000 100000246810norm of projectionworst case
+random label
+mnist label
+0.00.20.40.60.81.0
+eigenvalue (b) Eigenval & Projections, MNIST.
+0 1e5 2e5 3e50.10.20.30.40.5lossworst case
+random label
+cifar label (c) Convergence Rate, CIFAR.
+0 2000 4000 6000 8000 100000246810norm of projectionworst case
+random label
+cifar label
+0.00.20.40.60.81.0
+eigenvalue (d) Eigenval & Projections, CIFAR.
+Figure 1: In Figures 1(a) and 1(c), we compare convergence rates of gradient descent between using true labels, random
+labels and the worst case labels (normalized eigenvector of H1corresponding to min(H1). In Figures 1(b) and 1(d), we
+plot the eigenvalues of H1as well as projections of true, random, and worst case labels on different eigenvectors of H1.
+The experiments use gradient descent on data from two classes of MNIST or CIFAR. The plots clearly demonstrate that true
+labels have much better alignment with top eigenvectors, thus enjoying faster convergence.
+1(d)). These empirical ﬁndings support our theory on the
+convergence rate of gradient descent. See Appendix A for
+implementation details.
+4.1. Proof Sketch of Theorem 4.1
+Now we proveky ~u(k)k2
+2=Pn
+i=1(1 i)2k 
+v>
+iy2.
+The entire proof of Theorem 4.1 is given in Appendix C,
+which relies on the fact that the dynamics of fu(k)g1
+k=0is
+essentially a perturbed version of (7).
+From (7)we have ~u(k+ 1) y= (I H1) (~u(k) y),
+which implies ~u(k) y= (I H1)k(~u(0) y) =
+ (I H1)ky. Note that (I H1)khas eigen-
+decomposition (I H1)k=Pn
+i=1(1 i)kviv>
+iand
+thatycan be decomposed as y=Pn
+i=1(v>
+iy)vi. Then
+we have ~u(k) y= Pn
+i=1(1 i)k(v>
+iy)vi, which
+impliesk~u(k) yk2
+2=Pn
+i=1(1 i)2k(v>
+iy)2.
+5. Analysis of Generalization
+In this section, we study the generalization ability of the
+two-layer neural network fW(k);atrained by GD.
+First, in order for optimization to succeed, i.e., zero training
+loss is achieved, we need a non-degeneracy assumption on
+the data distribution, deﬁned below:
+Deﬁnition 5.1. A distributionDoverRdRis(0;;n)-
+non-degenerate, if for ni.i.d. samplesf(xi;yi)gn
+i=1fromD,
+with probability at least 1 we havemin(H1)0>
+0.
+Remark 5.1. Note that as long as no two xiandxjare
+parallel to each other, we have min(H1)>0. (See (Du
+et al., 2018c)). For most real-world distributions, any two
+training inputs are not parallel.
+Our main theorem is the following:
+Theorem 5.1. Fix a failure probability 2(0;1). Sup-
+pose our data S=f(xi;yi)gn
+i=1are i.i.d. samples froma(0;=3;n)-non-degenerate distribution D, and=
+O 0
+n
+;m 2poly 
+n; 1
+0; 1
+. Consider any loss
+function`:RR![0;1]that is 1-Lipschitz in the ﬁrst
+argument such that `(y;y) = 0 . Then with probability at
+least 1 over the random initialization and the training
+samples, the two-layer neural network fW(k);atrained by
+GD fork
+
+1
+0logn
+
+iterations has population loss
+LD(fW(k);a) =E(x;y)D
+`(fW(k);a(x);y)
+bounded as:
+LD(fW(k);a)s
+2y>(H1) 1y
+n+O0
+@s
+logn
+0
+n1
+A:
+(9)
+The proof of Theorem 5.1 is given in Appendix D and we
+sketch the proof in Section 5.1.
+Note that in Theorem 5.1 there are three sources of possi-
+ble failures: (i) failure of satisfying min(H1)0, (ii)
+failure of random initialization, and (iii) failure in the data
+sampling procedure (c.f. Theorem B.1). We ensure that all
+these failure probabilities are at most =3so that the ﬁnal
+failure probability is at most .
+As a corollary of Theorem 5.1, for binary classiﬁcation
+problems (i.e., labels are 1), we can show that (9)also
+bounds the population classiﬁcation error of the learned
+classiﬁer. See Appendix D for the proof.
+Corollary 5.2. Under the same assumptions as in The-
+orem 5.1 and additionally assuming that y2 f 1g
+for(x;y) D , with probability at least 1 ,
+the population classiﬁcation error L01
+D(fW(k);a) =
+Pr(x;y)D
+sign 
+fW(k);a(x)
+6=y
+is bounded as:
+L01
+D(fW(k);a)s
+2y>(H1) 1y
+n+O0
+@s
+logn
+0
+n1
+A:Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+0.0 0.2 0.4 0.6 0.8 1.0
+portion of noise on mnist0.00.20.40.60.81.0loss
+l1-loss
+classification error
+complexity measure0246
+complexity measure
+(a) MNIST Data.
+0.0 0.2 0.4 0.6 0.8 1.0
+portion of noise on cifar0.00.20.40.60.81.0loss
+l1-loss
+classification error
+complexity measure0246
+complexity measure (b) CIFAR Data.
+Figure 2: Generalization error ( `1loss and classiﬁcation
+error) v.s. our complexity measure when different portions
+of random labels are used. We apply GD on data from two
+classes of MNIST or CIFAR until convergence. Our com-
+plexity measure almost matches the trend of generalization
+error as the portion of random labels increases. Note that `1
+loss is always an upper bound on the classiﬁcation error.
+Now we discuss our generalization bound. The dominating
+term in (9) is:s
+2y>(H1) 1y
+n: (10)
+This can be viewed as a complexity measure of data that
+one can use to predict the test accuracy of the learned neural
+network. Our result has the following advantages: (i) our
+complexity measure (10) can be directly computed given
+dataf(xi;yi)gn
+i=1, without the need of training a neural
+network or assuming a ground-truth model; (ii) our bound
+is completely independent of the network width m.
+Evaluating our completixy measure (10).To illustrate
+that the complexity measure in (10) effectively determines
+test error, in Figure 2 we compare this complexity measure
+versus the test error with true labels and random labels (and
+mixture of true and random labels). Random and true labels
+have signiﬁcantly different complexity measures, and as the
+portion of random labels increases, our complexity measure
+also increases. See Appendix A for implementation details.
+5.1. Proof Sketch of Theorem 5.1
+The main ingredients in the proof of Theorem 5.1 are Lem-
+mas 5.3 and 5.4. We defer the proofs of these lemmas as
+well as the full proof of Theorem 5.1 to Appendix D.
+Our proof is based on a careful characterization of the tra-
+jectory offW(k)g1
+k=0during GD. In particular, we bound
+itsdistance to initialization as follows:
+Lemma 5.3. Supposem 2poly 
+n; 1
+0; 1
+and
+=O 0
+n2
+. Then with probability at least 1 over the
+random initialization, we have for all k0:
+ kwr(k) wr(0)k2=O
+npm0p
+
+(8r2[m]), and kW(k) W(0)kFq
+y>(H1) 1y+O
+n
+0
++
+poly(n; 1
+0; 1)
+m1=41=2.
+The bound on the movement of each wrwas proved in
+(Du et al., 2018c). Our main contribution is the bound on
+kW(k) W(0)kFwhich corresponds to the total move-
+ment of all neurons . The main idea is to couple the
+trajectory offW(k)g1
+k=0with another simpler trajectoryn
+fW(k)o1
+k=0deﬁned as:
+fW(0) = 0;
+vec
+fW(k+ 1)
+=vec
+fW(k)
+(11)
+ Z(0)
+Z(0)>vec
+fW(k)
+ y
+:
+We provefW(1) fW(0)
+F=p
+y>H(0) 1yin Sec-
+tion 5.2.4The actually proof of Lemma 5.3 is essentially a
+perturbed version of this.
+Lemma 5.3 implies that the learned function fW(k);afrom
+GD is in a restricted class of neural nets whose weights are
+close to initialization W(0). The following lemma bounds
+the Rademacher complexity of this function class:
+Lemma 5.4. GivenR> 0, with probability at least 1 
+over the random initialization ( W(0);a), simultaneously
+for everyB > 0, the following function class
+FW(0);a
+R;B =ffW;a:kwr wr(0)k2R(8r2[m]);
+kW W(0)kFBg
+has empirical Rademacher complexity bounded as:
+RS
+FW(0);a
+R;B
+=1
+nE"2f1gn2
+4sup
+f2FW(0);a
+R;BnX
+i=1"if(xi)3
+5
+Bp
+2n 
+1 +2 log2
+
+m1=4!
++2R2pm
++Rr
+2 log2
+:
+Finally, combining Lemmas 5.3 and 5.4, we are able to
+conclude that the neural network found by GD belongs
+to a function class with Rademacher complexity at mostp
+y>(H1) 1y=(2n)(plus negligible errors). This gives
+us the generalization bound in Theorem 5.1 using the theory
+of Rademacher complexity (Appendix B).
+5.2. Analysis of the Auxiliary Sequencen
+fW(k)o1
+k=0
+Now we give a proof offW(1) fW(0)
+F=
+p
+y>H(0) 1yas an illustration for the proof of Lemma 5.3.
+4Note that we have H(0)H1from standard concentration.
+See Lemma C.3.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+Deﬁne v(k) =Z(0)>vec
+fW(k)
+2Rn. Then from (11)
+we have v(0) = 0andv(k+1) = v(k) H(0)(v(k) y),
+yielding v(k) y= (I H(0))ky. Plugging this
+back to (11) we get vec
+fW(k+ 1)
+ vec
+fW(k)
+=
+Z(0)(I H(0))ky. Then taking a sum over k= 0;1;:::
+we have
+vec
+fW(1)
+ vec
+fW(0)
+=1X
+k=0Z(0)(I H(0))ky
+=Z(0)H(0) 1y:
+The desired result thus follows:fW(1) fW(0)2
+F=y>H(0) 1Z(0)>Z(0)H(0) 1y
+=y>H(0) 1y:
+6. Provable Learning using Two-Layer ReLU
+Neural Networks
+Theorem 5.1 determines thatq
+2y>(H1) 1y
+ncontrols the
+generalization error. In this section, we study what functions
+can be provably learned in this setting. We assume the data
+satisfyyi=g(xi)for some underlying function g:Rd!
+R. A simple observation is that if we can prove
+y>(H1) 1yMg
+for some quantity Mgthat is independent of the number
+of samplesn, then Theorem 5.1 implies we can provably
+learn the function gon the underlying data distribution using
+O
+Mg+log(1=)
+2
+samples. The following theorem shows
+that this is indeed the case for a broad class of functions.
+Theorem 6.1. Suppose we have
+yi=g(xi) = 
+>xip;8i2[n];
+wherep= 1orp= 2l(l2N+),2Rdand2R. Then
+we haveq
+y>(H1) 1y3pjjkkp
+2:
+The proof of Theorem 6.1 is given in Appendix E.
+Notice that for two label vectors y(1)andy(2), we have
+q
+(y(1)+y(2))>(H1) 1 
+y(1)+y(2)
+q
+(y(1))>(H1) 1y(1)+q
+(y(2))>(H1) 1y(2):
+This implies that the sum of learnable functions is also
+learnable . Therefore, the following is a direct corollary of
+Theorem 6.1:
+Corollary 6.2. Suppose we have
+yi=g(xi) =X
+jj 
+>
+jxipj;8i2[n]; (12)where for each j,pj2f1;2;4;6;8;:::g,j2Rdand
+j2R. Then we have
+q
+y>(H1) 1y3X
+jpjjjjkjkpj
+2: (13)
+Corollary 6.2 shows that overparameterized two-layer ReLU
+network can learn any function of the form (12) for which
+(13) is bounded. One can view (12) as two-layer neural
+networks with polynomial activation (z) =zp, where
+fjgare weights in the ﬁrst layer and fjgare the second
+layer. Below we give some speciﬁc examples.
+Example 6.1 (Linear functions) .Forg(x) =>x, we
+haveMg=O(kk2
+2).
+Example 6.2 (Quadratic functions) .Forg(x) =x>Ax
+where A2Rddis symmetric, we can write down the eigen-
+decomposition A=Pd
+j=1jj>
+j. Then we have g(x) =
+Pd
+j=1j(>
+jx)2, soMg=OPd
+i=1jjj
+=O(kAk).5
+This is also the class of two-layer neural networks with
+quadratic activation.
+Example 6.3 (Cosine activation) .Supposeg(x) =
+cos(>x) 1for some2Rd. Using Taylor series
+we knowg(x) =P1
+j=1( 1)j(>x)2j
+(2j)!. Thus we have
+Mg=OP1
+j=1j
+(2j)!kk2j
+2
+=O(kk2sinh(kk2)).
+Finally, we note that our “smoothness” requirement (13) is
+weaker than that in (Allen-Zhu et al., 2018a), as illustrated
+in the following example.
+Example 6.4 (A not-so-smooth function) .Supposeg(x) =
+(>x), where(z) =zarctan(z
+2)andkk2
+1. We have g(x) =P1
+j=1( 1)j 121 2j
+2j 1 
+>x2jsince
+>x1. ThusMg=OP1
+j=1j21 2j
+2j 1kk2j
+2
+
+OP1
+j=121 2jkk2j
+=O
+kk2
+2
+, so our result im-
+plies that this function is learnable by 2-layer ReLU nets.
+However, Allen-Zhu et al. (2018a)’s generalization theorem
+would requireP1
+j=1
+Cp
+log(1=)2j21 2j
+2j 1to be bounded,
+whereCis a large constant and is the target generalization
+error. This is clearly not satisﬁed.
+7. Conclusion
+This paper shows how to give a ﬁne-grained analysis of
+the optimization trajectory and the generalization ability
+of overparameterized two-layer neural networks trained by
+gradient descent. We believe that our approach can also be
+useful in analyzing overparameterized deep neural networks
+and other machine learning models.
+5kAkis the trace-norm of A.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+Acknowledgments
+SA, WH and ZL acknowledge support from NSF, ONR,
+Simons Foundation, Schmidt Foundation, Mozilla Research,
+Amazon Research, DARPA and SRC. SSD acknowledges
+support from AFRL grant FA8750-17-2-0212 and DARPA
+D17AP00001. RW acknowledges support from ONR grant
+N00014-18-1-2562. Part of the work was done while SSD
+and RW were visiting the Simons Institute.
+References
+Allen-Zhu, Z., Li, Y ., and Liang, Y . Learning and generaliza-
+tion in overparameterized neural networks, going beyond
+two layers. arXiv preprint arXiv:1811.04918 , 2018a.
+Allen-Zhu, Z., Li, Y ., and Song, Z. A convergence theory for
+deep learning via over-parameterization. arXiv preprint
+arXiv:1811.03962 , 2018b.
+Arora, S., Ge, R., Neyshabur, B., and Zhang, Y . Stronger
+generalization bounds for deep nets via a compression
+approach. arXiv preprint arXiv:1802.05296 , 2018.
+Bartlett, P. L. and Mendelson, S. Rademacher and gaussian
+complexities: Risk bounds and structural results. Journal
+of Machine Learning Research , 3(Nov):463–482, 2002.
+Bartlett, P. L., Foster, D. J., and Telgarsky, M. J. Spectrally-
+normalized margin bounds for neural networks. In Ad-
+vances in Neural Information Processing Systems , pp.
+6241–6250, 2017a.
+Bartlett, P. L., Harvey, N., Liaw, C., and Mehrabian, A.
+Nearly-tight VC-dimension and pseudodimension bounds
+for piecewise linear neural networks. arXiv preprint
+arXiv:1703.02930 , 2017b.
+Belkin, M., Ma, S., and Mandal, S. To understand deep
+learning we need to understand kernel learning. arXiv
+preprint arXiv:1802.01396 , 2018.
+Brutzkus, A. and Globerson, A. Globally optimal gradi-
+ent descent for a ConvNet with gaussian inputs. arXiv
+preprint arXiv:1702.07966 , 2017.
+Chen, Y ., Jin, C., and Yu, B. Stability and convergence trade-
+off of iterative optimization algorithms. arXiv preprint
+arXiv:1804.01619 , 2018.
+Chizat, L. and Bach, F. On the global convergence of gradi-
+ent descent for over-parameterized models using optimal
+transport. arXiv preprint arXiv:1805.09545 , 2018a.
+Chizat, L. and Bach, F. A note on lazy training in su-
+pervised differentiable programming. arXiv preprint
+arXiv:1812.07956 , 2018b.Daniely, A. SGD learns the conjugate kernel class of the
+network. arXiv preprint arXiv:1702.08503 , 2017.
+Daniely, A., Frostig, R., and Singer, Y . Toward deeper under-
+standing of neural networks: The power of initialization
+and a dual view on expressivity. In Advances In Neural
+Information Processing Systems , pp. 2253–2261, 2016.
+Du, S. S. and Lee, J. D. On the power of over-
+parametrization in neural networks with quadratic ac-
+tivation. arXiv preprint arXiv:1803.01206 , 2018.
+Du, S. S., Lee, J. D., and Tian, Y . When is a convolutional
+ﬁlter easy to learn? arXiv preprint arXiv:1709.06129 ,
+2017a.
+Du, S. S., Lee, J. D., Tian, Y ., Poczos, B., and Singh, A.
+Gradient descent learns one-hidden-layer CNN: Don’t
+be afraid of spurious local minima. arXiv preprint
+arXiv:1712.00779 , 2017b.
+Du, S. S., Lee, J. D., Li, H., Wang, L., and Zhai, X. Gradient
+descent ﬁnds global minima of deep neural networks.
+arXiv preprint arXiv:1811.03804 , 2018a.
+Du, S. S., Wang, Y ., Zhai, X., Balakrishnan, S., Salakhutdi-
+nov, R. R., and Singh, A. How many samples are needed
+to estimate a convolutional neural network? In Advances
+in Neural Information Processing Systems , pp. 371–381,
+2018b.
+Du, S. S., Zhai, X., Poczos, B., and Singh, A. Gradient
+descent provably optimizes over-parameterized neural
+networks. arXiv preprint arXiv:1810.02054 , 2018c.
+Dziugaite, G. K. and Roy, D. M. Computing nonvacuous
+generalization bounds for deep (stochastic) neural net-
+works with many more parameters than training data.
+arXiv preprint arXiv:1703.11008 , 2017.
+Freeman, C. D. and Bruna, J. Topology and geometry
+of half-rectiﬁed network optimization. arXiv preprint
+arXiv:1611.01540 , 2016.
+Ge, R., Huang, F., Jin, C., and Yuan, Y . Escaping from
+saddle points online stochastic gradient for tensor de-
+composition. In Proceedings of The 28th Conference on
+Learning Theory , pp. 797–842, 2015.
+Golowich, N., Rakhlin, A., and Shamir, O. Size-independent
+sample complexity of neural networks. arXiv preprint
+arXiv:1712.06541 , 2017.
+Gunasekar, S., Lee, J., Soudry, D., and Srebro, N. Charac-
+terizing implicit bias in terms of optimization geometry.
+arXiv preprint arXiv:1802.08246 , 2018a.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+Gunasekar, S., Lee, J., Soudry, D., and Srebro, N. Implicit
+bias of gradient descent on linear convolutional networks.
+arXiv preprint arXiv:1806.00468 , 2018b.
+Haeffele, B. D. and Vidal, R. Global optimality in tensor
+factorization, deep learning, and beyond. arXiv preprint
+arXiv:1506.07540 , 2015.
+Hardt, M. and Ma, T. Identity matters in deep learning.
+arXiv preprint arXiv:1611.04231 , 2016.
+Hardt, M., Recht, B., and Singer, Y . Train faster, generalize
+better: Stability of stochastic gradient descent. arXiv
+preprint arXiv:1509.01240 , 2015.
+Imaizumi, M. and Fukumizu, K. Deep neural networks
+learn non-smooth functions effectively. arXiv preprint
+arXiv:1802.04474 , 2018.
+Jacot, A., Gabriel, F., and Hongler, C. Neural tangent kernel:
+Convergence and generalization in neural networks. arXiv
+preprint arXiv:1806.07572 , 2018.
+Ji, Z. and Telgarsky, M. Gradient descent aligns the layers of
+deep linear networks. arXiv preprint arXiv:1810.02032 ,
+2018.
+Jin, C., Ge, R., Netrapalli, P., Kakade, S. M., and Jordan,
+M. I. How to escape saddle points efﬁciently. In Proceed-
+ings of the 34th International Conference on Machine
+Learning , pp. 1724–1732, 2017.
+Kawaguchi, K. Deep learning without poor local minima.
+InAdvances In Neural Information Processing Systems ,
+pp. 586–594, 2016.
+Konstantinos, P., Davies, M., and Vandergheynst,
+P. PAC-Bayesian margin bounds for convolutional
+neural networks-technical report. arXiv preprint
+arXiv:1801.00171 , 2017.
+Krizhevsky, A. and Hinton, G. Learning multiple layers
+of features from tiny images. Technical report, Citeseer,
+2009.
+LeCun, Y ., Bottou, L., Bengio, Y ., and Haffner, P. Gradient-
+based learning applied to document recognition. Proceed-
+ings of the IEEE , 86(11):2278–2324, 1998.
+Lee, J. D., Simchowitz, M., Jordan, M. I., and Recht, B.
+Gradient descent only converges to minimizers. In Con-
+ference on Learning Theory , pp. 1246–1257, 2016.
+Li, X., Lu, J., Wang, Z., Haupt, J., and Zhao, T. On tighter
+generalization bound for deep neural networks: CNNs,
+ResNets, and beyond. arXiv preprint arXiv:1806.05159 ,
+2018a.Li, Y . and Liang, Y . Learning overparameterized neural
+networks via stochastic gradient descent on structured
+data. arXiv preprint arXiv:1808.01204 , 2018.
+Li, Y . and Yuan, Y . Convergence analysis of two-layer
+neural networks with ReLU activation. arXiv preprint
+arXiv:1705.09886 , 2017.
+Li, Y ., Ma, T., and Zhang, H. Algorithmic regularization in
+over-parameterized matrix sensing and neural networks
+with quadratic activations. In Conference On Learning
+Theory , pp. 2–47, 2018b.
+Ma, C., Wu, L., et al. A priori estimates of the generaliza-
+tion error for two-layer neural networks. arXiv preprint
+arXiv:1810.06397 , 2018.
+Mei, S., Montanari, A., and Nguyen, P.-M. A mean ﬁeld
+view of the landscape of two-layers neural networks.
+arXiv preprint arXiv:1804.06561 , 2018.
+Mohri, M., Rostamizadeh, A., and Talwalkar, A. Founda-
+tions of machine learning. MIT Press , 2012.
+Mou, W., Wang, L., Zhai, X., and Zheng, K. Generalization
+bounds of SGLD for non-convex learning: Two theoreti-
+cal viewpoints. arXiv preprint arXiv:1707.05947 , 2017.
+Neyshabur, B., Tomioka, R., and Srebro, N. Norm-based
+capacity control in neural networks. In Conference on
+Learning Theory , pp. 1376–1401, 2015.
+Neyshabur, B., Bhojanapalli, S., McAllester, D., and Srebro,
+N. A PAC-Bayesian approach to spectrally-normalized
+margin bounds for neural networks. arXiv preprint
+arXiv:1707.09564 , 2017.
+Neyshabur, B., Li, Z., Bhojanapalli, S., LeCun, Y ., and
+Srebro, N. The role of over-parametrization in gener-
+alization of neural networks. In International Confer-
+ence on Learning Representations , 2019. URL https:
+//openreview.net/forum?id=BygfghAcYX .
+Nguyen, Q. and Hein, M. The loss surface of deep and wide
+neural networks. arXiv preprint arXiv:1704.08045 , 2017.
+Paszke, A., Gross, S., Chintala, S., Chanan, G., Yang, E.,
+DeVito, Z., Lin, Z., Desmaison, A., Antiga, L., and Lerer,
+A. Automatic differentiation in pytorch. 2017.
+Rotskoff, G. M. and Vanden-Eijnden, E. Neural networks as
+interacting particle systems: Asymptotic convexity of the
+loss landscape and universal scaling of the approximation
+error. arXiv preprint arXiv:1805.00915 , 2018.
+Safran, I. and Shamir, O. Spurious local minima are com-
+mon in two-layer relu neural networks. arXiv preprint
+arXiv:1712.08968 , 2017.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+Sirignano, J. and Spiliopoulos, K. Mean ﬁeld analysis of
+neural networks. arXiv preprint arXiv:1805.01053 , 2018.
+Soltanolkotabi, M. Learning ReLUs via gradient descent.
+arXiv preprint arXiv:1705.04591 , 2017.
+Soltanolkotabi, M., Javanmard, A., and Lee, J. D. Theo-
+retical insights into the optimization landscape of over-
+parameterized shallow neural networks. IEEE Transac-
+tions on Information Theory , 2018.
+Soudry, D. and Carmon, Y . No bad local minima: Data in-
+dependent training error guarantees for multilayer neural
+networks. arXiv preprint arXiv:1605.08361 , 2016.
+Soudry, D., Hoffer, E., Nacson, M. S., Gunasekar, S., and
+Srebro, N. The implicit bias of gradient descent on sep-
+arable data. Journal of Machine Learning Research , 19
+(70), 2018.
+Tian, Y . An analytical formula of population gradient
+for two-layered ReLU network and its applications in
+convergence and critical point analysis. arXiv preprint
+arXiv:1703.00560 , 2017.
+Tsuchida, R., Roosta-Khorasani, F., and Gallagher, M. In-
+variance of weight distributions in rectiﬁed mlps. arXiv
+preprint arXiv:1711.09090 , 2017.
+Venturi, L., Bandeira, A., and Bruna, J. Neural networks
+with ﬁnite intrinsic dimension have no spurious valleys.
+arXiv preprint arXiv:1802.06384 , 2018.
+Wei, C., Lee, J. D., Liu, Q., and Ma, T. On the margin
+theory of feedforward neural networks. arXiv preprint
+arXiv:1810.05369 , 2018.
+Xie, B., Liang, Y ., and Song, L. Diverse neural network
+learns true target functions. In Artiﬁcial Intelligence and
+Statistics , pp. 1216–1224, 2017.
+Yun, C., Sra, S., and Jadbabaie, A. A critical view
+of global optimality in deep learning. arXiv preprint
+arXiv:1802.03487 , 2018.
+Zhang, C., Bengio, S., Hardt, M., Recht, B., and Vinyals, O.
+Understanding deep learning requires rethinking general-
+ization. In Proceedings of the International Conference
+on Learning Representations (ICLR), 2017 , 2017.
+Zhang, X., Yu, Y ., Wang, L., and Gu, Q. Learning one-
+hidden-layer relu networks via gradient descent. arXiv
+preprint arXiv:1806.07808 , 2018.
+Zhong, K., Song, Z., Jain, P., Bartlett, P. L., and Dhillon,
+I. S. Recovery guarantees for one-hidden-layer neural
+networks. arXiv preprint arXiv:1706.03175 , 2017.Zhou, W., Veitch, V ., Austern, M., Adams, R. P., and Or-
+banz, P. Non-vacuous generalization bounds at the ima-
+genet scale: a PAC-bayesian compression approach. In
+International Conference on Learning Representations ,
+2019. URL https://openreview.net/forum?
+id=BJgqqsAct7 .
+Zhou, Y . and Liang, Y . Critical points of neural networks:
+Analytical forms and landscape properties. arXiv preprint
+arXiv:1710.11205 , 2017.
+Zou, D., Cao, Y ., Zhou, D., and Gu, Q. Stochastic gra-
+dient descent optimizes over-parameterized deep ReLU
+networks. arXiv preprint arXiv:1811.08888 , 2018.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+Appendix
+A. Experiment Setup
+The architecture of our neural networks is as described in Section 3.1. During the training process, we ﬁx the second layer
+and only optimize the ﬁrst layer, following the setting in Section 3.1. We ﬁx the number of neurons to be m= 10;000in all
+experiments. We train the neural network using (full-batch) gradient descent (GD), with a ﬁxed learning rate = 10 3. Our
+theory requires a small scaling factor during the initialization (cf. (1)). We ﬁx= 10 2in all experiments. We train the
+neural networks until the training `2loss converges.
+We use two image datasets, the CIFAR dataset (Krizhevsky & Hinton, 2009) and the MNIST dataset (LeCun et al., 1998),
+in our experiments. We only use the ﬁrst two classes of images in the the CIFAR dataset and the MNIST dataset, with
+10;000training images and 2;000validation images in total for each dataset. In both datasets, for each image xi, we set the
+corresponding label yito be +1if the image belongs to the ﬁrst class, and  1otherwise. For each image xiin the dataset,
+we normalize the image so that kxik2= 1, following the setup in Section 3.1.
+In the experiments reported in Figure 2, we choose a speciﬁc portion of (both training and test) data uniformly at random,
+and change their labels yitounif (f 1;1g).
+Our neural networks are trained using the PyTorch package (Paszke et al., 2017), using (possibly multiple) NVIDIA Tesla
+V100 GPUs.
+B. Background on Generalization and Rademacher Complexity
+Consider a loss function `:RR!R. For a function f:Rd!R, the population loss over data distribution Das well as
+theempirical loss overnsamplesS=f(xi;yi)gn
+i=1fromDare deﬁned as:
+LD(f) = E
+(x;y)D[`(f(x);y)];
+LS(f) =1
+nnX
+i=1`(f(xi);yi):
+Generalization error refers to the gap LD(f) LS(f)for the learned function fgiven sample S.
+Recall the standard deﬁnition of Rademacher complexity:
+Deﬁnition B.1. GivennsamplesS, the empirical Rademacher complexity of a function class F(mapping from RdtoR) is
+deﬁned as:
+RS(F) =1
+nE""
+sup
+f2FnX
+i=1"if(xi)#
+;
+where"= ("1;:::;"n)>contains i.i.d. random variables drawn from the Rademacher distribution unif(f1; 1g).
+Rademacher complexity directly gives an upper bound on generalization error (see e.g. (Mohri et al., 2012)):
+Theorem B.1. Suppose the loss function `(;)is bounded in [0;c]and is-Lipschitz in the ﬁrst argument. Then with
+probability at least 1 over sample Sof sizen:
+sup
+f2FfLD(f) LS(f)g2RS(F) + 3cr
+log(2=)
+2n:
+Therefore, as long as we can bound the Rademacher complexity of a certain function class that contains our learned predictor,
+we can obtain a generalization bound.
+C. Proofs for Section 4
+In this section we prove Theorem 4.1.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+We ﬁrst show some technical lemmas. Most of them are already proved in (Du et al., 2018c) and we give proofs for them for
+completeness.
+First, we have the following lemma which gives an upper bound on how much each weight vector can move during
+optimization.
+Lemma C.1. Under the same setting as Theorem 3.1, i.e., 0=min(H1)>0,m= 
+
+n6
+4
+023
+and=O 0
+n2
+, with
+probability at least 1 over the random initialization we have
+kwr(k) wr(0)k24pnky u(0)k2pm0;8r2[m];8k0:
+Proof. From Theorem 3.1 we know ky u(k+ 1)k2q
+1 0
+2ky u(k)k2
+1 0
+4
+ky u(k)k2for allk0,
+which implies
+ky u(k)k2
+1 0
+4k
+ky u(0)k2;8k0: (14)
+Recall the GD update rule:
+wr(k+ 1) wr(k) = @(W)
+@wr
+W=W(k)= pmarnX
+i=1(ui(k) yi)Ir;i(k)xi;
+which implies
+kwr(k+ 1) wr(k)k2pmnX
+i=1jui(k) yijpnpmky u(k)k2:
+Therefore, we have
+kwr(k) wr(0)k2k 1X
+t=0kwr(t+ 1) wr(t)k2
+k 1X
+t=0pnpmky u(k)k2
+pnpm1X
+t=0
+1 0
+4k
+ky u(0)k2
+=4pnky u(0)k2pm0;
+completing the proof.
+As a consequence of Lemma C.1, we can upper bound the norms of H(k) H(0)andZ(k) Z(0)for allk. These bounds
+show that the matrices HandZdo not change much during optimization if mis sufﬁciently large.
+Lemma C.2. Under the same setting as Theorem 3.1, with probability at least 1 4over the random initialization, for all
+k0we have:
+kH(k) H(0)kF=On3
+pm03=2
+;
+kZ(k) Z(0)kF=O 
+np
+m1=203=2!
+:
+Proof. LetR=Cnpm0p
+for some universal constant C > 0. From Lemma C.1 we know that with probability at least 1 
+we havekwr(k) wr(0)kRfor allr2[m]and allk0.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+We deﬁne events
+Ar;i=wr(0)>xiR	
+; i2[n];r2[m]: (15)
+Then it is easy to see that
+IfIr;i(k)6=Ir;i(0)gIfAr;ig+Ifkwr(k) wr(0)k>Rg;8i2[n];8r2[m];8k0:
+Then for any i;j2[n]we have
+jHij(k) Hij(0)j=x>
+ixj
+mmX
+r=1(Ir;i(k)Ir;j(k) Ir;i(0)Ir;j(0))
+1
+mmX
+r=1(IfIr;i(k)6=Ir;i(0)g+IfIr;j(k)6=Ir;j(0)g)
+1
+mmX
+r=1(IfAr;ig+IfAr;jg+ 2Ifkwr(k) wr(0)k>Rg):(16)
+Next, notice that wr(0)>xihas the same distribution as N(0;2). So we have
+E[IfAr;ig] = Pr
+zN(0;2)[jzjR] =ZR
+ R1p
+2e x2=22dx2Rp
+2: (17)
+Now taking the expectation of (16), we have
+E[jHij(k) Hij(0)j]1
+mmX
+r=1(E[IfAr;ig] +E[IfAr;jg] + 2Ifkwr(k) wr(0)k>Rg)
+4Rp
+2+2
+mmX
+r=1E[Ifkwr(k) wr(0)k>Rg]
+4Rp
+2+2
+m;8i;j2[n];
+which implies
+E[kH(k) H(0)kF]E2
+4nX
+i;j=1jHij(k) Hij(0)j3
+54n2Rp
+2+2n2
+m:
+Then from Markov’s inequality we know that with probability at least 1 we havekH(k) H(0)kF4n2Rp
+2+2n2
+m=
+O
+n3
+pm03=2
+.
+To boundkZ(k) Z(0)kF, we have
+Eh
+kZ(k) Z(0)k2
+Fi
+=E"
+1
+mnX
+i=1mX
+r=1(Ir;i(k) Ir;i(0))2#
+=1
+mnX
+i=1mX
+r=1E[IfIr;i(k)6=Ir;i(0)g]
+1
+mnX
+i=1mX
+r=1E[IfAr;ig+Ifkwr(k) wr(0)k>Rg]
+1
+mmn2Rp
+2+n
+m
+=2nRp
+2+n
+m:
+Using Markov’s inequality, with probability at least 1 we havekZ(k) Z(0)k2
+F2nRp
+2+n
+m=O
+n2
+pm03=2
+,
+proving the second part of the lemma.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+The next lemma shows that H(0)is close to H1.
+Lemma C.3. With probability at least 1 , we havekH(0) H1kF=O
+np
+logn
+pm
+.
+Proof. For alli;j2[n],Hij(0) =x>
+ixj
+mPm
+r=1Ir;i(0)Ir;j(0)is the average of mi.i.d. random variables bounded in [0;1]
+with expectation H1
+ij. Thus by Hoeffding’s inequality, with probability at least 1 0we have
+Hij(0) H1
+ijr
+log(2=0)
+2m:
+Letting0==n2and applying a union bound over all i;j2[n], we know that with probability at least 1 :
+kH(0) H1k2
+Fn2log(2n2=)
+2m:
+This completes the proof.
+Now we are ready to prove Theorem 4.1.
+Proof of Theorem 4.1. We assume that all the high-probability (“with probability 1 ”) events happen. By a union bound
+at the end, the success probability is at least 1 
+(), and then we can rescale by a constant such that the success
+probability is at least 1 .
+The main idea is to show that the dynamics of fu(k)g1
+k=0is close to that off~u(k)g1
+k=0. We have
+ui(k+ 1) ui(k) =1pmmX
+r=1ar
+ 
+wr(k+ 1)>xi
+  
+wr(k)>xi
+: (18)
+For eachi2[n], we partition all mneurons into two parts:
+Si=fr2[m] :IfAr;ig= 0g
+and
+Si=fr2[m] :IfAr;ig= 1g;
+whereAr;iis deﬁned in (15). We know from the proof of Lemma C.2 that all neurons in Siwill not change activation
+pattern on data-point xiduring optimization, i.e.,
+r2Si=)Ir;i(k) =Ir;i(0);8k0:
+From (17) we know
+E
+jSij
+=E"mX
+r=1IfAr;ig#
+8pmnky u(0)k2p
+2 0=Opmn
+0p
+
+;
+where we have used ky u(0)k2=O(p
+n=)(Theorem 3.1). Then we know EPn
+i=1jSij
+=Opmn2
+0p
+
+. Therefore
+with probability at least 1 we have
+nX
+i=1jSij=Opmn2
+03=2
+: (19)
+We write (18) as
+ui(k+ 1) ui(k)
+=1pmX
+r2Siar
+ 
+wr(k+ 1)>xi
+  
+wr(k)>xi
++1pmX
+r2Siar
+ 
+wr(k+ 1)>xi
+  
+wr(k)>xi
+:(20)Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+We consider the two terms in (20) separately. We denote the second term as i(k)and treat it as a perturbation term, which
+we bound as
+ji(k)j=1pmX
+r2Siar
+ 
+wr(k+ 1)>xi
+  
+wr(k)>xi
+1pmX
+r2Siwr(k+ 1)>xi wr(k)>xi
+1pmX
+r2Sikwr(k+ 1) wr(k)k2
+=1pmX
+r2SipmarnX
+j=1(uj(k) yj)Ir;j(k)xj
+2
+
+mX
+r2SinX
+j=1juj(k) yjj
+pnjSij
+mku(k) yk2:(21)
+For the ﬁrst term in (20), we have
+1pmX
+r2Siar
+ 
+wr(k+ 1)>xi
+  
+wr(k)>xi
+=1pmX
+r2SiarIr;i(k) (wr(k+ 1) wr(k))>xi
+=1pmX
+r2SiarIr;i(k)0
+@ pmarnX
+j=1(uj(k) yj)Ir;j(k)xj1
+A>
+xi
+= 
+mnX
+j=1(uj(k) yj)x>
+jxiX
+r2SiIr;i(k)Ir;j(k)
+= nX
+j=1(uj(k) yj)Hij(k) +0
+i(k);(22)
+where0
+i(k) =
+mPn
+j=1(uj(k) yj)x>
+jxiP
+r2SiIr;i(k)Ir;j(k)is regarded as perturbation:
+j0
+i(k)j
+mSinX
+j=1juj(k) yjjpnSi
+mku(k) yk2: (23)
+Combining (20), (21), (22), (23), we have
+ui(k+ 1) ui(k) = nX
+j=1(uj(k) yj)Hij(k) +0
+i(k) +i(k);
+which gives
+u(k+ 1) u(k) = H(k)(u(k) y) +(k); (24)
+where(k)2Rncan be bounded as
+k(k)k2k(k)k1=nX
+i=1ji(k) +0
+i(k)jnX
+i=12pnjSij
+mku(k) yk2=Opmn2
+03=22pn
+mku(k) yk2
+=On5=2
+pm 03=2
+ku(k) yk2:Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+Here we have used (19).
+Next, since H(k)is close to H1according to Lemmas C.2 and C.3, we rewrite (24) as
+u(k+ 1) u(k) = H1(u(k) y) +(k); (25)
+where(k) =(H1 H(k))(u(k) y) +(k). From Lemmas C.2 and C.3 we have
+kH1 H(k)k2kH1 H(k)kFkH(0) H(k)kF+kH(0) H1k2
+=On3
+pm03=2
++O 
+nplogn
+pm!
+=On3
+pm03=2
+:
+Therefore we can bound (k)as
+k(k)k2kH1 H(k)k2ku(k) yk2+k(k)k2
+=On3
+pm03=2
+ku(k) yk2+On5=2
+pm 03=2
+ku(k) yk2
+=On3
+pm03=2
+ku(k) yk2:(26)
+Finally, applying (25) recursively, we get
+u(k) y= (I H1)k(u(0) y) +k 1X
+t=0(I H1)t(k 1 t)
+= (I H1)ky+ (I H1)ku(0) +k 1X
+t=0(I H1)t(k 1 t):(27)
+Note that I H1is positive semideﬁnite, because we have kH1k2tr [H1] =n
+2and=O 0
+n2
+=O
+min(H1)
+kH1k2
+2
+
+1
+kH1k2. This implieskI H1k21 0.
+Now we study the three terms in (27) separately. The ﬁrst term is exactly ~u(k) y(see Section 4.1), and in Section 4.1 we
+have shown that
+ (I H1)ky
+2=vuutnX
+i=1(1 i)2k(v>
+iy)2: (28)
+The second term in (27) is small as long as u(0)is small, which is the case when the magnitude of initialization is set
+to be small. Formally, each ui(0)has zero mean and variance O(2), which means E
+(ui(0))2
+=O(2). This implies
+Eh
+ku(0)k2i
+=O(n2), and by Markov’s inequality we have ku(0)k2n2
+with probability at least 1 . Therefore we
+have
+(I H1)ku(0)
+2(I H1)k
+2ku(0)k2(1 0)kO pn=
+: (29)
+The third term in (27) can be bounded using (26). Also note that we have ku(k) yk2
+1 0
+4k
+ku(0) yk2=Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+
+1 0
+4k
+O(p
+n=)(Theorem 3.1). Therefore we have
+k 1X
+t=0(I H1)t(k 1 t)
+2k 1X
+t=0kI H1kt
+2k(k 1 t)k2
+k 1X
+t=0(1 0)tOn3
+pm03=2
+ku(k 1 t) yk2
+k 1X
+t=0(1 0)tOn3
+pm03=2
+1 0
+4k 1 t
+O(p
+n=)
+k
+1 0
+4k 1
+On7=2
+pm02
+:(30)
+Combining (27), (28), (29) and (30), we obtain
+ku(k) yk2=vuutnX
+i=1(1 i)2k(v>
+iy)2O 
+(1 0)kpn
++k
+1 0
+4k 1n7=2
+pm02!
+=vuutnX
+i=1(1 i)2k(v>
+iy)2Opn
++1
+0n7=2
+pm02
+=vuutnX
+i=1(1 i)2k(v>
+iy)2Opn
++n7=2
+pm2
+02
+;
+where we have used max
+k0
+k(1 0=4)k 1	
+=O(1=(0)). From our choices of andm, the above error term is at
+most. This completes the proof of Theorem 4.1.
+D. Proofs for Section 5
+D.1. Proof of Lemma 5.3
+Proof of Lemma 5.3. We assume that all the high-probability (“with probability 1 ”) events happen. By a union bound at
+the end, the success probability is at least 1 
+(), and then we can rescale by a constant such that the success probability
+is at least 1 .
+The ﬁrst part of Lemma 5.3 is proved as Lemma C.1 (note that ky u(0)k2=Op
+n=
+). Now we prove the second
+part.
+Recall the update rule (6) for W:
+vec(W(k+ 1)) = vec(W(k)) Z(k)(u(k) y): (31)
+According to the proof of Theorem 4.1 ((27), (29) and (30)) we can write
+u(k) y= (I H1)ky+e(k); (32)
+where
+ke(k)k=O 
+(1 0)kpn
++k
+1 0
+4k 1
+n7=2
+pm02!
+: (33)Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+Plugging (32) into (31) and taking a sum over k= 0;1;:::;K 1, we get:
+vec(W(K)) vec(W(0))
+=K 1X
+k=0(vec(W(k+ 1)) vec(W(k)))
+= K 1X
+k=0Z(k)(u(k) y)
+=K 1X
+k=0Z(k) 
+(I H1)ky e(k)
+=K 1X
+k=0Z(k)(I H1)ky K 1X
+k=0Z(k)e(k)
+=K 1X
+k=0Z(0)(I H1)ky+K 1X
+k=0(Z(k) Z(0))(I H1)ky K 1X
+k=0Z(k)e(k):(34)
+The second and the third terms in (34) are considered perturbations, and we can upper bound their norms easily. For the
+second term, using kZ(k) Z(0)kF=O
+np
+m1=203=2
+(Lemma C.2), we have:
+K 1X
+k=0(Z(k) Z(0))(I H1)ky
+2
+K 1X
+k=0O 
+np
+m1=203=2!
+kI H1kk
+2kyk2
+O 
+np
+m1=203=2!K 1X
+k=0(1 0)kpn
+=O 
+n3=2
+p
+m1=23
+03=2!
+:(35)
+For the third term in (34), we use kZ(k)kFpnand (33) to get:
+K 1X
+k=0Z(k)e(k)
+2
+K 1X
+k=0pnO 
+(1 0)kpn
++k
+1 0
+4k 1
+n7=2
+pm02!
+=O 
+n
+K 1X
+k=0(1 0)k+2n4
+pm02K 1X
+k=0k
+1 0
+4k 1!
+=On
+0+n4
+pm3
+02
+:(36)
+Deﬁne T=PK 1
+k=0(I H1)k. For the ﬁrst term in (34), usingkH(0) H1kF=O
+np
+logn
+pm
+(Lemma C.3) weFine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+haveK 1X
+k=0Z(0)(I H1)ky2
+2
+=kZ(0)Tyk2
+2
+=y>TZ(0)>Z(0)Ty
+=y>TH(0)Ty
+y>TH1Ty+kH(0) H1k2kTk2
+2kyk2
+2
+y>TH1Ty+O 
+nplogn
+pm!
+ 
+K 1X
+k=0(I 0)k!2
+n
+=y>TH1Ty+O 
+n2plogn
+pm2
+0!
+:(37)
+Let the eigen-decomposition of H1beH1=Pn
+i=1iviv>
+i. Since Tis a polynomial of H1, it has the same set of
+eigenvectors as H1, and we have
+T=nX
+i=1K 1X
+k=0(1 i)kviv>
+i=nX
+i=11 (1 i)K
+iviv>
+i:
+It follows that
+TH1T=nX
+i=11 (1 i)K
+i2
+iviv>
+inX
+i=11
+iviv>
+i= (H1) 1:
+Plugging this into (37), we get
+K 1X
+k=0Z(0)(I H1)ky
+2vuuty>(H1) 1y+O 
+n2plogn
+pm2
+0!
+q
+y>(H1) 1y+O0
+@s
+n2plogn
+pm2
+01
+A:(38)
+Finally, plugging the three bounds (35), (36) and (38) into (34), we have
+kW(K) W(0)kF
+=kvec(W(K)) vec(W(0))k2
+q
+y>(H1) 1y+O0
+@s
+n2plogn
+pm2
+01
+A+O 
+n3=2
+p
+m1=23
+03=2!
++On
+0+n4
+pm3
+02
+=q
+y>(H1) 1y+On
+0
++poly
+n;1
+0;1
+
+m1=41=2:
+This ﬁnishes the proof of Lemma 5.3.
+D.2. Proof of Lemma 5.4
+Proof of Lemma 5.4. We need to upper bound
+RS
+FW(0);a
+R;B
+=1
+nE
+"f1gn2
+4sup
+f2FW(0);a
+R;BnX
+i=1"if(xi)3
+5
+=1
+nE
+"f1gn2
+64 sup
+W:kW W(0)k2;1R
+kW W(0)kFBnX
+i=1"ifW;a(xi)3
+75Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+=1
+nE
+"f1gn2
+64 sup
+W:kW W(0)k2;1R
+kW W(0)kFBnX
+i=1"imX
+r=11pmar(w>xi)3
+75;
+wherekW W(0)k2;1= max
+r2[m]kwr wr(0)k2.
+Similar to the proof of Lemma C.2, we deﬁne events:
+Ar;i=wr(0)>xiR	
+; i2[n];r2[m]:
+Since we only look at Wsuch thatkwr wr(0)k2Rfor allr2[m], ifIfAr;ig= 0 we must have Ifw>xig=
+Ifwr(0)>xi0g=Ir;i(0). Thus we have
+If:Ar;ig 
+w>
+rxi
+=If:Ar;igIr;i(0)w>
+rxi:
+Then we have
+nX
+i=1"imX
+r=1ar 
+w>
+rxi
+ nX
+i=1"imX
+r=1arIr;i(0)w>
+rxi
+=mX
+r=1nX
+i=1(IfAr;ig+If:Ar;ig)"iar 
+ 
+w>
+rxi
+ Ir;i(0)w>
+rxi
+=mX
+r=1nX
+i=1IfAr;ig"iar 
+ 
+w>
+rxi
+ Ir;i(0)w>
+rxi
+=mX
+r=1nX
+i=1IfAr;ig"iar 
+ 
+w>
+rxi
+ Ir;i(0)wr(0)>xi Ir;i(0)(wr wr(0))>xi
+=mX
+r=1nX
+i=1IfAr;ig"iar 
+ 
+w>
+rxi
+  
+wr(0)>xi
+ Ir;i(0)(wr wr(0))>xi
+mX
+r=1nX
+i=1IfAr;ig2R:
+Thus we can bound the Rademacher complexity as:
+RS
+FW(0);a
+R;B
+=1
+nE
+"f1gn2
+64 sup
+W:kW W(0)k2;1R
+kW W(0)kFBnX
+i=1"imX
+r=1arpm 
+w>
+rx3
+75
+1
+nE
+"f1gn2
+64 sup
+W:kW W(0)k2;1R
+kW W(0)kFBnX
+i=1"imX
+r=1arpmIr;i(0)w>
+rxi3
+75+2R
+npmmX
+r=1nX
+i=1IfAr;ig
+1
+nE
+"f1gn"
+sup
+W:kW W(0)kFBnX
+i=1"imX
+r=1arpmIr;i(0)w>
+rxi#
++2R
+npmmX
+r=1nX
+i=1IfAr;ig
+=1
+nE
+"f1gn"
+sup
+W:kW W(0)kFBvec(W)>Z(0)"#
++2R
+npmmX
+r=1nX
+i=1IfAr;ig
+=1
+nE
+"f1gn"
+sup
+W:kW W(0)kFBvec(W W(0))>Z(0)"#
++2R
+npmmX
+r=1nX
+i=1IfAr;ig
+1
+nE
+"f1gn[BkZ(0)"k2] +2R
+npmmX
+r=1nX
+i=1IfAr;igFine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+B
+nr
+E
+"f1gnh
+kZ(0)"k2
+2i
++2R
+npmmX
+r=1nX
+i=1IfAr;ig
+=B
+nkZ(0)kF+2R
+npmmX
+r=1nX
+i=1IfAr;ig:
+Next we boundkZ(0)kFandPm
+r=1Pn
+i=1IfAr;ig.
+ForkZ(0)kF, notice that
+kZ(0)k2
+F=1
+mmX
+r=1 nX
+i=1Ir;i(0)!
+:
+Since allmneurons are independent at initialization and E[Pn
+i=1Ir;i(0)] =n=2, by Hoeffding’s inequality, with probability
+at least 1 =2we have
+kZ(0)k2
+Fn0
+@1
+2+s
+log2
+
+2m1
+A:
+Similarly, forPm
+r=1Pn
+i=1IfAr;ig, from (17) we know E[Pn
+i=1IfAr;ig]p
+2nRp. Then by Hoeffding’s inequality, with
+probability at least 1 =2we have
+mX
+r=1nX
+i=1IfAr;igmn0
+@p
+2Rp+s
+log2
+
+2m1
+A:
+Therefore, with probability at least 1 , the Rademacher complexity is bounded as:
+RS
+FW(0);a
+R;B
+B
+n0
+B@rn
+2+vuutns
+log2
+
+2m1
+CA+2R
+npmmn0
+@p
+2Rp+s
+log2
+
+2m1
+A
+=Bp
+2n 
+1 +2 log2
+
+m1=4!
++2p
+2R2pmp+Rr
+2 log2
+;
+completing the proof of Lemma 5.4. (Note that the high probability events used in the proof do not depend on the value of
+B, so the above bound holds simultaneously for every B.)
+D.3. Proof of Theorem 5.1
+Proof of Theorem 5.1. First of all, since the distribution Dis(0;=3;n)-non-degenerate, with probability at least 1 =3
+we havemin(H1)0. The rest of the proof is conditioned on this happening.
+Next, from Theorem 3.1, Lemma 5.3 and Lemma 5.4, we know that for any sample S, with probability at least 1 =3over
+the random initialization, the followings hold simultaneously:
+(i) Optimization succeeds (Theorem 3.1):
+(W(k))
+1 0
+2k
+On
+
+1
+2:
+This implies an upper bound on the training error LS(fW(k);a) =1
+nPn
+i=1`(fW(k);a(xi);yi) =1
+nPn
+i=1`(ui(k);yi):
+LS(fW(k);a) =1
+nnX
+i=1[`(ui(k);yi) `(yi;yi)]Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+1
+nnX
+i=1jui(k) yij
+1pnku(k) yk2
+=r
+2(W(k))
+n
+1pn:
+(ii)kwr(k) wr(0)k2R(8r2[m])andkW(k) W(0)kFB, whereR=O
+npm0p
+
+andB=
+q
+y>(H1) 1y+O
+n
+0
++poly(n; 1
+0; 1)
+m1=41=2. Note thatBOq
+n
+0
+.
+(iii) LetBi=i(i= 1;2;:::). Simultaneously for all i, the function class FW(0);a
+R;Bihas Rademacher complexity bounded
+as
+RS
+FW(0);a
+R;Bi
+Bip
+2n 
+1 +2 log10
+
+m1=4!
++2R2pm
++Rr
+2 log10
+:
+Letibe the smallest integer such that BBi. Then we have iOq
+n
+0
+andBiB+ 1. From above we know
+fW(k);a2FW(0);a
+R;Bi, and
+RS
+FW(0);a
+R;Bi
+B+ 1p
+2n 
+1 +2 log10
+
+m1=4!
++2R2pm
++Rr
+2 log10
+
+=q
+y>(H1) 1y
+p
+2n 
+1 +2 log10
+
+m1=4!
++1pn+Opn
+0
++poly 
+n; 1
+0; 1
+m1=41=2+2R2pm
++Rr
+2 log10
+
+s
+y>(H1) 1y
+2n+spn 1
+0pn
+2n2 log10
+
+m1=4
++1pn+Opn
+0
++poly 
+n; 1
+0; 1
+m1=41=2
+=s
+y>(H1) 1y
+2n+1pn+Opn
+0
++poly 
+n; 1
+0; 1
+m1=41=2
+s
+y>(H1) 1y
+2n+2pn:
+Next, from the theory of Rademacher complexity (Theorem B.1) and a union bound over a ﬁnite set of different i’s, for any
+random initialization (W(0);a), with probability at least 1 =3over the sample S, we have
+sup
+f2FW(0);a
+R;BifLD(f) LS(f)g2RS
+FW(0);a
+R;Bi
++O0
+@s
+logn
+0
+n1
+A;8i2
+1;2;:::;Orn
+0
+:
+Finally, taking a union bound, we know that with probability at least 1 2
+3over the sample Sand the random initializationFine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+(W(0);a), the followings are all satisﬁed (for some i):
+LS(fW(k);a)1pn;
+fW(k);a2FW(0);a
+R;Bi;
+RS
+FW(0);a
+R;Bi
+s
+y>(H1) 1y
+2n+2pn;
+sup
+f2FW(0);a
+R;BifLD(f) LS(f)g2RS
+FW(0);a
+R;Bi
++O0
+@s
+logn
+0
+n1
+A:
+These together can imply:
+LD(fW(k);a)1pn+ 2RS
+FW(0);a
+R;Bi
++O0
+@s
+logn
+0
+n1
+A
+1pn+ 20
+@s
+y>(H1) 1y
+2n+2pn1
+A+O0
+@s
+logn
+0
+n1
+A
+=s
+2y>(H1) 1y
+n+O0
+@s
+logn
+0
+n1
+A:
+This completes the proof.
+D.4. Proof of Corollary 5.2
+Proof of Corollary 5.2. We apply Theorem 5.1 to the ramp loss
+`ramp(u;y) =8
+><
+>:1; uy0;
+1 uy; 0<uy< 1;
+0; uy1:(u2R;y2f 1g)
+Note that it is 1-Lipschitz in ufory2f 1gand satisﬁes `ramp(y;y) = 0 fory2f 1g. It is also an upper bound on the
+0-1 loss:
+`ramp(u;y)`01(u;y) =Ifuy0g:
+Therefore we have with probability at least 1 :
+L01
+D(fW(k);a) = E
+(x;y)D
+`01(fW(k);a(x);y)
+E
+(x;y)D
+`ramp(fW(k);a(x);y)
+r
+2y>(H1) 1y
+n+O0
+@s
+logn
+0
+n1
+A:
+E. Proofs for Section 6
+We prove a lemma before proving Theorem 6.1.
+Lemma E.1. For any two symmetric matrices A;B2Rnnsuch that BA0, we have AyPAByPA, where
+PA=A1=2AyA1=2is the projection matrix for the subspace spanned by A.6
+Note that when AandBare both invertible, this result reads A 1B 1.
+6Ayis the Moore-Penrose pseudo-inverse of A.Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+Proof. W.L.O.G. we can assume Bis invertible, which means B 1=By. Additionally, we can assume Ais diagonal and
+A= 0
+0 0
+. Thus PA=I 0
+0 0
+. We deﬁne P?
+A=I PA=0 0
+0 I
+.
+Now we will show that all the solutions to the equation det(PAB 1PA (Ay+P?
+A)) = 0 are between 0and1. If this
+is shown, we must have PAB 1PAAy+P?
+A, which would imply PAB 1PAAy.
+We have
+det(PAB 1PA (Ay+P?
+A))
+= det( B 1PA (Ay+P?
+A))
+= det( B 1) det(PA B(Ay+P?
+A))
+= det( B 1) det(( A B)(Ay+P?
+A))
+= det( B 1) det(Ay+P?
+A) det(A B):(39)
+Note det(B 1)>0anddet(Ay+P?
+A)>0. Thus all the solutions to det(PAB 1PA (Ay+P?
+A)) = 0 are exactly all
+the solutions to det(A B) = 0 . Since BA0andB0, we have det(A B)6= 0when<0or>1.
+Proof of Theorem 6.1. For vectors a= (a1;:::;an1)>2Rn1;b= (b1;:::;bn2)2Rn2, the tensor product ofaand
+bis deﬁned as a
+b2Rn1n2, where [a
+b](i 1)n2+j=aibj. For matrices A= (a1;:::;an3)2Rn1n3;B=
+(b1;:::;bn3)2Rn2n3, the Khatri-Rao product ofAandBis deﬁned as AB2Rn1n2n3, where AB=
+[a1
+b1;a2
+b2;:::;an3
+bn3]. We use ABto denote the Hadamard product (entry-wise product) of matrices Aand
+Bof the same size, i.e., [AB]ij=AijBij. We also denote their corresponding powers by a
+l,AlandAl.
+Recall X= (x1;:::;xn)2Rdn. Let K=X>X2Rnn. Then it is easy to see that [Kl]ij=Kl
+ij=hxi;xjil
+andKl= (Xl)>Xl0for alll2N. Recall from (3)thatH1
+ij=Kij
+4+Kijarcsin( Kij)
+2. Since arcsin(x) =P1
+l=0(2l 1)!!
+(2l)!!x2l+1
+2l+1(jxj1)7, we have
+H1
+ij=Kij
+4+1
+21X
+l=1(2l 3)!!
+(2l 2)!!K2l
+ij
+2l 1;
+which means
+H1=K
+4+1
+21X
+l=1(2l 3)!!
+(2l 2)!!K2l
+2l 1:
+Since Kl0(8l2N), we have H1K
+4and
+H11
+2(2l 3)!!
+(2l 2)!!K2l
+2l 1K2l
+2(2l 1)2;8l2N+:
+Now we proceed to prove the theorem.
+First we consider the case p= 1. In this case we have y=X>1. Since H1K
+4, from Lemma E.1 we have
+PK(H1) 1PK4Ky;
+where PK=K1=2KyK1=2is the projection matrix for the subspace spanned by K. Since K=X>X, we have
+PKX>=X>. Therefore, we have
+y>(H1) 1y
+=2>X(H1) 1X>
+=2>XPK(H1) 1PKX>
+7p!! =p(p 2)(p 4)and0!! = ( 1)!! = 1 .Fine-Grained Analysis of Optimization and Generalization for Overparameterized Two-Layer Neural Networks
+42>XKyX>
+= 42>PXX>
+42kk2
+2:
+This ﬁnishes the proof for p= 1.
+Similarly, for p= 2l(l2N+), we have y= 
+X2l>
+2l. From H1K2l
+2(2l 1)2=(X2l)>X2l
+2(2l 1)2and Lemma E.1
+we have
+y>(H1) 1y
+=2(
+2l)>X2l(H1) 1(X2l)>
+2l
+2(2l 1)22(
+2l)>X2l(K2l)y(X2l)>
+2l
+= 2(2l 1)22(
+2l)>PX2l(X2l)>
+2l
+2(2l 1)22
+2l2
+2
+= 2(2l 1)22kk4l
+2
+2p22kk2p
+2:
+This ﬁnishes the proof for p= 2l.

@@ -1,0 +1,768 @@
+An Accelerated Gradient Method for Trace Norm Minimization
+
+Shuiwang Ji shuiwang.ji@asu.edu
+Jieping Ye jieping.ye@asu.edu
+Department of Computer Science and Engineering, Arizona State University, Tempe, AZ 85287, USA
+Abstract
+We consider the minimization of a smooth
+loss function regularized by the trace norm
+of the matrix variable. Such formulation ¯nds
+applications in many machine learning tasks
+including multi-task learning, matrix classi-
+¯cation, and matrix completion. The stan-
+dard semide¯nite programming formulation
+for this problem is computationally expen-
+sive. In addition, due to the non-smooth na-
+ture of the trace norm, the optimal ¯rst-order
+black-box method for solving such class of
+problems converges as O(1p
+k), where kis the
+iteration counter. In this paper, we exploit
+the special structure of the trace norm, based
+on which we propose an extended gradient al-
+gorithm that converges as O(1
+k). We further
+propose an accelerated gradient algorithm,
+which achieves the optimal convergence rate
+ofO(1
+k2) for smooth problems. Experiments
+on multi-task learning problems demonstrate
+the e±ciency of the proposed algorithms.
+1. Introduction
+The problem of minimizing the rank of a matrix vari-
+able subject to certain constraints arises in many ¯elds
+including machine learning, automatic control, and
+image compression. For example, in collaborative ¯l-
+tering we are given a partially ¯lled rating matrix and
+the task is to predict the missing entries. Since it is
+commonly believed that only a few factors contribute
+to an individual's tastes, it is natural to approximate
+the given rating matrix by a low-rank matrix. How-
+ever, the matrix rank minimization problem is NP-
+hard in general due to the combinatorial nature of the
+rank function. A commonly-used convex relaxation of
+the rank function is the trace norm (nuclear norm)
+Appearing in Proceedings of the 26thInternational Confer-
+ence on Machine Learning , Montreal, Canada, 2009. Copy-
+right 2009 by the author(s)/owner(s).(Fazel et al., 2001), de¯ned as the sum of the singu-
+lar values of the matrix, since it is the convex enve-
+lope of the rank function over the unit ball of spectral
+norm. A number of recent work has shown that the low
+rank solution can be recovered exactly via minimizing
+the trace norm under certain conditions (Recht et al.,
+2008a; Recht et al., 2008b; Cand¶ es & Recht, 2008).
+In practice, the trace norm relaxation has been shown
+to yield low-rank solutions and it has been used widely
+in many scenarios. In (Srebro et al., 2005; Rennie &
+Srebro, 2005; Weimer et al., 2008a; Cai et al., 2008; Ma
+et al., 2008) the matrix completion problem was formu-
+lated as a trace norm minimization problem. In prob-
+lems where multiple related tasks are learned simul-
+taneously, the models for di®erent tasks can be con-
+strained to share certain information. Recently, this
+constraint has been expressed as the trace norm regu-
+larization on the weight matrix in the context of multi-
+task learning (Abernethy et al., 2006; Argyriou et al.,
+2008; Abernethy et al., 2009; Obozinski et al., 2009),
+multi-class classi¯cation (Amit et al., 2007), and mul-
+tivariate linear regression (Yuan et al., 2007; Lu et al.,
+2008). For two-dimensional data such as images, the
+matrix classi¯cation formulation (Tomioka & Aihara,
+2007; Bach, 2008) applies a weight matrix, regular-
+ized by its trace norm, on the data. It was shown
+(Tomioka & Aihara, 2007) that such formulation leads
+to improved performance over conventional methods.
+A practical challenge in employing the trace norm reg-
+ularization is to develop e±cient algorithms to solve
+the resulting non-smooth optimization problems. It is
+well-known that the trace norm minimization problem
+can be formulated as a semide¯nite program (Fazel
+et al., 2001; Srebro et al., 2005). However, such formu-
+lation is computationally expensive. To overcome this
+limitation, a number of algorithms have been devel-
+oped recently (Rennie & Srebro, 2005; Weimer et al.,
+2008a; Weimer et al., 2008b; Cai et al., 2008; Ma et al.,
+2008). In these algorithms some form of approxima-
+tion is usually employed to deal with the non-smooth
+trace norm term. However, a fast global convergenceAn Accelerated Gradient Method for Trace Norm Minimization
+rate for these algorithms is di±cult to guarantee.
+Due to the non-smooth nature of the trace norm, a
+simple approach to solve these problems is the subgra-
+dient method (Bertsekas, 1999; Nesterov, 2003), which
+converges as O(1p
+k) where kis the iteration counter.
+It is known from the complexity theory of convex opti-
+mization (Nemirovsky & Yudin, 1983; Nesterov, 2003)
+that this convergence rate is already optimal for non-
+smooth optimization under the ¯rst-order black-box
+model, where only the function values and ¯rst-order
+derivatives are used.
+In this paper we propose e±cient algorithms with fast
+global convergence rates to solve trace norm regu-
+larized problems. Speci¯cally, we show that by ex-
+ploiting the special structure of the trace norm, the
+classical gradient method for smooth problems can
+be adapted to solve the trace norm regularized non-
+smooth problems. This results in an extended gra-
+dient algorithm with the same convergence rate of
+O(1
+k) as that for smooth problems. Following the Nes-
+terov's method for accelerating the gradient method
+(Nesterov, 1983; Nesterov, 2003), we show that the
+extended gradient algorithm can be further acceler-
+ated to converge as O(1
+k2), which is the optimal con-
+vergence rate for smooth problems. Hence, the non-
+smoothness e®ect of the trace norm regularization is
+e®ectively removed. The proposed algorithms extend
+the algorithms in (Nesterov, 2007; Tseng, 2008; Beck
+& Teboulle, 2009) to the matrix case. Experiments
+on multi-task learning problems demonstrate the e±-
+ciency of the proposed algorithms in comparison with
+existing ones. Note that while the present paper was
+under review, we became aware of a recent preprint by
+Toh and Yun (2009) who independently developed an
+algorithm that is similar to ours.
+2. Problem Formulation
+In this paper we consider the following problem:
+min
+WF(W) =f(W) +¸jjWjj¤ (1)
+where W2Rm£nis the decision matrix, f(¢) repre-
+sents the loss induced by some convex smooth (di®er-
+entiable) loss function `(¢;¢), and jj ¢ jj¤denotes the
+trace norm de¯ned as the sum of the singular values.
+We assume that the gradient of f(¢), denoted as 5f(¢),
+is Lipschitz continuous with constant L, i.e.,
+jj5f(X)¡5f(Y)jjF·LjjX¡YjjF;8X; Y2Rm£n;
+where jj¢jjFdenotes the Frobenius norm. Such formu-
+lation arises in many machine learning tasks such as in
+multi-task learning, matrix classi¯cation, and matrix
+completion problems.²Multi-task learning (Argyriou et al., 2008):
+f(W) =Pn
+i=1Psi
+j=1`(yj
+i; wT
+ixj
+i), where nis the
+number of tasks, ( xj
+i; yj
+i)2Rm£Ris the jth sam-
+ple in the ith task, siis the number of samples in
+theith task, and W= [w1;¢¢¢; wn]2Rm£n.
+²Matrix classi¯cation (Tomioka & Aihara, 2007;
+Bach, 2008): f(W) =Ps
+i=1`(yi;Tr(WTXi)),
+where ( Xi; yi)2Rm£n£Ris the ith sample.
+²Matrix completion (Srebro et al., 2005; Cand¶ es
+& Recht, 2008; Recht et al., 2008a; Ma et al.,
+2008): f(W) =P
+(i;j)2­`(Mij; Wij), where M2
+Rm£nis the partially observed matrix with the
+entries in ­ being observed.
+Since the trace norm term in the objective function in
+Eq. (1) is non-smooth, a natural approach for solving
+this problem is the subgradient method in which a
+sequence of approximate solutions are generated as
+Wk=Wk¡1¡1
+tkF0(Wk¡1); (2)
+where Wkis the approximate solution at the kth it-
+eration,1
+tkis the step size, and F0(W)2@F(W) is
+the subgradient of F(W) atWand@F(W) denotes
+the subdi®erential (Bertsekas, 1999; Nesterov, 2003)
+ofF(W) atW. It is known (Nesterov, 2003) that the
+subgradient method converges as O(1p
+k), i.e.,
+F(Wk)¡F(W¤)·c1p
+k; (3)
+for some constant c, where W¤= arg min WF(W).
+It is known from the complexity theory of convex
+optimization (Nemirovsky & Yudin, 1983; Nesterov,
+2003) that this convergence rate is already optimal
+for non-smooth problems under the ¯rst-order black-
+box model. Hence, the convergence rate cannot be im-
+proved if a black-box model, which does not exploit
+any special structure of the objective function, is em-
+ployed. We show in the following that by exploiting
+the structure of the trace norm, its non-smoothness
+can be e®ectively overcome and the convergence rate
+of the algorithm for solving the trace norm regularized
+problem in Eq. (1) can be improved signi¯cantly.
+3. An Extended Gradient Method
+First, consider the minimization of the smooth loss
+function without the trace norm regularization:
+min
+Wf(W): (4)An Accelerated Gradient Method for Trace Norm Minimization
+It is known (Bertsekas, 1999) that the gradient step
+Wk=Wk¡1¡1
+tk5f(Wk¡1) (5)
+for solving this smooth problem can be reformulated
+equivalently as a proximal regularization of the lin-
+earized function f(W) atWk¡1as
+Wk= arg min
+WPtk(W; W k¡1); (6)
+where
+Ptk(W; W k¡1) =f(Wk¡1) +hW¡Wk¡1;5f(Wk¡1)i
++tk
+2jjW¡Wk¡1jj2
+F; (7)
+andhA; Bi= Tr( ATB) denotes the matrix inner prod-
+uct. It has been shown (Nesterov, 2003) that the con-
+vergence rate of this algorithm is O(1
+k). Note that the
+function Ptkde¯ned in Eq. (7) can be considered as a
+linear approximation of the function fat point Wk¡1
+regularized by a quadratic proximal term.
+Based on this equivalence relationship, we propose to
+solve the optimization problem in Eq. (1) by the fol-
+lowing iterative step:
+Wk=arg min
+WQtk(W; W k¡1),Ptk(W; W k¡1) +¸jjWjj¤:
+(8)
+A key motivation for this formulation is that if the
+optimization problem in Eq. (8) can be easily solved
+by exploiting the structure of the trace norm, the con-
+vergence rate of the resulting algorithm is expected
+to be the same as that of gradient method, since no
+approximation on the non-smooth term is employed.
+By ignoring terms that do not depend on W, the ob-
+jective in Eq. (8) can be expressed equivalently as
+tk
+2¯¯¯¯¯¯¯¯W¡µ
+Wk¡1¡1
+tk5f(Wk¡1)¶¯¯¯¯¯¯¯¯2
+F+¸jjWjj¤:
+(9)
+It turns out that the minimization of the objective in
+Eq. (9) can be solved by ¯rst computing the singular
+value decomposition (SVD) of Wk¡1¡1
+tk5f(Wk¡1)
+and then applying some soft-thresholding on the sin-
+gular values. This is summarized in the following the-
+orem (Cai et al., 2008).
+Theorem 3.1. LetC2Rm£nand let C=U§VT
+be the SVD of Cwhere U2Rm£randV2Rn£r
+have orthonormal columns, §2Rr£ris diagonal, and
+r=rank(C). Then
+T¸(C)´arg min
+W½1
+2jjW¡Cjj2
+F+¸jjWjj¤¾
+(10)
+is given by T¸(C) =U§¸VT, where §¸is diagonal
+with (§¸)ii= max f0;§ii¡¸g.The proof of this theorem is in the Appendix.
+The above discussion shows that the problem in
+Eq. (8) can be readily solved by SVD. Furthermore,
+we show in the following that if the step size1
+tkof the
+gradient method is chosen properly, we can achieve
+the same convergence rate as in the smooth case, i.e.,
+O(1
+k), despite the presence of the non-smooth trace
+norm regularization.
+3.1. Step Size Estimation
+To choose an appropriate step size we impose a con-
+dition on the relationship between the function values
+ofFandQtkat a certain point in Lemma 3.1. We
+show in Theorem 3.2 below that once this condition is
+satis¯ed at each step by choosing an appropriate step
+size, the convergence rate of the resulting sequence can
+be guaranteed.
+Lemma 3.1. Let
+p¹(Y) = arg min
+XQ¹(X; Y) (11)
+where Qis de¯ned in Eq. (8). Assume the following
+inequality holds:
+F(p¹(Y))·Q¹(p¹(Y); Y): (12)
+Then for any X2Rm£nwe have
+F(X)¡F(p¹(Y))¸¹
+2jjp¹(Y)¡Yjj2
+F (13)
++¹hY¡X; p ¹(Y)¡Yi:
+The proof of this lemma is in the Appendix.
+At each step of the algorithm we need to ¯nd an ap-
+propriate value for ¹such that Wk=p¹(Wk¡1) and
+the condition
+F(Wk)·Q¹(Wk; Wk¡1) (14)
+is satis¯ed. Note that since the gradient of f(¢) is Lip-
+schitz continuous with constant L, we have (Nesterov,
+2003)
+f(X)·f(Y)+hX¡Y;5f(Y)i+L
+2jjX¡Yjj2
+F;8X; Y:
+Hence, when ¹¸Lwe have
+F(p¹(Y))·P¹(p¹(Y); Y)+¸jjp¹(Y)jj¤=Q¹(p¹(Y); Y):
+This shows that the condition in Eq. (14) is always
+satis¯ed if the update rule
+Wk=pL(Wk¡1) (15)An Accelerated Gradient Method for Trace Norm Minimization
+is applied. However, Lmay not be known or it is ex-
+pensive to compute in practice. We propose to employ
+the following step size estimation strategy to ensure
+the condition in Eq. (14): Given an initial estimate
+ofLasL0, we increase this estimate with a multi-
+plicative factor ° >1 repeatedly until the condition in
+Eq. (14) is satis¯ed. This results in the extended gra-
+dient method in Algorithm 1 for solving the problem
+in Eq. (1).
+Algorithm 1 Extended Gradient Algorithm
+Initialize L0; °; W 02Rm£n
+Iterate:
+1.Set¹L=Lk¡1
+2.While F(p¹L(Wk¡1))> Q ¹L(p¹L(Wk¡1); Wk¡1), set
+¹L:=°¹L
+3.SetLk=¹LandWk=pLk(Wk¡1)
+Since when Lk¸Lthe condition in Eq. (14) is always
+satis¯ed, we have
+Lk·°L;8k: (16)
+Note that the sequence of function values generated
+by this algorithm is non-increasing as
+F(Wk)·QLk(Wk;Wk¡1)·QLk(Wk¡1;Wk¡1)=F(Wk¡1):
+3.2. Convergence Analysis
+We show in the following theorem that when the con-
+dition in Eq. (14) is satis¯ed at each iteration, the
+extended gradient algorithm converges as O(1
+k).
+Theorem 3.2. LetfWkgbe the sequence generated by
+Algorithm 1. Then for any k¸1we have
+F(Wk)¡F(W¤)·°LjjW0¡W¤jj2
+F
+2k;(17)
+where W¤= arg min WF(W).
+The proof of this theorem is in the Appendix.
+4. An Accelerated Gradient Method
+It is known (Nesterov, 1983; Nesterov, 2003) that when
+the objective function is smooth, the gradient method
+can be accelerated to achieve the optimal convergence
+rate of O(1
+k2). It was shown recently (Nesterov, 2007;
+Tseng, 2008; Beck & Teboulle, 2009) that a similar
+scheme can be applied to accelerate optimization prob-
+lems where the objective function consists of a smoothpart and a non-smooth part provided that the non-
+smooth part is \simple". In particular, it was shown
+that the `1-norm regularized problems can be acceler-
+ated even though they are not smooth. In this section
+we show that the extended gradient method in Algo-
+rithm 1 can also be accelerated to achieve the optimal
+convergence rate of smooth problems even though the
+trace norm is not smooth. This results in the acceler-
+ated gradient method in Algorithm 2.
+Algorithm 2 Accelerated Gradient Algorithm
+Initialize L0; °; W 0=Z12Rm£n; ®1= 1
+Iterate:
+1.Set¹L=Lk¡1
+2.While F(p¹L(Zk¡1))> Q ¹L(p¹L(Zk¡1); Zk¡1), set
+¹L:=°¹L
+3.SetLk=¹Land update
+Wk=pLk(Zk)
+®k+1=1 +p
+1 + 4 ®2
+k
+2(18)
+Zk+1=Wk+µ®k¡1
+®k+1¶
+(Wk¡Wk¡1)(19)
+4.1. Discussion
+In the accelerated gradient method, two sequences
+fWkgandfZkgare updated recursively. In partic-
+ular, Wkis the approximate solution at the kth step
+andZkis called the search point (Nesterov, 1983; Nes-
+terov, 2003), which is constructed as a linear combina-
+tion of the latest two approximate solutions Wk¡1and
+Wk¡2. The key di®erence between the extended and
+the accelerated algorithms is that the gradient step
+is performed at the current approximate solution Wk
+in the extended algorithm, while it is performed at
+the search point Zkin the accelerated scheme. The
+idea of constructing the search point is motivated by
+the investigation of the information-based complexity
+(Nemirovsky & Yudin, 1983; Nesterov, 2003), which
+reveals that for smooth problems the convergence rate
+of the gradient method is not optimal, and thus meth-
+ods with a faster convergence rate should exist. The
+derivation of the search point is based on the concept
+of estimate sequence and more details can be found in
+(Nesterov, 2003). Note that the sequence ®kcan be
+updated in many ways as long as certain conditions
+are satis¯ed (Nesterov, 2003). Indeed, it was shown
+in (Tseng, 2008) that other schemes of updating ®kAn Accelerated Gradient Method for Trace Norm Minimization
+Table 1. Comparison of the three multi-task learning algorithms (EGM, AGM, and MFL) in terms of the computation
+time (in seconds). In each case, the computation time reported is the time used to train the model for a given parameter
+value obtained by cross validation, and the averaged training time over ten random trials is reported.
+Data set yeast letters digits dmoz
+Percentage 5% 10% 5% 10% 5% 10% 5% 10%
+EGM 2.24 3.37 4.74 5.67 62.51 29.59 133.21 146.58
+AGM 0.34 0.49 0.62 0.91 2.41 2.39 1.59 1.42
+MFL 2.33 17.27 2.49 9.66 15.50 42.64 74.24 31.49
+0 20 40 60 80 100350400450500550600
+IterationObjective value
+  
+AGM
+EGM
+02040608010012075080085090095010001050
+IterationObjective value
+  
+AGM
+EGM
+Figure 1. The convergence of EGM and AGM on the yeast data set when 5% (left ¯gure) and 10% (right ¯gure) of the
+data are used for training. On the ¯rst data set EGM and AGM take 81 and 1122 iterations, respectively, to converge,
+while on the second data set they take 108 and 773 iterations, respectively.
+can lead to better practical performance, though the
+theoretical convergence rate remains the same. Note
+that the sequence of objective values generated by the
+accelerated scheme may increase. It, however, can be
+made non-increasing by a simple modi¯cation of the
+algorithm as in (Nesterov, 2005).
+4.2. Convergence Analysis
+We show in the following that by performing the gra-
+dient step at the search point Zkinstead of at the
+approximate solution Wk, the convergence rate of the
+gradient method can be accelerated to O(1
+k2). This
+result is summarized in the following theorem.
+Theorem 4.1. LetfWkgandfZkgbe the sequences
+generated by Algorithm 2. Then for any k¸1we have
+F(Wk)¡F(W¤)·2°LjjW0¡W¤jj2
+F
+(k+ 1)2: (20)
+The proof of this theorem follows the same strategy as
+in (Beck & Teboulle, 2009) and it is in the Appendix.5. Experiments
+We evaluate the proposed extended gradient method
+(EGM) and the accelerated gradient method (AGM)
+on four multi-task data sets. The yeast data set was
+derived from a yeast gene classi¯cation problem con-
+sisting of 14 tasks. The letters anddigits are hand-
+written words and digits data sets (Obozinski et al.,
+2009), which consist of 8 and 10 tasks, respectively.
+The dmoz is a text categorization data set obtained
+from DMOZ (http://www.dmoz.org/) in which each
+of the 10 tasks corresponds to one of the subcategories
+of the Arts category. For each data set we randomly
+sample 5% and 10% of the data from each task for
+training.
+To evaluate the e±ciency of the proposed formula-
+tions, we report the computation time of the multi-
+task feature learning (MFL) algorithm (Argyriou
+et al., 2008), as MFL involves a formulation that is
+equivalent to EGM and AGM. For all methods, we
+terminate the algorithms when the relative changes in
+the objective is below 10¡8, since the objective values
+of MFL and EGM/AGM are not directly comparable.An Accelerated Gradient Method for Trace Norm Minimization
+The averaged computation time over ten random trials
+for each method is reported in Table 1. We can ob-
+serve that AGM is by far the most e±cient method in
+all cases. The relative e±ciency of EGM and AGM dif-
+fers signi¯cantly across data sets, demonstrating that
+the performance of AGM is very stable for di®erent
+problems. In order to investigate the convergence be-
+haviors of EGM and AGM, we plot the objective values
+of these two methods on the yeast data set in Figure 1.
+We can observe that in both cases AGM converges
+much faster than EGM, especially at early iterations.
+This is consistent with our theoretical results and con-
+¯rms that the proposed accelerated scheme can reach
+the optimal objective value rapidly.
+6. Conclusion and Discussion
+In this paper we propose e±cient algorithms to solve
+trace norm regularized problems. We show that by ex-
+ploiting the special structure of the trace norm, the
+optimal convergence rate of O(1p
+k) for general non-
+smooth problems can be improved to O(1
+k). We fur-
+ther show that this convergence rate can be accelerated
+toO(1
+k2) by employing the Nesterov's method. Exper-
+iments on multi-task learning problems demonstrate
+the e±ciency of the proposed algorithms.
+As pointed out in the paper, another important ap-
+plication of the trace norm regularization is in ma-
+trix completion problems. We plan to apply the pro-
+posed formulations to this problem in the future. The
+proposed algorithms require the computation of SVD,
+which may be computationally expensive for large-
+scale problems. We will investigate approximate SVD
+techniques in the future to further reduce the compu-
+tational cost.
+Appendix
+Proof of Theorem 3.1
+Proof. Since the objective function in Eq. (10) is
+strongly convex, a unique solution exists for this prob-
+lem and hence it remains to show that the solution is
+T¸(C). Recall that Z2Rm£nis the subgradient of a
+convex function h:Rm£n!RatX0if
+h(X)¸h(X0) +hZ; X¡X0i (21)
+for any X. The set of subgradients of hatX0is called
+the subdi®erential of hatX0and it is denoted as
+@h(X0). It is well-known (Nesterov, 2003) that W¤
+is the optimal solution to the problem in Eq. (10) if
+and only if 02Rm£nis a subgradient of the objectivefunction at W¤, i.e.,
+02W¤¡C+¸@jjW¤jj¤: (22)
+LetW=P1¤PT
+2be the SVD of Wwhere P12Rm£s
+andP22Rn£shave orthonormal columns, § 2Rs£s
+is diagonal, and s= rank( W). It can be veri¯ed that
+(Bach, 2008; Recht et al., 2008a)
+@jjWjj¤=fP1PT
+2+S:S2Rm£n; PT
+1S= 0;
+SP2= 0;jjSjj2·1g; (23)
+where jj ¢ jj 2denotes the spectral norm of a matrix.
+Decomposing the SVD of Cas
+C=U0§0VT
+0+U1§1VT
+1;
+where U0§0VT
+0corresponds to the part of SVD with
+singular values greater than ¸. Then we have the SVD
+ofT¸(C) as
+T¸(C) =U0(§0¡¸I)VT
+0
+and thus
+C¡ T¸(C) =¸(U0VT
+0+S)
+where S=1
+¸U1§1VT
+1. It follows from the facts that
+UT
+0S= 0,SV0= 0, and jjSjj2·1 that
+C¡ T¸(C)2¸@jjT¸(C)jj¤;
+which shows that T¸(C) is an optimal solution.
+Proof of Lemma 3.1
+Proof. Since both the loss function fand the trace
+norm are convex, we have
+f(X)¸f(Y) +hX¡Y;5f(Y)i;
+¸jjXjj¤¸¸jjp¹(Y)jj¤+¸hX¡p¹(Y); g(p¹(Y))i;
+where g(p¹(Y))2@jjp¹(Y)jj¤is the subgradient of the
+trace norm at p¹(Y). Summing up the above two in-
+equalities we obtain that
+F(X)¸f(Y) +hX¡Y;5f(Y)i (24)
++¸jjp¹(Y)jj¤+¸hX¡p¹(Y); g(p¹(Y))i:
+By combining the condition in Eq. (14), the result in
+Eq. (24), and the relation
+Q¹(p¹(Y); Y) =P¹(p¹(Y); Y) +¸jjp¹(Y)jj¤;
+we obtain that
+F(X)¡F(p¹(Y))¸F(X)¡Q¹(p¹(Y); Y)
+¸ hX¡p¹(Y);5f(Y) +¸g(p¹(Y))i ¡¹
+2jjp¹(Y)¡Yjj2
+F
+=¹hX¡p¹(Y); Y¡p¹(Y)i ¡¹
+2jjp¹(Y)¡Yjj2
+F
+=¹hY¡X; p ¹(Y)¡Yi+¹
+2jjp¹(Y)¡Yjj2
+F;An Accelerated Gradient Method for Trace Norm Minimization
+where the ¯rst equality follows from that p¹(Y) is a
+minimizer of Q¹(X; Y) as in Eq. (11), and thus
+5f(Y) +¹(p¹(Y)¡Y) +¸g(p¹(Y)) = 0 :
+This completes the proof of the lemma.
+Proof of Theorem 3.2
+Proof. Applying Lemma 3.1 with ( X=W¤; Y=
+Wn; ¹=Ln+1) and making use of the fact that for
+any three matrices A,B, and Cof the same size
+jjB¡Ajj2
+F+2hB¡A; A¡Ci=jjB¡Cjj2
+F¡jjA¡Cjj2
+F;
+(25)
+we obtain that
+2
+Ln+1(F(W¤)¡F(Wn+1))¸jjWn+1¡W¤jj2
+F¡jjWn¡W¤jj2
+F:
+Summing the above inequality over n= 0;¢¢¢; k¡1
+and making use of the inequality in Eq. (16), we get
+k¡1X
+n=0(F(Wn+1)¡F(W¤))·°L
+2(jjW0¡W¤jj2
+F¡jjWk¡W¤jj2
+F):
+It follows from F(Wn+1)·F(Wn) and F(Wn)¸
+F(W¤) that
+k(F(Wk)¡F(W¤))·k¡1X
+n=0(F(Wn+1)¡F(W¤))
+·°L
+2jjW0¡W¤jj2
+F;
+which leads to Eq. (17).
+Proof of Theorem 4.1
+Proof. Let us denote
+vk=F(Wk)¡F(W¤);
+Uk=®kWk¡(®k¡1)Wk¡1¡W¤:
+Applying Lemma 3.1 with ( X=Wk; Y=Zk+1; L=
+Lk+1) and ( X=W¤; Y=Zk+1; L=Lk+1), respec-
+tively, we obtain the following two inequalities:
+2
+Lk+1(vk¡vk+1)¸ jj Wk+1¡Zk+1jj2
+F (26)
++2hWk+1¡Zk+1; Zk+1¡Wki;
+¡2
+Lk+1vk+1¸ jj Wk+1¡Zk+1jj2
+F (27)
++2hWk+1¡Zk+1; Zk+1¡W¤i:
+Multiplying both sides of Eq. (26) by ( ®k+1¡1) and
+adding it to Eq. (27), we get
+2
+Lk+1((®k+1¡1)vk¡®k+1vk+1)¸®k+1jjWk+1¡Zk+1jj2
+F
++2hWk+1¡Zk+1; ®k+1Zk+1¡(®k+1¡1)Wk¡W¤i:Multiplying the last inequality by ®k+1and making
+use of the equality ®2
+k=®2
+k+1¡®k+1derived from
+Eq. (18), we get
+2
+Lk+1(®2
+kvk¡®2
+k+1vk+1)¸ jj®k+1(Wk+1¡Zk+1)jj2
+F
++2®k+1hWk+1¡Zk+1; ®k+1Zk+1¡(®k+1¡1)Wk¡W¤i:
+Applying the equality in Eq. (25) to the right-hand
+side of the above inequality, we get
+2
+Lk+1(®2
+kvk¡®2
+k+1vk+1)¸jj®k+1Wk+1¡(®k+1¡1)Wk
+¡W¤jj2
+F¡ jj®k+1Zk+1¡(®k+1¡1)Wk¡W¤jj2
+F:
+It follows from Eq. (19) and the de¯nition of Ukthat
+2
+Lk+1(®2
+kvk¡®2
+k+1vk+1)¸ jjUk+1jj2
+F¡ jjUkjj2
+F;
+which combined with Lk+1¸Lkleads to
+2
+Lk®2
+kvk¡2
+Lk+1®2
+k+1vk+1¸ jjUk+1jj2
+F¡jjUkjj2
+F:(28)
+Applying Lemma 3.1 with ( X=W¤; Y=Z1; L=L1),
+we obtain
+F(W¤)¡F(W1) =F(W¤)¡F(pL1(Z1))
+¸L1
+2jjpL1(Z1)¡Z1jj2+L1hZ1¡W¤; pL1(Z1)¡Z1i
+=L1
+2jjW1¡Z1jj2+L1hZ1¡W¤; W1¡Z1i
+=L1
+2jjW1¡W¤jj2¡L1
+2jjZ1¡W¤jj2:
+Hence, we have
+2
+L1v1· jjZ1¡W¤jj2¡ jjW1¡W¤jj2: (29)
+It follows from Eqs. (28) and (29) that2
+Lk®2
+kvk·
+jjW0¡W¤jj2;which combined with ®k¸(k+ 1)=2
+yields
+F(Wk)¡F(W¤)·2LkjjW0¡W¤jj2
+(k+ 1)2·2°LjjW0¡W¤jj2
+(k+ 1)2:
+This completes the proof of the theorem.
+Acknowledgments
+This work was supported by NSF IIS-0612069, IIS-
+0812551, CCF-0811790, NIH R01-HG002516, and
+NGA HM1582-08-1-0016.An Accelerated Gradient Method for Trace Norm Minimization
+References
+Abernethy, J., Bach, F., Evgeniou, T., & Vert, J.-
+P. (2006). Low-rank matrix factorization with at-
+tributes (Technical Report N24/06/MM). Ecole des
+Mines de Paris.
+Abernethy, J., Bach, F., Evgeniou, T., & Vert, J.-P.
+(2009). A new approach to collaborative ¯ltering:
+Operator estimation with spectral regularization. J.
+Mach. Learn. Res. ,10, 803{826.
+Amit, Y., Fink, M., Srebro, N., & Ullman, S. (2007).
+Uncovering shared structures in multiclass classi¯ca-
+tion. In Proceedings of the International Conference
+on Machine Learning , 17{24.
+Argyriou, A., Evgeniou, T., & Pontil, M. (2008). Con-
+vex multi-task feature learning. Machine Learning ,
+73, 243{272.
+Bach, F. R. (2008). Consistency of trace norm mini-
+mization. J. Mach. Learn. Res. ,9, 1019{1048.
+Beck, A., & Teboulle, M. (2009). A fast iterative
+shrinkage-thresholding algorithm for linear inverse
+problems. SIAM Journal on Imaging Sciences ,2,
+183{202.
+Bertsekas, D. P. (1999). Nonlinear programming .
+Athena Scienti¯c. 2nd edition.
+Cai, J.-F., Cand¶ es, E. J., & Shen, Z. (2008). A sin-
+gular value thresholding algorithm for matrix com-
+pletion (Technical Report 08-77). UCLA Computa-
+tional and Applied Math.
+Cand¶ es, E. J., & Recht, B. (2008). Exact matrix com-
+pletion via convex optimization (Technical Report
+08-76). UCLA Computational and Applied Math.
+Fazel, M., Hindi, H., & Boyd, S. P. (2001). A rank
+minimization heuristic with application to minimum
+order system approximation. In Proceedings of the
+American Control Conference , 4734{4739.
+Lu, Z., Monteiro, R. D. C., & Yuan, M. (2008). Con-
+vex optimization methods for dimension reduction
+and coe±cient estimation in multivariate linear re-
+gression. Submitted to Mathematical Programming .
+Ma, S., Goldfarb, D., & Chen, L. (2008). Fixed point
+and Bregman iterative methods for matrix rank min-
+imization (Technical Report 08-78). UCLA Compu-
+tational and Applied Math.
+Nemirovsky, A. S., & Yudin, D. B. (1983). Problem
+complexity and method e±ciency in optimization .
+John Wiley & Sons Ltd.
+Nesterov, Y. (1983). A method for solving a con-
+vex programming problem with convergence rate
+O(1=k2).Soviet Math. Dokl. ,27, 372{376.Nesterov, Y. (2003). Introductory lectures on con-
+vex optimization: A basic course . Kluwer Academic
+Publishers.
+Nesterov, Y. (2005). Smooth minimization of non-
+smooth functions. Mathematical Programming ,103,
+127{152.
+Nesterov, Y. (2007). Gradient methods for minimiz-
+ing composite objective function (Technical Report
+2007/76). CORE, Universit¶ e catholique de Louvain.
+Obozinski, G., Taskar, B., & Jordan, M. I. (2009).
+Joint covariate selection and joint subspace selection
+for multiple classi¯cation problems. Statistics and
+Computing . In press.
+Recht, B., Fazel, M., & Parrilo, P. (2008a). Guaran-
+teed minimum-rank solutions of linear matrix equa-
+tions via nuclear norm minimization. Submitted to
+SIAM Review .
+Recht, B., Xu, W., & Hassibi, B. (2008b). Necessary
+and su±cient condtions for success of the nuclear
+norm heuristic for rank minimization. In Proceed-
+ings of the 47th IEEE Conference on Decision and
+Control , 3065{3070.
+Rennie, J. D. M., & Srebro, N. (2005). Fast maximum
+margin matrix factorization for collaborative predic-
+tion. In Proceedings of the International Conference
+on Machine Learning , 713{719.
+Srebro, N., Rennie, J. D. M., & Jaakkola, T. S. (2005).
+Maximum-margin matrix factorization. In Advances
+in Neural Information Processing Systems , 1329{
+1336.
+Toh, K.-C., & Yun, S. (2009). An accelerated prox-
+imal gradient algorithm for nuclear norm regular-
+ized least squares problems. Preprint, Department
+of Mathematics, National University of Singapore,
+March 2009.
+Tomioka, R., & Aihara, K. (2007). Classifying matri-
+ces with a spectral regularization. In Proceedings of
+the International Conference on Machine Learning ,
+895{902.
+Tseng, P. (2008). On accelerated proximal gradient
+methods for convex-concave optimization. Submit-
+ted to SIAM Journal on Optimization .
+Weimer, M., Karatzoglou, A., Le, Q., & Smola, A.
+(2008a). COFIrank- maximum margin matrix fac-
+torization for collaborative ranking. In Advances in
+Neural Information Processing Systems , 1593{1600.
+Weimer, M., Karatzoglou, A., & Smola, A. (2008b).
+Improving maximum margin matrix factorization.
+Machine Learning ,72, 263{276.
+Yuan, M., Ekici, A., Lu, Z., & Monteiro, R. (2007).
+Dimension reduction and coe±cient estimation in
+multivariate linear regression. Journal of the Royal
+Statistical Society: Series B ,69, 329{346.

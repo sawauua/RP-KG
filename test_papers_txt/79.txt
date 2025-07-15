@@ -1,0 +1,791 @@
+Online Dictionary Learning for Sparse Coding
+
+JulienMairal JULIEN.MAIRAL@INRIA.FR
+FrancisBach FRANCIS.BACH@INRIA.FR
+INRIA,145rued’Ulm75005Paris,France
+JeanPonce JEAN.PONCE@ENS.FR
+EcoleNormaleSup ´erieure,145rued’Ulm75005Paris,France
+GuillermoSapiro GUILLE@UMN.EDU
+UniversityofMinnesota-DepartmentofElectricalandComp uterEngineering,200UnionStreetSE,Minneapolis,USA
+Abstract
+Sparsecoding—thatis,modellingdatavectorsas
+sparselinearcombinationsofbasiselements—is
+widelyusedinmachinelearning,neuroscience,
+signalprocessing,andstatistics. Thispaperfo-
+cusesonlearningthebasisset,alsocalleddic-
+tionary,toadaptittospeciﬁcdata,anapproach
+thathasrecentlyproventobeveryeffectivefor
+signalreconstructionandclassiﬁcationintheau-
+dioandimageprocessingdomains. Thispaper
+proposesanewonlineoptimizationalgorithm
+fordictionarylearning,basedonstochasticap-
+proximations,whichscalesupgracefullytolarge
+datasetswithmillionsoftrainingsamples. A
+proofofconvergenceispresented, alongwith
+experimentswithnaturalimagesdemonstrating
+thatitleadstofasterperformanceandbetterdic-
+tionariesthanclassicalbatchalgorithmsforboth
+smallandlargedatasets.
+1.Introduction
+Thelineardecompositionofasignalusingafewatomsof
+alearneddictionaryinsteadofapredeﬁnedone—basedon
+wavelets(Mallat,1999)forexample—hasrecentlyledto
+state-of-the-artresultsfornumerouslow-levelimagepro -
+cessingtaskssuchasdenoising(Elad&Aharon,2006)
+aswellashigher-leveltaskssuchasclassiﬁcation(Raina
+etal., 2007; Mairaletal., 2009), showingthatsparse
+learnedmodelsarewelladaptedtonaturalsignals. Un-
+1WILLOWProject, Laboratoired’Informatiquedel’Ecole
+NormaleSup´erieure,ENS/INRIA/CNRSUMR8548.
+AppearinginProceedingsofthe 26thInternationalConference
+onMachineLearning ,Montreal,Canada,2009. Copyright2009
+bytheauthor(s)/owner(s).likedecompositionsbasedonprincipalcomponentanaly-
+sisanditsvariants,thesemodelsdonotimposethatthe
+basisvectorsbeorthogonal,allowingmoreﬂexibilityto
+adapttherepresentationtothedata. Whilelearningthe
+dictionaryhasproventobecriticaltoachieve(orimprove
+upon)state-of-the-artresults,effectivelysolvingthec or-
+respondingoptimizationproblemisasigniﬁcantcompu-
+tationalchallenge,particularlyinthecontextofthelarg e-
+scaledatasetsinvolvedinimageprocessingtasks,thatmay
+includemillionsoftrainingsamples.Addressingthischal -
+lengeisthetopicofthispaper.
+Concretely,considerasignal xinRm.Wesaythatitad-
+mitsasparseapproximationovera dictionary DinRm×k,
+withkcolumnsreferredtoas atoms,whenonecanﬁnda
+linearcombinationofa“few”atomsfrom Dthatis“close”
+tothesignal x.Experimentshaveshownthatmodellinga
+signalwithsuchasparsedecomposition( sparsecoding)is
+veryeffectiveinmanysignalprocessingapplications(Che n
+etal.,1999). Fornaturalimages,predeﬁneddictionaries
+basedonvarioustypesofwavelets(Mallat,1999)have
+beenusedforthistask. However,learningthedictionary
+insteadofusingoff-the-shelfbaseshasbeenshowntodra-
+maticallyimprovesignalreconstruction(Elad&Aharon,
+2006). Althoughsomeofthelearneddictionaryelements
+maysometimes“looklike”wavelets(orGaborﬁlters),they
+aretunedtotheinputimagesorsignals,leadingtomuch
+betterresultsinpractice.
+Mostrecentalgorithmsfordictionarylearning(Olshausen
+&Field, 1997; Aharonetal., 2006; Leeetal., 2007)
+aresecond-orderiterative batchprocedures,accessingthe
+wholetrainingsetateachiterationinordertominimizea
+costfunctionundersomeconstraints.Althoughtheyhave
+shownexperimentallytobemuchfasterthanﬁrst-order
+gradientdescentmethods(Leeetal.,2007),theycannot
+effectivelyhandleverylargetrainingsets(Bottou&Bous-
+quet,2008),ordynamictrainingdatachangingovertime,OnlineDictionaryLearningforSparseCoding
+suchasvideosequences.Toaddresstheseissues,wepro-
+poseanonlineapproachthatprocessesoneelement(ora
+smallsubset)ofthetrainingsetatatime.Thisisparticu-
+larlyimportantinthecontextofimageandvideoprocess-
+ing(Protter&Elad,2009),whereitiscommontolearn
+dictionariesadaptedtosmallpatches,withtrainingdata
+thatmayincludeseveralmillionsofthesepatches(roughly
+oneperpixelandperframe). Inthissetting,onlinetech-
+niquesbasedonstochasticapproximationsareanattractiv e
+alternativetobatchmethods(Bottou,1998).Forexample,
+ﬁrst-orderstochasticgradientdescentwithprojectionso n
+theconstraintsetissometimesusedfordictionarylearn-
+ing(seeAharonandElad(2008)forinstance). Weshow
+inthispaperthatitispossibletogofurtherandexploitthe
+speciﬁcstructureofsparsecodinginthedesignofanopti-
+mizationprocedurededicatedtotheproblemofdictionary
+learning,withlowmemoryconsumptionandlowercompu-
+tationalcostthanclassicalsecond-orderbatchalgorithm s
+andwithouttheneedofexplicitlearningratetuning. As
+demonstratedbyourexperiments,thealgorithmscalesup
+gracefullytolargedatasetswithmillionsoftrainingsam-
+ples,anditisusuallyfasterthanmorestandardmethods.
+1.1.Contributions
+Thispapermakesthreemaincontributions.
+•WecastinSection2thedictionarylearningproblemas
+theoptimizationofasmoothnonconvexobjectivefunction
+overaconvexset,minimizingthe(desired) expectedcost
+whenthetrainingsetsizegoestoinﬁnity.
+•WeproposeinSection3aniterativeonlinealgorithmthat
+solvesthisproblembyefﬁcientlyminimizingateachstepa
+quadraticsurrogatefunctionoftheempiricalcostoverthe
+setofconstraints. ThismethodisshowninSection4to
+convergewithprobabilityonetoastationarypointofthe
+costfunction.
+•AsshownexperimentallyinSection5,ouralgorithmis
+signiﬁcantlyfasterthanpreviousapproachestodictionar y
+learningonbothsmallandlargedatasetsofnaturalim-
+ages. Todemonstratethatitisadaptedtodifﬁcult,large-
+scaleimage-processingtasks,welearnadictionaryona
+12-Megapixelphotographanduseitforinpainting.
+2.ProblemStatement
+Classical dictionary learning techniques (Olshausen &
+Field,1997;Aharonetal.,2006;Leeetal.,2007)consider
+aﬁnitetrainingsetofsignals X= [x1,... ,xn]inRm×n
+andoptimizetheempiricalcostfunction
+fn(D)△=1
+nn/summationdisplay
+i=1l(xi,D),(1)
+whereDinRm×kisthedictionary,eachcolumnrepresent-
+ingabasisvector,and lisalossfunctionsuchthat l(x,D)shouldbesmallif Dis“good”atrepresentingthesignal x.
+Thenumberofsamples nisusuallylarge,whereasthesig-
+naldimension misrelativelysmall,forexample, m= 100
+for10×10imagepatches,and n≥100,000fortypical
+imageprocessingapplications. Ingeneral,wealsohave
+k≪n(e.g.,k= 200forn= 100 ,000),andeachsignal
+onlyusesafewelementsof Dinitsrepresentation.Note
+that,inthissetting,overcompletedictionarieswith k > m
+areallowed.Asothers(see(Leeetal.,2007)forexample),
+wedeﬁne l(x,D)astheoptimalvalueofthe ℓ1-sparsecod-
+ingproblem:
+l(x,D)△= min
+α∈Rk1
+2||x−Dα||2
+2+λ||α||1,(2)
+where λisaregularizationparameter.2Thisproblemis
+alsoknownasbasispursuit(Chenetal.,1999),orthe
+Lasso(Tibshirani, 1996). Itiswellknownthatthe ℓ1
+penaltyyieldsasparsesolutionfor α,butthereisnoan-
+alyticlinkbetweenthevalueof λandthecorresponding
+effectivesparsity||α||0.Toprevent Dfrombeingarbitrar-
+ilylarge(whichwouldleadtoarbitrarilysmallvaluesof
+α),itiscommontoconstrainitscolumns (dj)k
+j=1tohave
+anℓ2normlessthanorequaltoone. Wewillcall Cthe
+convexsetofmatricesverifyingthisconstraint:
+C△={D∈Rm×ks.t.∀j= 1,... ,k, dT
+jdj≤1}.(3)
+Notethattheproblemofminimizingtheempiricalcost
+fn(D)isnotconvexwithrespectto D. Itcanberewrit-
+tenasajointoptimizationproblemwithrespecttothedic-
+tionary Dandthecoefﬁcients α= [α1,... ,αn]ofthe
+sparsedecomposition,whichisnotjointlyconvex,butcon-
+vexwithrespecttoeachofthetwovariables Dandαwhen
+theotheroneisﬁxed:
+min
+D∈C,α∈Rk×n1
+nn/summationdisplay
+i=1/parenleftBig1
+2||xi−Dαi||2
+2+λ||αi||1/parenrightBig
+.(4)
+Anaturalapproachtosolvingthisproblemistoalter-
+natebetweenthetwovariables,minimizingoveronewhile
+keepingtheotheroneﬁxed, asproposedbyLeeetal.
+(2007)(seealsoAharonetal. (2006),whouse ℓ0rather
+thanℓ1penalties, for related approaches).3Since the
+computationof αdominatesthecostofeachiteration,a
+second-orderoptimizationtechniquecanbeusedinthis
+casetoaccuratelyestimate Dateachstepwhen αisﬁxed.
+AspointedoutbyBottouandBousquet(2008),however,
+oneisusuallynotinterestedinaperfectminimizationof
+2Theℓpnormofavector xinRmisdeﬁned,for p≥1,by
+||x||p△= (Pm
+i=1|x[i]|p)1/p. Followingtradition,wedenoteby
+||x||0thenumberofnonzeroelementsofthevector x.This“ ℓ0”
+sparsitymeasureisnotatruenorm.
+3Inoursetting,asin(Leeetal.,2007),weusetheconvex ℓ1
+norm,thathasempiricallyproventobebetterbehavedingeneral
+thanthe ℓ0pseudo-normfordictionarylearning.OnlineDictionaryLearningforSparseCoding
+theempiricalcost fn(D),butintheminimizationofthe
+expectedcost
+f(D)△=Ex[l(x,D)] = lim
+n→∞fn(D)a.s.,(5)
+wheretheexpectation(whichisassumedﬁnite)istakenrel-
+ativetothe(unknown)probabilitydistribution p(x)ofthe
+data.4Inparticular,givenaﬁnitetrainingset,oneshould
+notspendtoomucheffortonaccuratelyminimizingthe
+empiricalcost,sinceitisonlyanapproximationoftheex-
+pectedcost.
+BottouandBousquet(2008)havefurthershownboththe-
+oreticallyandexperimentallythatstochasticgradiental go-
+rithms,whoserateofconvergenceisnotgoodinconven-
+tionaloptimizationterms,mayinfactincertainsettingsb e
+thefastestinreachingasolutionwithlowexpectedcost.
+Withlargetrainingsets,classicalbatchoptimizationtec h-
+niquesmayindeedbecomeimpracticalintermsofspeedor
+memoryrequirements.
+Inthecaseofdictionarylearning,classicalprojectedﬁrs t-
+orderstochasticgradientdescent(asusedbyAharonand
+Elad(2008)forinstance)consistsofasequenceofupdates
+ofD:
+Dt= ΠC/bracketleftBig
+Dt−1−ρ
+t∇Dl(xt,Dt−1)/bracketrightBig
+,(6)
+where ρisthegradientstep, ΠCistheorthogonalprojec-
+toronC,andthetrainingset x1,x2,...arei.i.d.samples
+ofthe(unknown)distribution p(x). AsshowninSection
+5,wehaveobservedthatthismethodcanbecompetitive
+comparedtobatchmethodswithlargetrainingsets,when
+agoodlearningrate ρisselected.
+Thedictionarylearningmethodwepresentinthenext
+section falls into the class of online algorithms based
+onstochasticapproximations,processingonesampleata
+time,butexploitsthespeciﬁcstructureoftheproblemto
+efﬁcientlysolveit.Contrarytoclassicalﬁrst-orderstoc has-
+ticgradientdescent,itdoesnotrequireexplicitlearning
+ratetuningandminimizesasequentiallyquadraticlocalap -
+proximationsoftheexpectedcost.
+3.OnlineDictionaryLearning
+Wepresentinthissectionthebasiccomponentsofouron-
+linealgorithmfordictionarylearning(Sections3.1–3.3) ,as
+wellastwominorvariantswhichspeedupourimplemen-
+tation(Section3.4).
+3.1.AlgorithmOutline
+OuralgorithmissummarizedinAlgorithm1. Assuming
+thetrainingsetcomposedofi.i.d. samplesofadistribu-
+4Weuse“a.s.”(almostsure)todenoteconvergencewithprob-
+abilityone.Algorithm1Onlinedictionarylearning.
+Require: x∈Rm∼p(x)(randomvariableandanalgo-
+rithmtodrawi.i.dsamplesof p),λ∈R(regularization
+parameter), D0∈Rm×k(initialdictionary), T(num-
+berofiterations).
+1:A0←0,B0←0(resetthe“past”information).
+2:fort= 1toTdo
+3:Drawxtfromp(x).
+4:Sparsecoding:computeusingLARS
+αt△= arg min
+α∈Rk1
+2||xt−Dt−1α||2
+2+λ||α||1.(8)
+5:At←At−1+αtαT
+t.
+6:Bt←Bt−1+xtαT
+t.
+7:Compute DtusingAlgorithm2,with Dt−1aswarm
+restart,sothat
+Dt△= arg min
+D∈C1
+tt/summationdisplay
+i=11
+2||xi−Dαi||2
+2+λ||αi||1,
+= arg min
+D∈C1
+t/parenleftbig1
+2Tr(DTDAt)−Tr(DTBt)/parenrightbig
+.
+(9)
+8:endfor
+9:Return DT(learneddictionary).
+tionp(x),itsinnerloopdrawsoneelement xtatatime,
+asinstochasticgradientdescent,andalternatesclassica l
+sparsecodingstepsforcomputingthedecomposition αtof
+xtoverthedictionary Dt−1obtainedatthepreviousitera-
+tion,withdictionaryupdatestepswherethenewdictionary
+Dtiscomputedbyminimizingover Cthefunction
+ˆft(D)△=1
+tt/summationdisplay
+i=11
+2||xi−Dαi||2
+2+λ||αi||1,(7)
+wherethevectors αiarecomputedduringtheprevious
+stepsofthealgorithm.Themotivationbehindourapproach
+istwofold:
+•Thequadraticfunction ˆftaggregatesthepastinforma-
+tioncomputedduringthepreviousstepsofthealgorithm,
+namelythevectors αi,anditiseasytoshowthatitup-
+perboundstheempiricalcost ft(Dt)fromEq.(1). One
+keyaspectoftheconvergenceanalysiswillbetoshowthat
+ˆft(Dt)andft(Dt)convergesalmostsurelytothesame
+limitandthus ˆftactsasasurrogateforft.
+•Since ˆftiscloseto ˆft−1,Dtcanbeobtainedefﬁciently
+usingDt−1aswarmrestart.
+3.2.SparseCoding
+ThesparsecodingproblemofEq.(2)withﬁxeddictio-
+naryisan ℓ1-regularizedlinearleast-squaresproblem. AOnlineDictionaryLearningforSparseCoding
+Algorithm2DictionaryUpdate.
+Require: D= [d1,... ,dk]∈Rm×k(inputdictionary),
+A= [a1,... ,ak]∈Rk×k=/summationtextt
+i=1αiαT
+i,
+B= [b1,... ,bk]∈Rm×k=/summationtextt
+i=1xiαT
+i.
+1:repeat
+2:forj= 1tokdo
+3:Updatethe j-thcolumntooptimizefor(9):
+uj←1
+Ajj(bj−Daj) +dj.
+dj←1
+max(||uj||2,1)uj.(10)
+4:endfor
+5:untilconvergence
+6:Return D(updateddictionary).
+numberofrecentmethodsforsolvingthistypeofprob-
+lemsarebasedoncoordinatedescentwithsoftthreshold-
+ing(Fu,1998;Friedmanetal.,2007).Whenthecolumns
+ofthedictionaryhavelowcorrelation,thesesimplemeth-
+odshaveproventobeveryefﬁcient.However,thecolumns
+oflearneddictionariesareingeneralhighlycorrelated,a nd
+wehaveempiricallyobservedthataCholesky-basedim-
+plementationoftheLARS-Lassoalgorithm,anhomotopy
+method(Osborneetal.,2000;Efronetal.,2004)thatpro-
+videsthewholeregularizationpath—thatis,thesolutions
+forallpossiblevaluesof λ,canbeasfastasapproaches
+basedonsoftthresholding,whileprovidingthesolution
+withahigheraccuracy.
+3.3.DictionaryUpdate
+Our algorithm for updating the dictionary uses block-
+coordinatedescentwithwarmrestarts,andoneofitsmain
+advantagesisthatitisparameter-freeanddoesnotrequire
+anylearningratetuning,whichcanbedifﬁcultinacon-
+strainedoptimizationsetting.Concretely,Algorithm2se -
+quentiallyupdateseachcolumnof D.Usingsomesimple
+algebra,itiseasytoshowthatEq.(10)givesthesolution
+ofthedictionaryupdate(9)withrespecttothe j-thcolumn
+dj,whilekeepingtheotheronesﬁxedundertheconstraint
+dT
+jdj≤1. Sincethisconvexoptimizationproblemad-
+mitsseparableconstraintsintheupdatedblocks(columns) ,
+convergencetoaglobaloptimumisguaranteed(Bertsekas,
+1999).Inpractice,sincethevectors αiaresparse,thecoef-
+ﬁcientsofthematrix Aareingeneralconcentratedonthe
+diagonal,whichmakestheblock-coordinatedescentmore
+efﬁcient.5Sinceouralgorithmusesthevalueof Dt−1asa
+5Notethatthisassumptiondoesnotexactlyhold:Tobemore
+exact,ifagroupofcolumnsin Darehighlycorrelated,theco-
+efﬁcientsofthematrix Acanconcentrateonthecorresponding
+principalsubmatricesof A.warmrestartforcomputing Dt,asingleiterationhasem-
+piricallybeenfoundtobeenough.Otherapproacheshave
+beenproposedtoupdate D,forinstance,Leeetal.(2007)
+suggestusingaNewtonmethodonthedualofEq.(9),but
+thisrequiresinvertinga k×kmatrixateachNewtonitera-
+tion,whichisimpracticalforanonlinealgorithm.
+3.4.OptimizingtheAlgorithm
+Wehavepresentedsofarthebasicbuildingblocksofour
+algorithm. Thissectiondiscussessimpleimprovements
+thatsigniﬁcantlyenhanceitsperformance.
+HandlingFixed-SizeDatasets. Inpractice,althoughit
+maybeverylarge,thesizeofthetrainingsetisoftenﬁ-
+nite(ofcoursethismaynotbethecase,whenthedata
+consistsofavideostreamthatmustbetreatedontheﬂy
+forexample). Inthissituation,thesamedatapointsmay
+beexaminedseveraltimes,anditisverycommoninon-
+linealgorithmstosimulateani.i.d.samplingof p(x)by
+cyclingoverarandomlypermutedtrainingset(Bottou&
+Bousquet,2008).Thismethodworksexperimentallywell
+inoursettingbut,whenthetrainingsetissmallenough,
+itispossibletofurtherspeedupconvergence: InAlgo-
+rithm1,thematrices AtandBtcarryalltheinformation
+fromthepastcoefﬁcients α1,... ,αt.Supposethatattime
+t0,asignal xisdrawnandthevector αt0iscomputed.If
+thesamesignal xisdrawnagainattime t > t 0,onewould
+liketoremovethe“old”informationconcerning xfromAt
+andBt—thatis,write At←At−1+αtαT
+t−αt0αT
+t0for
+instance. Whendealingwithlargetrainingsets,itisim-
+possibletostoreallthepastcoefﬁcients αt0,butitisstill
+possibletopartiallyexploitthesameidea,bycarryingin
+AtandBttheinformationfromthecurrentandprevious
+epochs(cyclesthroughthedata)only.
+Mini-BatchExtension. Inpractice,wecanimprovethe
+convergencespeedofouralgorithmbydrawing η >1
+signalsateachiterationinsteadofasingleone,whichis
+aclassicalheuristicinstochasticgradientdescentalgo-
+rithms. Letusdenote xt,1,... ,xt,ηthesignalsdrawnat
+iteration t.Wecanthenreplacethelines 5and6ofAlgo-
+rithm1by
+/braceleftbiggAt←βAt−1+/summationtextη
+i=1αt,iαT
+t,i,
+Bt←βBt−1+/summationtextη
+i=1xαT
+t,i,(11)
+where βischosensothat β=θ+1−η
+θ+1,where θ=tηif
+t < ηandη2+t−ηift≥η,whichiscompatiblewithour
+convergenceanalysis.
+PurgingtheDictionaryfromUnusedAtoms. Everydic-
+tionarylearningtechniquesometimesencounterssituatio ns
+wheresomeofthedictionaryatomsarenever(orverysel-
+dom)used,whichhappenstypicallywithaverybadintial-
+ization.AcommonpracticeistoreplacethemduringtheOnlineDictionaryLearningforSparseCoding
+optimizationbyelementsofthetrainingset,whichsolves
+inpracticethisprobleminmostcases.
+4.ConvergenceAnalysis
+Althoughouralgorithmisrelativelysimple,itsstochas-
+ticnatureandthenon-convexityoftheobjectivefunction
+maketheproofofitsconvergencetoastationarypoint
+somewhatinvolved. Themaintoolsusedinourproofs
+aretheconvergenceofempiricalprocesses(VanderVaart,
+1998)and,followingBottou(1998),theconvergenceof
+quasi-martingales(Fisk,1965). Ouranalysisislimitedto
+thebasicversionofthealgorithm,althoughitcaninprin-
+ciplebecarriedovertotheoptimizedversiondiscussed
+inSection3.4. Becauseofspacelimitations,wewillre-
+strictourselvestothepresentationofourmainresultsand
+asketchoftheirproofs,whichwillbepresentedinde-
+tailselsewhere,andﬁrstthe(reasonable)assumptionsun-
+derwhichouranalysisholds.
+4.1.Assumptions
+(A)Thedataadmitsaboundedprobabilitydensity p
+withcompactsupport K. Assumingacompactsupport
+forthedataisnaturalinaudio,image,andvideoprocess-
+ingapplications,whereitisimposedbythedataacquisitio n
+process.
+(B)Thequadraticsurrogatefunctions ˆftarestrictly
+convexwithlower-boundedHessians. Weassumethat
+thesmallesteigenvalueofthesemi-deﬁnitepositivema-
+trix1
+tAtdeﬁnedinAlgorithm1isgreaterthanorequal
+toanon-zeroconstant κ1(making Atinvertibleand ˆft
+strictlyconvexwithHessianlower-bounded).Thishypoth-
+esisisinpracticeveriﬁedexperimentallyafterafewiter-
+ationsofthealgorithmwhentheinitialdictionaryisrea-
+sonable,consistingforexampleofafewelementsfromthe
+trainingset,oranyoneofthe“off-the-shelf”dictionarie s,
+suchasDCT(basesofcosinesproducts)orwavelets.Note
+thatitiseasytoenforcethisassumptionbyaddingaterm
+κ1
+2||D||2
+Ftotheobjectivefunction,whichisequivalentin
+practicetoreplacingthepositivesemi-deﬁnitematrix1
+tAt
+by1
+tAt+κ1I.Wehaveomittedforsimplicitythispenal-
+izationinouranalysis.
+(C)Asufﬁcientuniquenessconditionofthesparsecod-
+ingsolutionisveriﬁed: Givensome x∈K,where Kis
+thesupportof p,andD∈C,letusdenoteby Λthesetof
+indices jsuchthat|dT
+j(x−Dα⋆)|=λ,where α⋆isthe
+solutionofEq.(2). Weassumethatthereexists κ2>0
+suchthat,forall xinKandalldictionaries Dinthesubset
+SofCconsideredbyouralgorithm,thesmallesteigen-
+valueof DT
+ΛDΛisgreaterthanorequalto κ2.Thismatrix
+isthusinvertibleandclassicalresults(Fuchs,2005)ensu re
+theuniquenessofthesparsecodingsolution.Itisofcourse
+easytobuildadictionary Dforwhichthisassumptionfails.However,having DT
+ΛDΛinvertibleisacommonassump-
+tioninlinearregressionandinmethodssuchastheLARS
+algorithmaimedatsolvingEq.(2)(Efronetal.,2004).It
+isalsopossibletoenforcethisconditionusinganelastic
+netpenalization(Zou&Hastie,2005),replacing ||α||1by
+||α||1+κ2
+2||α||2
+2andthusimprovingthenumericalstabil-
+ityofhomotopyalgorithmssuchasLARS.Again,wehave
+omittedthispenalizationforsimplicity.
+4.2.MainResultsandProofSketches
+Givenassumptions(A)to(C),letusnowshowthatour
+algorithmconvergestoastationarypointoftheobjective
+function.
+Proposition1 (convergenceof f(Dt)andofthesur-
+rogatefunction). Letˆftdenotethesurrogatefunction
+deﬁnedinEq.(7).Underassumptions(A)to(C):
+•ˆft(Dt)convergesa.s.;
+•f(Dt)−ˆft(Dt)convergesa.s.to 0;and
+•f(Dt)convergesa.s.
+Proofsktech:Theﬁrststepintheproofistoshowthat
+Dt−Dt−1=O/parenleftbig1
+t/parenrightbig
+which,althoughitdoesnotensure
+theconvergenceof Dt,ensurestheconvergenceofthese-
+ries/summationtext∞
+t=1||Dt−Dt−1||2
+F,aclassicalconditioningradi-
+entdescentconvergenceproofs(Bertsekas,1999).Inturn,
+thisreducestoshowingthat Dtminimizesaparametrized
+quadraticfunctionover Cwithparameters1
+tAtand1
+tBt,
+thenshowingthatthesolutionisuniformlyLipschitzwith
+respecttotheseparameters,borrowingsomeideasfrom
+perturbationtheory(Bonnans&Shapiro,1998). Atthis
+point,andfollowingBottou(1998),provingtheconver-
+genceofthesequence ˆft(Dt)amountstoshowingthatthe
+stochasticpositiveprocess
+ut△=ˆft(Dt)≥0,(12)
+isaquasi-martingale.Todoso,denotingby Fttheﬁltra-
+tionofthepastinformation,atheorembyFisk(1965)states
+thatifthepositivesum/summationtext∞
+t=1E[max( E[ut+1−ut|Ft],0)]
+converges,then utisaquasi-martingalewhichconverges
+withprobabilityone.Usingsomeresultsonempiricalpro-
+cesses(VanderVaart,1998,Chap. 19.2,DonskerThe-
+orem),weobtainaboundthatensurestheconvergence
+ofthisseries. Itfollowsfromtheconvergenceof utthat
+ft(Dt)−ˆft(Dt)convergestozerowithprobabilityone.
+Then,aclassicaltheoremfromperturbationtheory(Bon-
+nans&Shapiro,1998,Theorem4.1)showsthat l(x,D)
+isC1. This,allowsustousealastresultonempirical
+processesensuringthat f(Dt)−ˆft(Dt)convergesalmost
+surelyto 0.Therefore f(Dt)convergesaswellwithprob-
+abilityone.OnlineDictionaryLearningforSparseCoding
+Proposition2 (convergencetoastationarypoint). Un-
+derassumptions(A)to(C), Dtisasymptoticallycloseto
+thesetofstationarypointsofthedictionarylearningprob -
+lemwithprobabilityone.
+Proofsktech:Theﬁrststepintheproofistoshowusing
+classicalanalysistoolsthat,givenassumptions(A)to(C) ,
+fisC1withaLipschitzgradient. Considering ˜Aand˜B
+twoaccumulationpointsof1
+tAtand1
+tBtrespectively,we
+candeﬁnethecorrespondingsurrogatefunction ˆf∞such
+thatforall DinC,ˆf∞(D) =1
+2Tr(DTD˜A)−Tr(DT˜B),
+anditsoptimum D∞onC.Thenextstepconsistsofshow-
+ingthat∇ˆf∞(D∞) =∇f(D∞)andthat−∇f(D∞)isin
+thenormalconeoftheset C—thatis, D∞isastationary
+point of the dictionary learning problem (Borwein &
+Lewis,2006).
+5.ExperimentalValidation
+Inthissection,wepresentexperimentsonnaturalimages
+todemonstratetheefﬁciencyofourmethod.
+5.1.Performanceevaluation
+Forourexperiments,wehaverandomlyselected 1.25×106
+patchesfromimagesintheBerkeleysegmentationdataset,
+whichisastandardimagedatabase; 106ofthesearekept
+fortraining,andtherestfortesting.Weusedthesepatches
+tocreatethreedatasets A,B,andCwithincreasingpatch
+anddictionarysizesrepresentingvarioustypicalsetting sin
+imageprocessingapplications:
+DataSignalsize mNbkofatomsType
+A 8×8 = 64 256b&w
+B 12×12×3 = 432512color
+C 16×16 = 256 1024b&w
+Wehavenormalizedthepatchestohaveunit ℓ2-normand
+usedtheregularizationparameter λ= 1.2/√minallof
+ourexperiments.The 1/√mtermisaclassicalnormaliza-
+tionfactor(Bickeletal.,2007),andtheconstant 1.2has
+beenexperimentallyshowntoyieldreasonablesparsities
+(about10nonzerocoefﬁcients)intheseexperiments. We
+haveimplementedtheproposedalgorithminC++witha
+Matlabinterface. Alltheresultspresentedinthissection
+usethemini-batchreﬁnementfromSection3.4sincethis
+hasshownempiricallytoimprovespeedbyafactorof10
+ormore.Thisrequirestotunetheparameter η,thenumber
+ofsignalsdrawnateachiteration.Tryingdifferentpowers
+of2forthisvariablehasshownthat η= 256wasagood
+choice(lowestobjectivefunctionvaluesonthetrainingse t
+—empirically,thissettingalsoyieldsthelowestvalueson
+thetestset),butvaluesof128andand512havegivenvery
+similarperformances.
+Ourimplementationcanbeusedinboththeonlinesettingitisintendedfor,andinaregularbatchmodewhereit
+usestheentiredatasetateachiteration(correspondingto
+themini-batchversionwith η=n).Wehavealsoimple-
+mentedaﬁrst-orderstochasticgradientdescentalgorithm
+thatsharesmostofitscodewithouralgorithm,except
+forthedictionaryupdatestep. Thissettingallowsusto
+drawmeaningfulcomparisonsbetweenouralgorithmand
+itsbatchandstochasticgradientalternatives,whichwoul d
+havebeendifﬁcultotherwise.Forexample,comparingour
+algorithmtotheMatlabimplementationofthebatchap-
+proachfrom(Leeetal.,2007)developedbyitsauthors
+wouldhavebeenunfairsinceourC++programhasabuilt-
+inspeedadvantage.Althoughourimplementationismulti-
+threaded,ourexperimentshavebeenrunforsimplicityona
+single-CPU,single-core2.4Ghzmachine.Tomeasureand
+comparetheperformancesofthethreetestedmethods,we
+haveplottedthevalueoftheobjectivefunctionon thetest
+set,actingasasurrogateoftheexpectedcost,asafunction
+ofthecorrespondingtrainingtime.
+OnlinevsBatch. Figure1(top)comparestheonlineand
+batchsettingsofourimplementation.Thefulltrainingset
+consistsof 106samples. Theonlineversionofouralgo-
+rithmdrawssamplesfromtheentireset,andwehaverun
+itsbatchversiononthefulldatasetaswellassubsetsofsiz e
+104and105(seeﬁgure).Theonlinesettingsystematically
+outperformsitsbatchcounterpartforeverytrainingsetsi ze
+anddesiredprecision. Weusealogarithmicscaleforthe
+computationtime,whichshowsthatinmanysituations,the
+differenceinperformancecanbedramatic.Similarexperi-
+mentshavegivensimilarresultsonsmallerdatasets.
+ComparisonwithStochasticGradientDescent. Ourex-
+perimentshaveshownthatobtaininggoodperformance
+withstochasticgradientdescentrequiresusingboththe
+mini-batchheuristic andcarefullychoosingthelearning
+rateρ. Togivethefairestcomparisonpossible,wehave
+thusoptimizedtheseparameters,sampling ηvaluesamong
+powersof2(asbefore)and ρvaluesamongpowersof10.
+Thecombinationofvalues ρ= 104,η= 512givesthe
+bestresultsonthetrainingandtestdataforstochasticgra -
+dientdescent.Figure1(bottom)comparesourmethodwith
+stochasticgradientdescentfordifferent ρvaluesaround
+104andaﬁxedvalueof η= 512. Weobservethatthe
+largerthevalueof ρis,thebettertheeventualvalueofthe
+objectivefunctionisaftermanyiterations,butthelonger it
+willtaketoachieveagoodprecision.Althoughourmethod
+performsbetteratsuchhigh-precisionsettingsfordatase t
+C,itappearsthat,ingeneral,foradesiredprecisionanda
+particulardataset,itispossibletotunethestochasticgr a-
+dientdescentalgorithmtoachieveaperformancesimilar
+tothatofouralgorithm. Notethatbothstochasticgradi-
+entdescentandourmethodonlystartdecreasingtheob-
+jectivefunctionvalueafterafewiterations.Slightlybet ter
+resultscouldbeobtainedbyusingsmallergradientstepsOnlineDictionaryLearningforSparseCoding
+10−11001011021031040.14550.1460.14650.1470.14750.1480.14850.1490.1495Evaluation set A
+time (in seconds)Objective function (test set)
+  
+Our method
+Batch n=104
+Batch n=105
+Batch n=106
+10−11001011021031040.1070.1080.1090.110.1110.112Evaluation set B
+time (in seconds)Objective function (test set)
+  Our method
+Batch n=104
+Batch n=105
+Batch n=106
+10−11001011021031040.0830.0840.0850.0860.087Evaluation set C
+time (in seconds)Objective function (test set)
+  
+Our method
+Batch n=104
+Batch n=105
+Batch n=106
+10−11001011021031040.14550.1460.14650.1470.14750.1480.14850.1490.1495Evaluation set A
+time (in seconds)Objective function (test set)
+  
+Our method
+SG ρ=5.103
+SG ρ=104
+SG ρ=2.104
+10−11001011021031040.1070.1080.1090.110.1110.112Evaluation set B
+time (in seconds)Objective function (test set)
+  
+Our method
+SG ρ=5.103
+SG ρ=104
+SG ρ=2.104
+10−11001011021031040.0830.0840.0850.0860.087Evaluation set C
+time (in seconds)Objective function (test set)
+  
+Our method
+SG ρ=5.103
+SG ρ=104
+SG ρ=2.104
+Figure1.Top:Comparisonbetweenonlineandbatchlearningforvarioustrainingsetsiz es.Bottom:Comparisonbetweenourmethod
+andstochasticgradient(SG)descentwithdifferentlearningrates ρ.Inbothcases,thevalueoftheobjectivefunctionevaluatedonthe
+testsetisreportedasafunctionofcomputationtimeonalogarithmicscale.V aluesoftheobjectivefunctiongreaterthanitsinitialvalue
+aretruncated.
+duringtheﬁrstiterations,usingalearningrateoftheform
+ρ/(t+t0)forthestochasticgradientdescent,andinitializ-
+ingA0=t0IandB0=t0D0forthematrices AtandBt,
+where t0isanewparameter.
+5.2.ApplicationtoInpainting
+Ourlastexperimentdemonstratesthatouralgorithmcan
+beusedforadifﬁcultlarge-scaleimageprocessingtask,
+namely,removingthetext( inpainting)fromthedamaged
+12-MegapixelimageofFigure2. Usingamulti-threaded
+versionofourimplementation,wehavelearnedadictio-
+narywith 256elementsfromtheroughly 7×106undam-
+aged12×12colorpatchesintheimagewithtwoepochsin
+about 500secondsona2.4GHzmachinewitheightcores.
+Oncethedictionaryhasbeenlearned,thetextisremoved
+usingthesparsecodingtechniqueforinpaintingofMairal
+etal. (2008). Ourintenthereisofcourse nottoevaluate
+ourlearningprocedureininpaintingtasks,whichwouldre-
+quireathoroughcomparisonwithstate-the-arttechniques
+onstandarddatasets.Instead,wejustwishtodemonstrate
+thattheproposedmethodcanindeedbeappliedtoare-
+alistic,non-trivialimageprocessingtaskonalargeim-
+age.Indeed,tothebestofourknowledge,thisistheﬁrst
+timethatdictionarylearningisusedforimagerestoration
+onsuchlarge-scaledata.Forcomparison,thedictionaries
+usedforinpaintinginthestate-of-the-artmethodofMaira l
+etal.(2008)arelearned(inbatchmode)ononly200,000
+patches.6.Discussion
+Wehaveintroducedinthispaperanewstochasticonlineal-
+gorithmforlearningdictionariesadaptedtosparsecoding
+tasks,andprovenitsconvergence.Preliminaryexperiment s
+demonstratethatitissigniﬁcantlyfasterthanbatchalter na-
+tivesonlargedatasetsthatmaycontainmillionsoftrainin g
+examples,yetitdoesnotrequirelearningratetuninglike
+regularstochasticgradientdescentmethods. Moreexper-
+imentsareofcourseneededtobetterassessthepromise
+ofthisapproachinimagerestorationtaskssuchasdenois-
+ing,deblurring,andinpainting. Beyondthis,weplanto
+usetheproposedlearningframeworkforsparsecodingin
+computationallydemandingvideorestorationtasks(Prot-
+ter&Elad,2009),withdynamicdatasetswhosesizeisnot
+ﬁxed,andalsoplantoextendthisframeworktodifferent
+lossfunctionstoaddressdiscriminativetaskssuchasimag e
+classiﬁcation(Mairaletal.,2009),whicharemoresensiti ve
+tooverﬁttingthanreconstructiveones,andvariousmatrix
+factorizationtasks,suchasnon-negativematrixfactoriz a-
+tionwithsparsenessconstraintsandsparseprincipalcom-
+ponentanalysis.
+Acknowledgments
+ThispaperwassupportedinpartbyANRundergrant
+MGA.TheworkofGuillermoSapiroispartiallysupported
+byONR,NGA,NSF,ARO,andDARPA.OnlineDictionaryLearningforSparseCoding
+Figure2.Inpaintingexampleona 12-Megapixelimage. Top:
+Damagedandrestoredimages. Bottom: Zoomingonthedam-
+agedandrestoredimages.(Bestseenincolor)
+References
+Aharon,M.,&Elad,M.(2008). Sparseandredundant
+modelingofimagecontentusinganimage-signature-
+dictionary.SIAMImagingSciences ,1,228–247.
+Aharon,M.,Elad,M.,&Bruckstein,A.M.(2006).TheK-
+SVD:Analgorithmfordesigningofovercompletedic-
+tionariesforsparserepresentations. IEEETransactions
+SignalProcessing,54,4311-4322
+Bertsekas,D.(1999). Nonlinearprogramming . Athena
+ScientiﬁcBelmont,Mass.
+Bickel,P.,Ritov,Y.,&Tsybakov,A.(2007).Simultaneous
+analysisofLassoandDantzigselector.preprint.
+Bonnans,J.,&Shapiro,A.(1998). Optimizationprob-
+lemswithperturbation: Aguidedtour. SIAMReview,
+40,202–227.
+Borwein,J.,&Lewis,A.(2006). Convexanalysisandnon-
+linearoptimization:theoryandexamples .Springer.
+Bottou,L.(1998). Onlinealgorithmsandstochasticap-
+proximations. InD.Saad(Ed.), Onlinelearningand
+neuralnetworks.
+Bottou,L.,&Bousquet,O.(2008).Thetradeoffsoflarge
+scalelearning.AdvancesinNeuralInformationProcess-
+ingSystems,20,161–168.
+Chen,S.,Donoho,D.,&Saunders,M.(1999).Atomicde-
+compositionbybasispursuit. SIAMJournalonScientiﬁc
+Computing,20,33–61.
+Efron,B.,Hastie,T.,Johnstone,I.,&Tibshirani,R.(2004 ).
+Leastangleregression. AnnalsofStatistics ,32,407–
+499.Elad,M.,&Aharon,M.(2006).Imagedenoisingviasparse
+andredundantrepresentationsoverlearneddictionaries.
+IEEETransactionsImageProcessing ,54,3736–3745.
+Fisk,D.(1965). Quasi-martingale. Transactionsofthe
+AmericanMathematicalSociety ,359–388.
+Friedman,J.,Hastie,T.,H ¨olﬂing,H.,&Tibshirani,R.
+(2007). Pathwisecoordinateoptimization. Annalsof
+Statistics,1,302–332.
+Fu,W.(1998). PenalizedRegressions: TheBridgeVer-
+sustheLasso.Journalofcomputationalandgraphical
+statistics,7,397–416.
+Fuchs,J.(2005).Recoveryofexactsparserepresentations
+inthepresenceofboundednoise. IEEETransactions
+InformationTheory ,51,3601–3608.
+Lee,H.,Battle,A.,Raina,R.,&Ng,A.Y.(2007).Efﬁcient
+sparsecodingalgorithms. AdvancesinNeuralInforma-
+tionProcessingSystems ,19,801–808.
+Mairal,J.,Elad,M.,&Sapiro,G.(2008).Sparserepresen-
+tationforcolorimagerestoration. IEEETransactions
+ImageProcessing,17,53–69.
+Mairal,J.,Bach,F.,Ponce,J.,Sapiro,G.,&Zisserman,
+A.(2009).Superviseddictionarylearning. Advancesin
+NeuralInformationProcessingSystems ,21,1033–1040.
+Mallat,S.(1999).Awavelettourofsignalprocessing,sec-
+ondedition.AcademicPress,NewYork.
+Olshausen,B.A.,&Field,D.J.(1997).Sparsecodingwith
+anovercompletebasisset:AstrategyemployedbyV1?
+VisionResearch,37,3311–3325.
+Osborne,M.,Presnell,B.,&Turlach,B.(2000). Anew
+approachtovariableselectioninleastsquaresproblems.
+IMAJournalofNumericalAnalysis ,20,389–403.
+Protter,M.,&Elad,M.(2009).Imagesequencedenoising
+viasparseandredundantrepresentations. IEEETrans-
+actionsImageProcessing ,18,27–36.
+Raina,R.,Battle,A.,Lee,H.,Packer,B.,&Ng,A.Y.
+(2007).Self-taughtlearning:transferlearningfromun-
+labeleddata.Proceedingsofthe26thInternationalCon-
+ferenceonMachineLearning ,759–766.
+Tibshirani,R.(1996). Regressionshrinkageandselection
+viatheLasso.JournaloftheRoyalStatisticalSociety
+SeriesB,67,267–288.
+VanderVaart,A.(1998). AsymptoticStatistics .Cambridge
+UniversityPress.
+Zou,H.,&Hastie,T.(2005). Regularizationandvariable
+selectionviatheelasticnet. JournaloftheRoyalStatis-
+ticalSocietySeriesB ,67,301–320.

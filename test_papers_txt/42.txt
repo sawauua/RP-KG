@@ -1,0 +1,484 @@
+Clustered Multi-Task Learning: a
+Convex Formulation
+Laurent Jacob
+M
+ines ParisTech – CBIO
+INSERM U900, InstitutCurie
+35, rue Saint Honor ´e, 77300 Fontainebleau, France
+laurent.jacob@mines-paristech.frFrancis Bach
+INRIA – Willow Project
+Ecole Normale Sup ´erieure,
+45, rue d’Ulm, 75230 Paris, France
+francis.bach@mines.org
+Jean-Philippe Vert
+Mines ParisTech – CBIO
+INSERM U900, Institut Curie
+35, rue Saint Honor ´e, 77300 Fontainebleau, France
+jean-philippe.vert@mines-paristech.fr
+Abstract
+In multi-task learning several related tasks are considered simultaneously, with
+thehopethatbyanappropriatesharingofinformationacrosstasks,eachtaskmay
+beneﬁt from the others. In the context of learning linear functions for supervised
+classiﬁcation or regression, this can be achieved by including a priori informa-
+tionabouttheweightvectorsassociatedwiththetasks,andhowtheyareexpected
+to be related to each other. In this paper, we assume that tasks are clustered into
+groups,whichareunknownbeforehand,andthattaskswithinagrouphavesimilar
+weight vectors. We design a new spectral norm that encodes this a priori assump-
+tion, without the prior knowledge of the partition of tasks into groups, resulting
+in a new convex optimization formulation for multi-task learning. We show in
+simulations on synthetic examples and on the IEDBMHC-I binding dataset, that
+ourapproachoutperformswell-knownconvexmethodsformulti-tasklearning,as
+well as related non-convex methods dedicated to the same problem.
+1 Introduction
+Regularization has emerged as a dominant theme in machine learning and statistics, providing an
+intuitive and principled tool for learning from high-dimensional data. In particular, regularization
+by squared Euclidean norms or squared Hilbert norms has been thoroughly studied in various set-
+tings, leading to efﬁcient practical algorithms based on linear algebra, and to very good theoretical
+understanding (see, e.g., [1, 2]). In recent years, regularization by non Hilbert norms, such as ℓp
+norms with p/ne}ationslash= 2, has also generated considerable interest for the inference of linear functions in
+supervised classiﬁcation or regression. Indeed, such norms can sometimes both make the problem
+statistically and numerically better-behaved, and impose various prior knowledge on the problem.
+Forexample,the ℓ1-norm(thesumofabsolutevalues)imposessomeofthecomponentstobeequal
+to zero and is widely used to estimate sparse functions [3], while various combinations of ℓpnorms
+can be deﬁned toimpose various sparsity patterns.
+While most recent work has focused on studying the properties of simple well-known norms, we
+take the opposite approach in this paper. That is, assuming a given prior knowledge, how can we
+design a norm that will enforce it?
+More precisely, we consider the problem of multi-task learning, which has recently emerged as a
+very promising research direction for various applications [4]. In multi-task learning several re-
+lated inference tasks are considered simultaneously, with the hope that by an appropriate sharing
+1of information across tasks, each one may beneﬁt from the othe rs. When linear functions are es-
+timated, each task is associated with a weight vector, and a common strategy to design multi-task
+learningalgorithmistotranslatesomepriorhypothesisabouthowthetasksarerelatedtoeachother
+into constraints on the different weight vectors. For example, such constraints are typically that the
+weight vectors of the different tasks belong (a) to a Euclidean ball centered at the origin [5], which
+impliesnosharingof informationbetween tasksapart fromthesizeofthedifferentvectors, i.e.,the
+amount of regularization, (b) to a ball of unknown center [5], which enforces a similarity between
+the different weight vectors, or (c) to an unknown low-dimensional subspace [6, 7].
+Inthispaper,weconsideradifferentpriorhypothesisthatwebelievecouldbemorerelevantinsome
+applications: thehypothesisthat thedifferenttasksareinfactclusteredintodifferentgroups,andthat
+theweightvectorsoftaskswithinagrouparesimilartoeachother. Akeydifferencewith[5],where
+a similar hypothesis is studied, is that we don’t assume that the groups are known a priori, and in a
+sense our goal is both to identify the clusters and to use them for multi-task learning. An important
+situationthatmotivatesthishypothesisisthecasewheremostofthetasksareindeedrelatedtoeach
+other,butafew“outlier”tasksareverydifferent,inwhichcaseitmaybebettertoimposesimilarity
+or low-dimensional constraints only to a subset of the tasks (thus forming a cluster) rather than to
+all tasks. Another situation of interest is when one can expect a natural organization of the tasks
+into clusters, such as when one wants to model the preferences of customers and believes that there
+are a few general types of customers with similar preferences within each type, although one does
+not know beforehand which customers belong to which types. Besides an improved performance if
+the hypothesis turns out to be correct, we also expect this approach to be able to identify the cluster
+structureamongthetasksasaby-productoftheinferencestep,e.g.,toidentifyoutliersorgroupsof
+customers, which can be of interest for further understanding of the structure of the problem.
+In order to translate this hypothesis into a working algorithm, we follow the general strategy men-
+tioned above which is to design a norm or a penalty over the set of weights which can be used as
+regularization in classical inference algorithms. We construct such a penalty by ﬁrst assuming that
+the partition of the tasks into clusters is known, similarly to [5]. We then attempt to optimize the
+objective function of the inference algorithm over the set of partitions, a strategy that has proved
+useful in other contexts such as multiple kernel learning [8]. This optimization problem over the
+set of partitions being computationally challenging, we propose a convex relaxation of the problem
+which results in an efﬁcient algorithm.
+2 Multi-task learning with clusteredtasks
+We consider mrelated inference tasks that attempt to learn linear functions over X=Rdfrom a
+training set of input/output pairs (xi,yi)i=1,...,n, where xi∈ Xandyi∈ Y. In the case of binary
+classiﬁcation we usually take Y={−1,+1}, while in the case of regression we take Y=R. Each
+trainingexample (xi,yi)isassociatedtoaparticulartask t∈[1,m],andwedenoteby I(t)⊂[1,n]
+thesetofindicesoftrainingexamplesassociatedtothetask t. Ourgoalistoinfer mlinearfunctions
+ft(x) =w⊤
+tx, for t= 1,... ,m, associated to the different tasks. We denote by W= (w1... w m)
+thed×mmatrix whose columns are the successive vectors we want to estimate.
+We ﬁx a loss function l:R× Y /ma√sto→ Rthat quantiﬁes by l(f(x),y)the cost of predicting f(x)
+for the input xwhen the correct output is y. Typical loss functions include the square error in
+regression l(u,y) =1
+2(u−y)2or the hinge loss in binary classiﬁcation l(u,y) = max(0 ,1−uy)
+withy∈ {−1,1}. The empirical risk of a set of linear classiﬁers given in the matrix Wis then
+deﬁned as the average loss over the training set:
+ℓ(W) =1
+n/summationtextm
+t= 1/summationtext
+i∈I(t)l(w⊤
+txi,yi). (1)
+Inthesequel,wewilloftenusethe m×1vector1composedofones,the m×mprojectionmatrices
+U=11⊤/mwhose entries are all equal to 1/m, as well as the projection matrix Π=I−U.
+In order to learn simultaneously the mtasks, we follow the now well-established approach which
+looks for a set of weight vectors Wthat minimizes the empirical risk regularized by a penalty
+functional, i.e., we consider the problem:
+minW∈Rd×mℓ(W) +λΩ(W ), (2)
+where Ω(W)can be designed from prior knowledge to constrain some sharing of information be-
+tween tasks. For example, [5] suggests to penalize both the norms of the wi’s and their variance,
+2i.e., to consider a function of the form:
+Ωvariance (W) =/ba∇dbl¯w/ba∇dbl2+β
+m/summationtextm
+i= 1/ba∇dblwi−¯w/ba∇dbl2, (3)
+where ¯w= (/summationtextn
+i=1wi)/mis the mean weight vector. This penalty enforces a clustering of the w′
+is
+towards their mean when βincreases. Alternatively, [7] propose to penalize the trace norm of W:
+Ωtrace(W) =/summationtextmin(d,m)
+i=1 σi(W), (4)
+where σ1(W),... ,σ min(d,m)(W)arethesuccessivesingularvaluesof W. Thisenforcesalow-rank
+solution in W,i.e., constrains the different wi’s to live in a low-dimensional subspace.
+Here we would like to deﬁne a penalty function Ω(W)that encodes as prior knowledge that tasks
+areclusteredinto r < mgroups. Todoso,letusﬁrstassumethatweknowbeforehandtheclusters,
+i.e., we have a partition of the set of tasks into rgroups. In that case we can follow an approach
+proposed by [5] which for clarity we rephrase with our notations and slightly generalize now. For a
+given cluster c∈[1,r], let us denote J(c)⊂[1,m]the set of tasks in c,mc=|J(c)|the number
+of tasks in the cluster c, and Ethem×rbinary matrix which describes the cluster assignment
+for the mtasks,i.e.,Eij= 1if task iis in cluster j,0otherwise. Let us further denote by ¯wc=
+(/summationtext
+i∈J(c)wi)/mcthe average weight vector for the tasks in c, and recall that ¯w= (/summationtextm
+i=1wi)/m
+denotestheaverageweightvectoroveralltasks. Finallyitwillbeconvenienttointroducethematrix
+M=E(E⊤E)−1E⊤.Mcan also be written I−L, where Lis the normalized Laplacian of the
+graph Gwhose nodes are the tasks connected by an edge if and only if they are in the same cluster.
+Then we can deﬁne three semi-norms of interest on Wthat quantify different orthogonal aspects:
+•A global penalty, which measures on average how large the weight vectors are:
+Ωmean(W) =n/ba∇dbl¯w/ba∇dbl2= trWUW⊤.
+•A measure of between-cluster variance, which quantiﬁes how close to each other the dif-
+ferent clusters are:
+Ωbetween (W) =/summationtextr
+c=1mc/ba∇dbl¯wc−¯w/ba∇dbl2= trW (M−U)W⊤.
+•A measure of within-cluster variance, which quantiﬁes the compactness of the clusters:
+Ωwithin(W) =/summationtextr
+c=1/braceleftBig/summationtext
+i∈J(c)/ba∇dblwi−¯wc/ba∇dbl2/bracerightBig
+= trW (I−M)W⊤.
+We note that both Ωbetween (W)andΩwithin(W)depend on the particular choice of clusters E, or
+equivalently of M. We now propose to consider the following general penalty function:
+Ω(W) =εMΩmean(W) +εBΩbetween (W) +εWΩwithin(W), (5)
+where εM,εBandεWare non-negative parameters that can balance the importance of the compo-
+nents of the penalty. Plugging this quadratic penalty into (2) leads to the general problem:
+minW∈Rd×mℓ(W) +λtrWΣ(M)−1W⊤, (6)
+where
+Σ(M)−1=εMU+εB(M−U) +εW(I−M). (7)
+Hereweusethenotation Σ(M)toinsistonthefactthatthisquadraticpenaltydependsonthecluster
+structure through the matrix M. Observing that the matrices U,M−UandI−Mare orthogonal
+projections onto orthogonal supplementary subspaces, we easily get from(7):
+Σ(M) =ε−1
+MU+ε−1
+B(M−U) +ε−1
+W(I−M) =ε−1
+WI+ (ε−1
+M−ε−1
+B)U+ (ε−1
+B−ε−1
+W)M .(8)
+By choosing particular values for εM,εBandεWwe can recover several situations, In particular:
+•ForεW=εB=εM=ε,wesimplyrecovertheFrobeniusnormof W,whichdoesnotput
+any constraint on the relationship between the different tasks:
+Ω(W) =εtrWW⊤=ε/summationtextm
+i=1/ba∇dblwi/ba∇dbl2.
+3•F or εW=εB> εM, we recover the penalty of [5] without clusters:
+Ω(W) = trW (εMU+εB(I−U))W⊤=εMn/ba∇dbl¯w/ba∇dbl2+εB/summationtextm
+i=1/ba∇dblwi−¯w/ba∇dbl2.
+In that case, a global similarity between tasks is enforced, in addition to the general con-
+straint on their mean. The structure in clusters plays no role since the sum of the between-
+and within-cluster variance is independent of the particular choice of clusters.
+•ForεW> εB=εMwe recover the penalty of [5] with clusters:
+Ω(W) = trW (εMM+εW(I−M))W⊤=εMr/summationdisplay
+c=1/braceleftBig
+mc/ba∇dbl¯wc/ba∇dbl2+εW
+εM/summationtext
+i∈ J(c)/ba∇dblwi−¯wc/ba∇dbl2/bracerightBig
+.
+In order to enforce a cluster hypothesis on the tasks, we therefore see that a natural choice is to
+takeεW> εB> εMin (5). This would have the effect of penalizing more the within-cluster
+variance than the between-cluster variance, hence promoting compact clusters. Of course, a major
+limitation at this point is that we assumed the cluster structure known a priori (through the matrix
+E,orequivalently M). Inmanycasesofinterest,wewouldlikeinsteadtolearntheclusterstructure
+itself from the data. We propose to learn the cluster structure in our framework by optimizing our
+objective function (6) both in WandM,i.e., to consider the problem:
+minW∈Rd×m,M∈M rℓ(W) +λtrWΣ(M)−1W⊤, (9)
+where Mrdenotes the set of matrices M=E(E⊤E)−1E⊤deﬁned by a clustering of the mtasks
+intorclusters and Σ(M)is deﬁned in (8). Denoting by Sr={Σ(M ) :M∈ M r}the correspond-
+ing set of positive semideﬁnite matrices, we can equivalently rewrite the problem as:
+minW∈Rd×m,Σ∈S rℓ(W) +λtrWΣ−1W⊤. (10)
+Theobjectivefunctionin(10)isjointlyconvexin W∈Rd×mandΣ∈ Sm
++,thesetof m×mpositive
+semideﬁnitematrices,howeverthe(ﬁnite)set Srisnotconvex,makingthisproblemintractable. We
+are now going to propose a convex relaxation of (10) by optimizing over a convex set of positive
+semideﬁnite matrices that contains Sr.
+3 Convexrelaxation
+In order to formulate a convex relaxation of (10), we observe that in the penalty term (5) the cluster
+structure only contributes to the second and third terms Ωbetween (W)andΩwithin(W), and that
+these penalties only depend on the centered version of W. In terms of matrices, only the last two
+terms of Σ(M)−1in (7) depend on M,i.e., on the clustering, and these terms can be re-written as:
+εB(M−U) +εW(I−M) = Π( εBM+εW(I−M))Π. (11)
+Indeed, it is easy to check that M−U=MΠ = ΠM Π, and that I−M=I−U−(M−U) =
+Π−ΠMΠ = Π( I−M)Π. Intuitively, multiplying by Πon the right (resp. on the left) centers the
+rows (resp. the columns) of a matrix, and both M−UandI−Mare row- and column-centered.
+Tosimplifynotations,letusintroduce /tildewiderM= ΠM Π. Plugging(11)in(7)and(9),wegetthepenalty
+trWΣ(M)−1W⊤=εM/parenleftbig
+trW⊤WU/parenrightbig
++ (WΠ)(εB/tildewiderM+εW(I−/tildewiderM))(WΠ)⊤,(12)
+inwhich,again,onlythesecondpartneedstobeoptimizedwithrespecttotheclustering M. Denot-
+ingΣ−1
+c(M) =εB/tildewiderM+εW(I−/tildewiderM),onecanexpress Σc(M),usingthefactthat /tildewiderMisaprojection:
+Σc(M) =/parenleftbig
+ε−1
+B−ε−1
+W/parenrightbig/tildewiderM+ε−1
+WI. (13)
+Σcis characterized by /tildewiderM= ΠM Π, that is discrete by construction, hence the non-convexity of Sr.
+We have the natural constraints M≥0(i.e.,/tildewiderM≥ −U),0/√∇ecedesequalM/√∇ecedesequalI(i.e.,0/√∇ecedesequal/tildewiderM/√∇ecedesequalΠ) and
+trM=r(i.e.,tr/tildewiderM=r−1). A possible convex relaxation of the discrete set of matrices /tildewiderMis
+therefore {/tildewiderM: 0/√∇ecedesequal/tildewiderM/√∇ecedesequalI,tr/tildewiderM=r−1}. Thisgivesanequivalentconvexset ScforΣc,namely:
+Sc=/braceleftbig
+Σc∈ Sm
++:αI/√∇ecedesequalΣc/√∇ecedesequalβI,trΣc=γ/bracerightbig
+, (14)
+withα=ε−1
+W,β=ε−1
+Bandγ= (m−r+ 1)ε−1
+W+ (r−1)ε−1
+B. Incorporating the ﬁrst part of the
+penalty (12) into the empirical risk term by deﬁning ℓc(W) =λℓ(W) +εM/parenleftbig
+trW⊤WU/parenrightbig
+, we are
+now ready tostate our relaxation of (10):
+minW∈Rd×m,Σc∈Scℓc(W) +λtrWΠΣ−1
+c(WΠ)⊤. (15)
+43.1 Reinterpretation in terms of norms
+W
+e denote /ba∇dblW/ba∇dbl2
+c= min Σc∈SctrWΣ−1
+cWTthecluster norm (CN). For any convex set Sc, we ob-
+tainanormon W(thatweapplyheretoitscenteredversion). Byputtingsomedifferentconstraints
+ontheset Sc,weobtaindifferentnormson W,andinfactallprevious multi-taskformulationsmay
+be cast in this way, i.e., by choosing a speciﬁc set of positive matrices Sc(e.g., trace constraint for
+the trace norm, and simply a singleton for the Frobenius norm). Thus, designing norms for multi-
+tasklearningisequivalenttodesigningasetofpositivematrices. Inthispaper,wehaveinvestigated
+a speciﬁc set adapted for clustered-tasks, but other sets could be designed in other situations.
+Note that we have selected a simple spectralconvex set Scin order to make the optimization sim-
+pler in Section 3.3, but we could also add some additional constraints that encode the point-wise
+positivity of the matrix M. Finally, when r= 1(one cluster) and r=m(one cluster per task), we
+get back the formulation of [5].
+3.2 Reinterpretation as a convex relaxation of K-means
+Inthissectionweshowthatthesemi-norm /ba∇dblWΠ/ba∇dbl2
+cthatwehavedesignedearlier,canbeinterpreted
+as a convex relaxation of K-means on the tasks [9]. Indeed, given W∈Rd×m, K-means aims
+to decompose it in the form W=µE⊤where µ∈Rd×rare cluster centers and Erepresents
+a partition. Given E,µis found by minimizing minµ/ba∇dblW⊤−Eµ⊤/ba∇dbl2
+F. Thus, a natural strategy
+outlined by [9], is to alternate between optimizing µ, the partition Eand the weight vectors W. We
+now show that our convex norm is obtained when minimizing in closed form with respect to µand
+relaxing.
+By translation invariance, this is equivalent to minimizing minµ/ba∇dblΠW⊤−ΠEµ⊤/ba∇dbl2
+F. If we add a
+penalization on µof the form λtrE⊤Eµµ⊤, then a short calculation shows that the minimum with
+respect to µ(i.e., after optimization of the cluster centers) is equal to
+trΠW⊤WΠ(ΠE (E⊤E)−1E⊤Π/λ+I)−1= trΠ W⊤WΠ(ΠM Π/λ+I)−1.
+Bycomparing withEq.(13),weseethatourformulationisindeedaconvex relaxationofK-means.
+3.3 Primal optimization
+Let us now show in more details how (15) can be solved efﬁciently. Whereas a dual formulation
+could be easily derived following [8], a direct approach is to rewrite (15) as
+minW∈Rd×m/parenleftbig
+ℓc(W) + min Σc∈SctrWΠΣ−1
+c(WΠ)⊤/parenrightbig
+(16)
+which, if ℓcis differentiable, can be directly optimized by gradient-based methods on Wsince
+/ba∇dblWΠ/ba∇dbl2
+c= min Σc∈SctrWΠΣ−1
+c(WΠ)⊤is a quadratic semi-norm of WΠ. This regularization
+termtrWΠΣ−1
+c(WΠ)⊤can be computed efﬁciently using a semi-closed form. Indeed, since Σcas
+deﬁned in (14) is a spectral set (i.e., it does depend only on eigenvalues of covariance matrices), we
+obtain a function of the singular values of WΠ(or equivalently the eigenvalues of WΠW⊤):
+minΣc∈SctrWΠΣ−1
+c(WΠ)⊤= min λ∈Rm, α≤λ i≤β, λ1 =γ, V∈OmtrWΠVdiag(λ)−1V⊤(WΠ)⊤,
+where Omisthesetoforthogonal matricesin Rm×m. Theoptimal Visthematrixoftheeigenvec-
+tors of WΠW⊤, and we obtain the value of the objective function at the optimum:
+minΣ∈StrWΠΣ−1(WΠ)⊤= min λ∈Rm, α≤λ i≤β, λ1 =γ/summationtextm
+i=1σ2
+i
+λi,
+w
+hereσandλare the vectors containing the singular values of WΠandΣrespectively. Now, we
+simply need to be able to compute this function of the singular values.
+Theonlycouplinginthisformulationcomesfromthetraceconstraint. TheLagrangiancorrespond-
+ing to this constraint is:
+L(λ,ν) =/summationtextm
+i=1σ2
+i
+λi+ν(/summationtextm
+i= 1λi−γ). (17)
+Forν≤0,thisisadecreasingfunctionof λi,sotheminimumon λi∈[α,β]isreachedfor λi=β.
+The dual function is then a linear non-decreasing function of ν(since α≤γ/m≤βfrom the
+deﬁnitionof α,β,γin(14)),whichreachesitmaximumvalue(on ν≤0)atν= 0. Letustherefore
+now consider the dual for ν≥0. (17) is then a convex function of λi. Canceling its derivative with
+respect to λigives that the minimum in λ∈Ris reached for λi=σi/√ν. Now this may not be
+5in the constraint set (α ,β), so if σi< α√νt hen the minimum in λi∈[α,β]of (17) is reached
+forλi=α, and if σi> β√νi t is reached for λi=β. Otherwise, it is reached for λi=σi/√ν.
+R
+eporting this in (17), the dual problem is therefore
+max ν≥0/summationtext
+i,α√ν≤σi≤β√ν2σi√ν+/summationtext
+i,σi<α√ν/parenleftBig
+σ2
+i
+α+να/parenrightBig
++/summationtext
+i,β√ν<σ i/parenleftBig
+σ2
+i
+β+νβ/parenrightBig
+−νγ .(18)
+Since a closed form for this expression is known for each ﬁxed value of ν, one can obtain /ba∇dblWΠ/ba∇dbl2
+c
+(and the eigenvalues of Σ∗) by Algorithm 1. The cancellation condition in Algorithm 1 is that the
+Algorithm 1 C omputing /ba∇dblA/ba∇dbl2
+c
+Require: A ,α,β,γ.
+Ensure: /ba∇dblA/ba∇dbl2
+c,λ∗.
+Compute the singular values σiofA.
+Order theσ2
+i
+α2,σ2
+i
+β2in a vector I(withan additional 0at the beginning).
+for allinterval (a,b)ofIdo
+if∂L(λ∗,ν)
+∂νis canceled on ν∈(a,b)then
+Replace ν∗in the dual function L(λ∗,ν)to get/ba∇dblA/ba∇dbl2
+c, compute λ∗on(a,b).
+return /ba∇dblA/ba∇dbl2
+c,λ∗.
+end if
+end for
+value canceling the derivative belongs to (a ,b),i.e.,
+ν=/parenleftBigP
+i,α√ν≤σi≤β√νσi
+γ−(αn−+β n+)/parenrightBig2
+∈(a,b),
+where n−andn+are the number of σi< α√νa nd σi> β√νr espectively. Denoting /ba∇dblA/ba∇dbl2
+c=
+F(A,Σ∗(A)),∇AF=∂AF+∂ΣF∂AΣcannot be computed because of the non-differentiable
+constraints on ΣforF. We followed an alternative direction, using only the ∂AFpart.
+4 Experiments
+4.1 Artiﬁcial data
+Wegeneratedsyntheticdataconsistingoftwoclustersoftwotasks. Thetasksarevectorsof Rd, d=
+30. Foreachcluster,acenter ¯wcwasgeneratedin Rd−2,sothatthetwoclustersbeorthogonal. More
+precisely, each ¯wchad(d−2)/2random features randomly drawn from N(0,σ2
+r), σ2
+r= 900, and
+(d−2)/2zerofeatures. Then,eachtasks twascomputedas wt+ ¯wc(t),where c(t)wasthecluster
+oft.wthad the same zero feature as its cluster center, and the other features were drawn from
+N(0,σ2
+c), σ2
+c= 16. Thelasttwofeatureswerenon-zeroforallthetasksanddrawnfrom N(0,σ2
+c).
+For each task, 2000points were generated and a normal noise of variance σ2
+n= 150was added.
+In a ﬁrst experiment, we compared our cluster norm /ba∇dbl./ba∇dbl2
+cwith the single-task learning given by the
+Frobenius norm, and with the trace norm, that corresponds to the assumption that the tasks live in a
+low-dimension space. The multi-task kernel approach being a special case of CN, its performance
+will always be between the performance of the single task and the performance of CN.
+In a second setting, we compare CN to alternative methods that differ in the way they learn Σ:
+•TheTrue metric approach, that simply plugs the actual clustering in Eand optimizes W
+using this ﬁxed metric. This necessitates to know the true clustering a priori, and can be
+thought of like a golden standard.
+•Thek-meansapproach, that alternates between optimizing the tasks in Wgiven the metric
+Σandre-learning Σbyclusteringthetasks wi[9]. Theclusteringisdonebyak-meansrun
+3times. This is a non convex approach, and different initialization of k-means may result
+in different local minima.
+We also tried one run of CN followed by a run of True metric using the learned Σreprojected
+inSrby rounding, i.e., by performing k-means on the eigenvectors of the learned Σ(Reprojected
+approach), and a run of k-meansstartingfrom the relaxed solution (CNinit approach).
+6Only the ﬁrst method requires to know the true clustering a pri ori, all the other methods can be run
+without any knowledge of the clustering structure of the tasks.
+Each method was run with different numbers of training points. The training points were equally
+separated between the two clusters and for each cluster, 5/6th of the points were used for the ﬁrst
+taskand 1/6thforthesecond,inordertosimulateanaturalsettingweresometaskshavefewerdata.
+We used the 2000points of each task to build 3training folds, and the remaining points were used
+for testing. We used the mean RMSE across the tasks as a criterion, and a quadratic loss for ℓ(W).
+The results of the ﬁrst experiment are shown on Figure 1 (left). As expected, both multi-task ap-
+proaches perform better than the approach that learns each task independently. CN penalization on
+theotherhandalwaysgivesbettertestingerrorthanthetracenormpenalization,withastrongerad-
+vantage when very few training points are available. When more training points become available,
+allthemethodsgivemoreandmoresimilarperformances. Inparticular,withlargesamples,itisnot
+useful anymore to use a multi-taskapproach.
+33.544.555.566.5101520253035
+Number of training points (log)RMSE
+  
+Frob
+Trace
+CN
+33.544.555.566.514161820222426283032
+Number of training points (log)RMSE
+  
+CN
+KM
+True
+Repr
+Figure 1: RMSE versus number of training points for the tested methods.
+Figure 2: Recovered Σw ith CN (upper line) and k-means (lower line) for 28,50and100points.
+Figure 1 (right) shows the results of the second experiment. Using the true metric always gives the
+bestresults. For 28trainingpoints,nomethodrecoversthecorrectclusteringstructure,asdisplayed
+on Figure 2, although CN performs slightly better than the k-meansapproach since the metric it
+learnsismorediffuse. For 50trainingpoints,CNperformsmuchbetterthanthe k-meansapproach,
+which completely fails to recover the clustering structure as illustrated by the Σlearned for 28and
+50training points on Figure 2. In the latter setting, CN partially recovers the clusters. When more
+training points become available, the k-meansapproach perfectly recovers the clustering structure
+and outperforms the relaxed approach. The reprojected approach, on the other hand, performs al-
+ways as well as the best of the two other methods. The CNinit approach results are not displayed
+since the are the same as for the reprojected method.
+4.2 MHC-I binding data
+We also applied our method to the IEDBMHC-I peptide binding benchmark proposed in [10]. This
+database contains binding afﬁnities of various peptides, i.e., short amino-acid sequences, with dif-
+ferent MHC-I molecules. This binding process is central in the immune system, and predicting it is
+crucial, for example to design vaccines. The afﬁnities are thresholded to give a prediction problem.
+Each MHC-I molecule is considered as a task, and the goal is to predict whether a peptide binds a
+molecule. We used an orthogonal coding of the amino acids to represent the peptides and balanced
+7Table 1: Prediction error for the 1 0molecules with less than 200training peptides in IEDB.
+Method Pooling Frobenius norm Multi-task kernel Trace norm Cluster norm
+Test error 2 6.53%±2.0 11. 62%±1.4 10. 10%±1.4 9. 20%±1.3 8. 71%±1.5
+the data by keeping only one negative example for each positive point, resulting in 15236points
+involving 35different molecules. We chose a logistic loss for ℓ(W).
+Multi-task learning approaches have already proved useful for this problem, see for example [11,
+12]. Besides,itiswellknowninthevaccinedesigncommunitythatsomemoleculescanbegrouped
+into empirically deﬁned supertypes known to have similar binding behaviors.
+[12] showed in particular that the multi-task approaches were very useful for molecules with few
+known binders. Following this observation, we consider the mean error on the 10molecules with
+less than 200known ligands, and report the results in Table 1. We did not select the parameters by
+internal cross validation, but chose them among a small set of values in order to avoid overﬁtting.
+More accurate results could arise from such a cross validation, in particular concerning the number
+of clusters (here we limited the choice to 2or10clusters).
+The pooling approach simply considers one global prediction problem by pooling together the data
+available for all molecules. The results illustrate that it is better to consider individual models than
+one unique pooled model.On the other hand, all the multitask approaches improve the accuracy, the
+clusternormgivingthebestperformance. Thelearned Σ,however,didnotrecovertheknownsuper-
+types, although it may contain some relevant information on the binding behavior of the molecules.
+5 Conclusion
+We have presented a convex approach to clustered multi-task learning, based on the design of a
+dedicated norm. Promising results were presented on synthetic examples and on the IEDBdataset.
+We are currently investigating more reﬁned convex relaxations and the natural extension to non-
+linearmulti-tasklearningaswell astheinclusionofspeciﬁc featuresonthetasks,whichhasshown
+to improve performance in other settings [6].
+References
+[1] G.Wahba. SplineModelsforObservationalData,volume59of CBMS-NSFRegionalConferenceSeries
+in Applied Mathematics . SIAM, Philadelphia, 1990.
+[2] F. Girosi, M. Jones, and T. Poggio. Regularization Theory and Neural Networks Architectures. Neural
+Comput., 7(2):219–269, 1995.
+[3] R.Tibshirani. Regressionshrinkageandselectionviathelasso. J.Royal.Stat.Soc.B.,58:267–288,1996.
+[4] B. Bakker and T. Heskes. Task clustering and gating for bayesian multitask learning. J. Mach. Learn.
+Res., 4:83–99, 2003.
+[5] T. Evgeniou, C. Micchelli, and M. Pontil. Learning multiple tasks with kernel methods. J. Mach. Learn.
+Res., 6:615–637, 2005.
+[6] J.Abernethy,F.Bach,T.Evgeniou,andJ.-P.Vert.Low-rankmatrixfactorizationwithattributes.Technical
+Report cs/0611124, arXiv, 2006.
+[7] A. Argyriou, T. Evgeniou, and M. Pontil. Multi-task feature learning. In B. Sch ¨olkopf, J. Platt, and
+T. Hoffman, editors, Adv. NIPS19, pages 41–48, Cambridge, MA, 2007. MITPress.
+[8] G.R.G. Lanckriet, N. Cristianini, P. Bartlett, L. El Ghaoui, and M.I. Jordan. Learning the Kernel Matrix
+with Semideﬁnite Programming. J. Mach. Learn. Res., 5:27–72, 2004.
+[9] M. Deodhar and J. Ghosh. A framework for simultaneous co-clustering and learning from complex data.
+InKDD '07, pages 250–259, New York, NY, USA, 2007. ACM.
+[10] B. Peters, H.-H Bui, S. Frankild, M. Nielson, C. Lundegaard, E. Kostem, D. Basch, K. Lamberth,
+M. Harndahl, W. Fleri, S. S Wilson, J. Sidney, O. Lund, S. Buus, and A. Sette. A community resource
+benchmarking predictions of peptide binding to MHC-Imolecules. PLoS Comput Biol, 2(6):e65, 2006.
+[11] D. Heckerman, D. Kadie, and J. Listgarten. Leveraging information across HLA alleles/supertypes im-
+proves epitope prediction. J. Comput. Biol., 14(6):736–746, 2007.
+[12] L. Jacob and J.-P. Vert. Efﬁcient peptide-MHC-I binding prediction for alleles with few known binders.
+Bioinformatics , 24(3):358–366, Feb 2008.
+8

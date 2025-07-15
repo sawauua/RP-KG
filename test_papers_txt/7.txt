@@ -1,0 +1,556 @@
+On Exact Computation with an Inﬁnitely Wide
+Neural Net
+Sanjeev Arora†Simon S. Du‡Wei Hu§Zhiyuan Li¶
+Ruslan SalakhutdinovkRuosong Wang⇤⇤
+Abstract
+How well does a classic deep net architecture like AlexNet or VGG19 classify on a
+standard dataset such as CIFAR-10 when its “width”— namely, number of channels
+in convolutional layers, and number of nodes in fully-connected internal layers —
+is allowed to increase to inﬁnity? Such questions have come to the forefront in the
+quest to theoretically understand deep learning and its mysteries about optimization
+and generalization. They also connect deep learning to notions such as Gaussian
+processes andkernels . A recent paper [ Jacot et al. ,2018 ] introduced the Neural
+Tangent Kernel (NTK) which captures the behavior of fully-connected deep nets in
+the inﬁnite width limit trained by gradient descent; this object was implicit in some
+other recent papers. An attraction of such ideas is that a pure kernel-based method
+is used to capture the power of a fully-trained deep net of inﬁnite width.
+The current paper gives the ﬁrst efﬁcient exact algorithm for computing the ex-
+tension of NTK to convolutional neural nets, which we call Convolutional NTK
+(CNTK) , as well as an efﬁcient GPU implementation of this algorithm. This results
+in a signiﬁcant new benchmark for performance of a pure kernel-based method on
+CIFAR-10, being 10% higher than the methods reported in [ Novak et al. ,2019 ],
+and only 6%lower than the performance of the corresponding ﬁnite deep net
+architecture (once batch normalization etc. are turned off). Theoretically, we also
+give the ﬁrst non-asymptotic proof showing that a fully-trained sufﬁciently wide
+net is indeed equivalent to the kernel regression predictor using NTK.
+1 Introduction
+How well does a classic deep net architecture like AlexNet or VGG19 perform on a standard dataset
+such as CIFAR-10 when its “width”— namely, number of channels in convolutional layers, and
+number of nodes in fully-connected internal layers — is allowed to increase to inﬁnity? Questions
+about these “inﬁnite limits” of deep nets have naturally emerged in the ongoing effort to understand
+the power of deep learning. In mathematics it is often easier to study objects in the inﬁnite limit. Fur-
+thermore, the inﬁnite limit could conceivably make sense in deep learning, since over-parametrization
+seems to help optimization a lot and doesn’t hurt generalization much [ Zhang et al. ,2017 ]: deep
+neural nets with millions of parameters work well even for datasets with 50k training examples. So
+why not imagine nets whose width goes to inﬁnity?
+⇤The latest full version of this paper can be found at https://arxiv.org/abs/1904.11955 .
+†Princeton University and Institute for Advanced Study. Email: arora@cs.princeton.edu
+‡Institute for Advanced Study. Email: ssdu@ias.edu
+§Princeton University. Email: huwei@cs.princeton.edu
+¶Princeton University. Email: zhiyuanli@cs.princeton.edu
+kCarnegie Mellon University. Email: rsalakhu@cs.cmu.edu
+⇤⇤Carnegie Mellon University. Email: ruosongw@andrew.cmu.edu
+33rd Conference on Neural Information Processing Systems (NeurIPS 2019), Vancouver, Canada.Allowing width to go to inﬁnity also connects deep learning in an interesting way with other areas of
+machine learning. A single hidden-layer neural network with i.i.d. random parameters, in the limit
+of inﬁnite width, is a function drawn from a Gaussian process (GP) [Neal,1996 ]. This model as
+well as analogous ones with multiple layers [ Lee et al. ,2018 ,Matthews et al. ,2018 ], convolutional
+ﬁlters [ Novak et al. ,2019 ,Garriga-Alonso et al. ,2019 ] and other architectures [ Yang ,2019 ] make up
+the GP view of deep learning. These correspond to inﬁnitely wide deep nets whose all parameters are
+chosen randomly (with careful scaling), and only the top (classiﬁcation) layer is optimized.
+From now on we will use weakly-trained nets to refer to nets whose layers receive random initial-
+ization and only the top layer is trained by gradient descent. We use fully-trained to refer to nets
+whose all parameters are trained by gradient descent. It has long been known that weakly-trained
+convolutional nets have reasonable performance on MNIST and CIFAR-10. Weakly-trained nets that
+are fully-connected instead of convolutional, can also be thought of as “multi-layer random kitchen
+sinks,” which also have a long history.
+Weakly-trained nets — whether of ﬁnite or inﬁnite width — also deﬁne interesting kernels. Speciﬁ-
+cally, if f(✓,x)2Rdenotes the output of the network on input xwhere ✓denotes the parameters in
+the network, and Wis an initialization distribution over ✓(usually Gaussian), then training just the
+top layer with an `2loss is equivalent to kernel regression for the following kernel:
+ker ( x,x0)= E
+✓⇠W[f(✓,x)·f(✓,x0)], (1)
+where x,x0are two inputs. This kernel method makes sense when the width goes to inﬁnity.
+The objects of interest in this paper are not weakly-trained nets, but fully-trained nets. In the ﬁnite
+case, analysis of optimization and generalization of fully-trained nets is of course an open problem.
+One may also ask:
+Can we understand the power of fully-trained nets whose width goes to inﬁnity?
+A priori this question doesn’t seem any easier than the ﬁnite case, and empirical evaluation seems
+computationally infeasible due to the inﬁnite limit. They also do not correspond to a kernel method
+in any obvious way.
+Recent papers suggest that neural nets whose width greatly exceeds the number of training data points
+can rapidly reduce training error to 0via gradient descent, and under some conditions, the trained
+net also exhibits good generalization [ Du et al. ,2019 ,2018b ,Li and Liang ,2018 ,Allen-Zhu et al. ,
+2018a ,b,Zou et al. ,2018 ,Arora et al. ,2019 ,Cao and Gu ,2019 ]. Extra-wideness plays a crucial
+role in the proof: it is shown that as width increases, training causes increasingly smaller changes
+(in a proportionate sense) in the parameters. This raises the possibility that as one increases the
+width to inﬁnity, a certain limiting behavior can emerge even in the fully-trained net. A recent paper
+byJacot et al. [2018 ] isolated a notion implicit in the above papers, which they called the Neural
+Tangent Kernel (NTK) . They suggested — via a proof that is slightly heuristic — that this ﬁxed kernel
+characterizes the behavior of fully-connected inﬁnite width neural networks whose layers have been
+trained by gradient descent. The NTK is different from the Gaussian process kernels discussed earlier,
+and is deﬁned using the gradient of the output of the randomly initialized net with respect to its
+parameters, i.e.,
+ker ( x,x0)= E
+✓⇠W⌧@f(✓,x)
+@✓,@f(✓,x0)
+@✓ 
+. (2)
+Here, the gradient@f(✓,x)
+@✓appears from considering gradient descent, as will be explained in Section 3.
+One may also generalize the NTK to convolutional neural nets, and we call the corresponding kernel
+Convolutional Neural Tangent Kernel (CNTK) .
+Though NTK and CNTK are deﬁned by an inﬁnite limit, a recent paper [ Lee et al. ,2019 ] attempted
+to understand their properties via a ﬁnite approximation of the inﬁnite limit kernel by Monte Carlo
+methods. However, as will be shown in Section B, using random features generated from practically
+sized nets can degrade the performance a lot. It was still open what is the full power of exact CNTK
+on modern datasets. This is a challenging question especially for CNTK with pooling operations,
+since when convolution with pooling is involved, it was believed that exact computation of kernels
+(for either convolutional Gaussian process kernel or CNTK) is infeasible for large datasets like
+CIFAR-10 [ Novak et al. ,2019 ].
+2Our contributions. We give an exact and efﬁcient dynamic programming algorithm to compute
+CNTKs for ReLU activation (namely, to compute ker ( x,x0)given xandx0). Using this algorithm
+— as well as implementation tricks for GPUs — we can settle the question of the performance of
+fully-trained inﬁnitely wide nets with a variety of architectures. For instance, we ﬁnd that their
+performance on CIFAR-10 is within 5%of the performance of the same architectures in the ﬁnite case
+(note that the proper comparison in the ﬁnite case involves turning off batch norm, data augmentation,
+etc., in the optimization). In particular, the CNTK corresponding to a 11-layer convolutional net
+with global average pooling achieves 77% classiﬁcation accuracy. This is 10% higher than the best
+reported performance of a Gaussian process with ﬁxed kernel on CIFAR-10 [ Novak et al. ,2019 ].8
+Furthermore, we give a more rigorous, non-asymptotic proof that the NTK captures the behavior of a
+fully-trained wide neural net under weaker condition than previous proofs. We also experimentally
+show that the random feature methods for approximating CNTK in earlier work do not compute good
+approximations, which is clear from their much worse performance on CIFAR.
+1.1 Notation
+We use bold-faced letters for vectors, matrices and tensors. For a vector a, let[a]ibe its i-th entry; for
+a matrix A, let[A]i,jbe its (i, j)-th entry; for a 4th-order tensor T, let[A]ij,i0j0be its (i, j, i0,j0)-th
+entry. Let Ibe the identity matrix, and [n]={1,2,...,n }. Let eibe an indicator vector with i-th
+entry being 1and other entries being 0, and let 1denote the all-one vector. We use  to denote the
+entry-wise product and ⌦to denote the tensor product. We use h·,·ito denote the standard inner
+product. We use diag( ·)to transform a vector to a diagonal matrix. We use  (·)to denote the
+activation function, such as the rectiﬁed linear unit (ReLU) function:  (z) = max {z,0}, and ˙ (·)
+to denote the derivative of  (·). Denote by N(µ,⌃)the Gaussian distribution with mean µand
+covariance ⌃.
+2 Related Work
+From a Gaussian process (GP) viewpoint, the correspondence between inﬁnite neural networks and
+kernel machines was ﬁrst noted by Neal [1996 ]. Follow-up work extended this correspondence
+to more general shallow neural networks [ Williams ,1997 ,Roux and Bengio ,2007 ,Hazan and
+Jaakkola ,2015 ]. More recently, this was extended to deep and convolutional neural networks [ Lee
+et al.,2018 ,Matthews et al. ,2018 ,Novak et al. ,2019 ,Garriga-Alonso et al. ,2019 ] and a variety of
+other architectures [ Yang ,2019 ]. However, these kernels, as we discussed in Section 1, represent
+weakly-trained nets, instead of fully-trained nets.
+Beyond GPs, the connection between neural networks and kernels is also studied in the compositional
+kernel literature. Cho and Saul [2009 ] derived a closed-form kernel formula for rectiﬁed polynomial
+activations, which include ReLU as a special case. Daniely et al. [2016 ] proposed a general framework
+to transform a neural network to a compositional kernel and later Daniely [2017 ] showed for
+sufﬁciently wide neural networks, stochastic gradient descent can learn functions that lie in the
+corresponding reproducing kernel Hilbert space. However, the kernels studied in these works still
+correspond to weakly-trained neural networks.
+This paper is inspired by a line of recent work on over-parameterized neural networks [ Du et al. ,2019 ,
+2018b ,Du and Hu ,2019 ,Li and Liang ,2018 ,Allen-Zhu et al. ,2018b ,a,Zou et al. ,2018 ,Cao and Gu ,
+2019 ]. These papers established that for (convolutional) neural networks with large but ﬁnite width,
+(stochastic) gradient descent can achieve zero training error. A key component in these papers is
+showing that the weight matrix at each layer is close to its initialization. This observation implies that
+the kernel deﬁned in Equation (2)is still close to its initialization. Arora et al. [2019 ] explicitly used
+this observation to derive generalization bounds for two-layer over-parameterized neural networks.
+Chizat and Bach [2018 ] argued that these results in the kernel regime may be too simple to be able to
+explain the success of deep learning, while on the other hand, out results show that CNTK is at least
+able to perform well on tasks like CIFAR-10 classiﬁcation. Also see the survey Fan et al. [2019 ] for
+recent advance in deep learning theory.
+8We only consider ﬁxed kernels deﬁned without using the training data. We do not compare to methods that
+tune the kernels using training data [ Van der Wilk et al. ,2017 ] or use a neural network to extract features and
+then applying a kernel method on top of them [ Mairal et al. ,2014 ].
+3Jacot et al. [2018 ] derived the exact same kernel from kernel gradient descent. They showed that
+if the number of neurons per layer goes to inﬁnity in a sequential order, then the kernel remains
+unchanged for a ﬁnite training time. They termed the derived kernel Neural Tangent Kernel (NTK) .
+We follow the same naming convention and name its convolutional extension Convolutional Neural
+Tangent Kernel (CNTK) . Later, Yang [2019 ] derived a formula of CNTK as well as a mechanistic
+way to derive NTK for different architectures. Comparing with [ Yang ,2019 ], our CNTK formula has
+a more explicit convolutional structure and results in an efﬁcient GPU-friendly computation method.
+Recently, Lee et al. [2019 ] tried to empirically verify the theory in [ Jacot et al. ,2018 ] by studying the
+linearization of neural nets. They observed that in the ﬁrst few iterations, the linearization is close
+to the actual neural net. However, as will be shown in Section B, such linearization can decrease
+the classiﬁcation accuracy by 5%even on a “CIFAR-2" (airplane V.S. car) dataset. Therefore, exact
+kernel evaluation is important to study the power of NTK and CNTK.
+3 Neural Tangent Kernel
+In this section we describe fully-connected deep neural net architecture and its inﬁnite width limit,
+and how training it with respect to the `2loss gives rise to a kernel regression problem involving
+the neural tangent kernel (NTK). We denote by f(✓,x)2Rthe output of a neural network where
+✓2RNis all the parameters in the network and x2Rdis the input.9Given a training dataset
+{(xi,yi)}n
+i=1⇢Rd⇥R, consider training the neural network by minimizing the squared loss over
+training data: `(✓)=1
+2Pn
+i=1(f(✓,xi) yi)2.The proof of the following lemma uses simple
+differentiation and appears in Section C.
+Lemma 3.1. Consider minimizing the squared loss `(✓)by gradient descent with inﬁnitesimally
+small learning rate:d✓(t)
+dt= r`(✓(t)). Let u(t)=( f(✓(t),xi))i2[n]2Rnbe the network
+outputs on all xi’s at time t, and y=(yi)i2[n]be the desired outputs. Then u(t)follows the
+following evolution, where H(t)is an n⇥npositive semideﬁnite matrix whose (i, j)-th entry isD
+@f(✓(t),xi)
+@✓,@f(✓(t),xj)
+@✓E
+:
+du(t)
+dt= H(t)·(u(t) y). (3)
+The statement of Lemma 3.1involves a matrix H(t). Below we deﬁne a deep net architecture whose
+width is allowed to go to inﬁnity, while ﬁxing the training data as above. In the limit, it can be
+shown that the matrix H(t)remains constant during training i.e., equal to H(0). Moreover, under a
+random initialization of parameters, the random matrix H(0)converges in probability to a certain
+deterministic kernel matrix H⇤as the width goes to inﬁnity, which is the Neural Tangent Kernel
+ker(·,·)(Equation (2)) evaluated on the training data. If H(t)= H⇤for all t, then Equation (3)
+becomes
+du(t)
+dt= H⇤·(u(t) y). (4)
+Note that the above dynamics is identical to the dynamics of kernel regression under gradient ﬂow,
+for which at time t!1the ﬁnal prediction function is (assuming u(0) = 0)
+f⇤(x)=( k e r ( x,x1),..., ker(x,xn))·(H⇤) 1y. (5)
+In Theorem 3.2, we rigorously prove that a fully-trained sufﬁciently wide ReLU neural network is
+equivalent to the kernel regression predictor ( 5) on any given data point.
+Fully-connected deep neural net and its inﬁnite width limit. Now we deﬁne a fully-connected
+neural net formally. Let x2Rdbe the input, and denote g(0)(x)= xandd0=dfor notational
+convenience. We deﬁne an L-hidden-layer fully-connected neural network recursively:
+f(h)(x)=W(h)g(h 1)(x)2Rdh,g(h)(x)=rc 
+dh ⇣
+f(h)(x)⌘
+2Rdh,h =1,2,...,L ,
+(6)
+9For simplicity, we only consider a single output here. The generalization to multiple outputs is straightfor-
+ward.
+4where W(h)2Rdh⇥dh 1is the weight matrix in the h-th layer ( h2[L]), :R!Ris a coordinate-
+wise activation function, and c =⇣
+Ez⇠N(0,1)h
+ (z)2i⌘ 1
+. The last layer of the neural network
+is
+f(✓,x)=f(L+1)(x)=W(L+1)·g(L)(x)
+=W(L+1)·rc 
+dL ✓
+W(L)·rc 
+dL 1 ✓
+W(L 1)···rc 
+d1 ⇣
+W(1)x⌘◆◆
+,
+where W(L+1)2R1⇥dLis the weights in the ﬁnal layer, and ✓= 
+W(1),..., W(L+1) 
+represents
+all the parameters in the network.
+We initialize all the weights to be i.i.d. N(0,1)random variables, and consider the limit of large
+hidden widths: d1,d2,...,d L!1. The scaling factorp
+c /dhin Equation (6)ensures that the
+norm of g(h)(x)for each h2[L]is approximately preserved at initialization (see [ Du et al. ,2018b ]).
+In particular, for ReLU activation, we have Eh  g(h)(x)  2i
+=kxk2(8h2[L]).
+Recall from [ Lee et al. ,2018 ] that in the inﬁnite width limit, the pre-activations f(h)(x)at every
+hidden layer h2[L]has all its coordinates tending to i.i.d. centered Gaussian processes of covariance
+⌃(h 1):Rd⇥Rd!Rdeﬁned recursively as: for h2[L],
+⌃(0)(x,x0)=x>x0,
+⇤(h)(x,x0)=✓
+⌃(h 1)(x,x)⌃(h 1)(x,x0)
+⌃(h 1)(x0,x)⌃(h 1)(x0,x0)◆
+2R2⇥2,
+⌃(h)(x,x0)=c  E
+(u,v)⇠N(0,⇤(h))[ (u) (v)].(7)
+To give the formula of NTK, we also need to deﬁne a derivative covariance:
+˙⌃(h)(x,x0)=c  E
+(u,v)⇠N(0,⇤(h))[˙ (u)˙ (v)]. (8)
+The ﬁnal NTK expression for the fully-connected neural network is
+⇥(L)(x,x0)=L+1X
+h=1 
+⌃(h 1)(x,x0)·L+1Y
+h0=h˙⌃(h0)(x,x0)!
+, (9)
+where we let ˙⌃(L+1)(x,x0)=1 for convenience. We refer readers to Section Dfor the derivation of
+this formula. Rigorously, for ReLU activation, we have the following theorem that gives a concrete
+bound on the hidden widths that is sufﬁcient for convergence to the NTK at initialization:
+Theorem 3.1 (Convergence to the NTK at initializatoin) .Fix✏> 0and  2(0,1). Suppose
+ (z) = max(0 ,z)andmin h2[L]dh ⌦(L14
+✏4log(L/ )). Then for any inputs x,x02Rd0such that
+kxk1,kx0k1, with probability at least 1  we have:
+    ⌧@f(✓,x)
+@✓,@f(✓,x0)
+@✓ 
+ ⇥(L)(x,x0)    ✏.
+The proof of Theorem 3.1is given in Section E. Theorem 3.1improves upon previous results [ Jacot
+et al.,2018 ,Yang ,2019 ] that also established similar convergence in the following sense:
+1.Previous results are asymptotic, i.e., they require the widths to go to inﬁnity, while Theorem 3.1
+gives a non-asymptotic bound on the required layer widths.
+2.Jacot et al. [2018 ] required sequential limit, i.e., d1,...,d Lgo to inﬁnity one by one, and Yang
+[2019 ] letd1,...,d Lgo to inﬁnity at the same rate. On the other hand, Theorem 3.1only requires
+min h2[L]dhto be sufﬁciently large, which is the weakest notion of limit.
+Equivalence between wide neural net and kernel regression with NTK. Built on Theorem 3.1,
+we can further incorporate the training process and show the equivalence between a fully-trained
+sufﬁciently wide neural net and the kernel regression solution using the NTK, as described in
+Lemma 3.1and the discussion after it.
+5Recall that the training data are {(xi,yi)}n
+i=1⇢Rd⇥R, and H⇤2Rn⇥nis the NTK evaluated
+on these training data, i.e., [H⇤]i,j=⇥(L)(xi,xj). Denote  0= min(H⇤). For a testing point
+xte2Rd, we let ker ntk(xte,X)2Rnbe the kernel evaluated between the testing point and n
+training points, i.e., [ker ntk(xte,X)]i=⇥(L)(xte,xi). The prediction of kernel regression using
+NTK on this testing point is fntk(xte)=( k e r ntk(xte,X))>(H⇤) 1y.
+Since the above solution corresponds to the linear dynamics in Equation (4)with zero initialization, in
+order to establish equivalence between neural network and kernel regression, we would like the initial
+output of the neural network to be small. Therefore, we apply a small multiplier >0, and let the ﬁnal
+output of the neural network be fnn(✓,x)=f(✓,x).We let fnn(xte)=l i m t!1fnn(✓(t),xte)
+be the prediction of the neural network at the end of training.
+The following theorem establishes the equivalence between the fully-trained wide neural network
+fnnand the kernel regression predictor fntkusing the NTK.
+Theorem 3.2 (Equivalence between trained net and kernel regression) .Suppose  (z)=
+max(0 ,z),1/= poly(1 /✏,log(n/ ))and d1=d2=···=dL=mwith m 
+poly(1 /, L, 1/ 0,n ,log(1 / )). Then for any xte2Rdwith kxtek=1, with probability at
+least 1  over the random initialization, we have
+|fnn(xte) fntk(xte)|✏.
+The proof of Theorem 3.2is given in Section F. We remark that one can generalize our proof to more
+advanced architectures, such as convolutinal neural network, ResNet, etc.
+Theorem 3.2is, to our knowledge, the ﬁrst result that rigorously shows the equivalence between a
+fully-trained neural net and a deterministic kernel predictor. Compared with similar results by [ Jacot
+et al.,2018 ,Lee et al. ,2019 ], our bound is non-asymptotic whereas theirs are asymptotic. Compared
+with [ Arora et al. ,2019 ,Allen-Zhu et al. ,2018b ,a,Du et al. ,2019 ,2018b ,Li and Liang ,2018 ,Zou
+et al.,2018 ], our theorem is a more precise characterization of the learned neural network. That is, the
+prediction is essentially a kernel predictor. Therefore, to study the properties of over-parameterized
+nets, such as their generalization power, it is sufﬁcient to study the corresponding NTK.
+While this theorem only gives guarantee for a single point, using a union bound, we can show that
+this guarantee holds for (exponentially many) ﬁnite testing points. Combing this with the standard
+analysis of hold-out validation set, we can conclude that a fully-trained wide neural net enjoys the
+same generalization ability as its corresponding NTK.
+4 Convolutional Neural Tangent Kernel
+In this section we study convolutional neural nets (CNNs) and their corresponding CNTKs. We study
+two architectures, vanilla CNN and CNN with global average pooling (GAP). In this section we
+deﬁne vanilla CNN and present its corresponding CNTK formula. The derivation of this formula is
+deferred to Section G. We present the deﬁnition of CNN with GAP and its CNTK in Section H.
+To formally deﬁne CNNs, we ﬁrst introduce some notation. We let Pbe the width and Qbe the
+height of the image. We use q2Z+to denote the ﬁlter size. In practice, q=1,3,or5. We use
+standard zero padding and set stride size to be 1to make sure the input of each layer has the same size.
+For a convolutional ﬁlter w2Rq⇥qand an image x2RP⇥Q, the convolution operator is deﬁned as
+[w⇤x]ij=q 1
+2X
+a= q 1
+2q 1
+2X
+b= q 1
+2[w]a+q+1
+2,b+q+1
+2[x]a+i,b+jfori2[P],j2[Q]. (10)
+Equation (10)shows that patch [w⇤x]ijdepends on [x]i q 1
+2:i+q 1
+2,j q 1
+2:j+q 1
+2. Our CNTK
+formula also relies on this dependency. For (i, j, i0,j0)2[P]⇥[Q]⇥[P]⇥[Q], deﬁne
+Dij,i0j0
+={(i+a, j+b, i0+a0,j0+b0)2[P]⇥[Q]⇥[P]⇥[Q]| (q 1)/2a, b, a0,b0(q 1)/2}.
+Lastly, for a tensor T2RP⇥Q⇥P⇥Q, we denote by [T]Dij,i0j02Rq⇥q⇥q⇥qa sub-tensor and we let
+tr (T)=P
+i,jTij,ij.
+6A vanilla CNN consisting of Lconvolution layers and one fully-connected layer is formally deﬁned
+as follows:
+•Letx(0)=x2RP⇥Q⇥C(0)be the input image where C(0)is the number of channels.
+•Forh=1,...,L , =1,...,C(h), the intermediate outputs are deﬁned as
+˜x(h)
+( )=C(h 1)X
+↵=1W(h)
+(↵),( )⇤x(h 1)
+(↵),x(h)
+( )=rc 
+C(h)⇥q⇥q ⇣
+˜x(h)
+( )⌘
+,
+where each W(h)
+(↵),( )2Rq⇥qis a ﬁlter with standard Gaussian initialization.
+•The ﬁnal output is deﬁned as f(✓,x)=PC(L)
+↵=1D
+W(L+1)
+(↵),x(L)
+(↵)E
+where W(L+1)
+(↵)2RP⇥Qis a
+weight matrix with standard Gaussian initialization.
+For this architecture, using the same reasoning as in Section D, we obtain the following convolutional
+neural tangent kernel formula. The details are provided in Section G.
+CNTK formula. We let x,x0be two input images.
+•For↵=1,...,C(0),(i, j, i0,j0)2[P]⇥[Q]⇥[P]⇥[Q], deﬁne
+K(0)
+(↵)(x,x0)=x(↵)⌦x0
+(↵)andh
+⌃(0)(x,x0)i
+ij,i0j0=C(0)X
+↵=1tr✓h
+K(0)
+(↵)(x,x0)i
+Dij,i0j0◆
+.
+•Forh2[L],
+–For(i, j, i0,j0)2[P]⇥[Q]⇥[P]⇥[Q], deﬁne
+⇤(h)
+ij,i0j0(x,x0)= ⇥
+⌃(h 1)(x,x)⇤
+ij,ij⇥
+⌃(h 1)(x,x0)⇤
+ij,i0j0⇥
+⌃(h 1)(x0,x)⇤
+i0j0,ij⇥
+⌃(h 1)(x0,x0)⇤
+i0j0,i0j0!
+2R2⇥2.
+–Deﬁne K(h)(x,x0),˙K(h)(x,x0)2RP⇥Q⇥P⇥Q: for (i, j, i0,j0)2[P]⇥[Q]⇥[P]⇥[Q],
+h
+K(h)(x,x0)i
+ij,i0j0=c 
+q2· E
+(u,v)⇠N⇣
+0,⇤(h)
+ij,i0j0(x,x0)⌘[ (u) (v)], (11)
+h
+˙K(h)(x,x0)i
+ij,i0j0=c 
+q2· E
+(u,v)⇠N⇣
+0,⇤(h)
+ij,i0j0(x,x0)⌘[˙ (u)˙ (v)]. (12)
+–Deﬁne ⌃(h)(x,x0)2RP⇥Q⇥P⇥Q: for (i, j, i0,j0)2[P]⇥[Q]⇥[P]⇥[Q],
+h
+⌃(h)(x,x0)i
+ij,i0j0=tr✓h
+K(h)(x,x0)i
+Dij,i0j0◆
+.
+Note that ⌃(x,x0)and˙⌃(x,x0)share similar structures as their NTK counterparts in Equations (7)
+and(8). The only difference is that we have one more step, taking the trace over patches. This step
+represents the convolution operation in the corresponding CNN. Next, we can use a recursion to
+compute the CNTK:
+1.First, we deﬁne ⇥(0)(x,x0)=⌃(0)(x,x0).
+2.Forh=1,...,L  1and(i, j, i0,j0)2[P]⇥[Q]⇥[P]⇥[Q], we deﬁne
+h
+⇥(h)(x,x0)i
+ij,i0j0=t r✓h
+˙K(h)(x,x0) ⇥(h 1)(x,x0)+K(h)(x,x0)i
+Dij,i0j0◆
+.
+3.Forh=L, we deﬁne ⇥(L)(x,x0)= ˙K(L)(x,x0) ⇥(L 1)(x,x0)+K(L)(x,x0).
+4.The ﬁnal CNTK value is deﬁned as tr 
+⇥(L)(x,x0) 
+.
+In Section Hwe give the CNTK formula for CNNs with GAP, which is similar to vanilla CNNs. To
+compute the CNTK matrix corresponding to a CNN with GAP that has Lconvolution layers and one
+fully-connected layer on nsamples, the time complexity is O(n2P2Q2L). Previous work assumed
+that directly computing convolutional kernel (with pooling) exactly is computationally infeasible,
+and thus resorted to approximations like Monte Carlo sampling [ Novak et al. ,2019 ]. We are able to
+scale the exact CNTK computation to the full CIFAR-10 dataset and 20-layer CNN with GAP. We
+present our efﬁcient computation approach in Section I.
+7DepthCNN-VCNTK-VCNTK-V-2KCNN-GAPCNTK-GAPCNTK-GAP-2K359.97%64.47%40.94%63.81%70.47%49.71%460.20%65.52%42.54%80.93%75.93%51.06%664.11%66.03%43.43%83.75%76.73%51.73%1169.48%65.90%43.42%82.92%77.43%51.92%2175.57%64.09%42.53%83.30%77.08%52.22%Table 1: Classiﬁcation accuracies of CNNs and CNTKs on the CIFAR-10 dataset. CNN-V represents
+vanilla CNN and CNTK-V represents the kernel corresponding to CNN-V. CNN-GAP represents
+CNN with GAP and CNTK-GAP represents the kernel correspondong to CNN-GAP. CNTK-V-2K
+and CNTK-GAP-2K represent training CNTKs with only 2,000 training data.
+5 Experiments
+We evaluate the performances of CNNs and their corresponding CNTKs on the CIFAR-10 dataset.
+The implementation details are in Section A. We also compare the performances between CNTKs and
+their corresponding random features. Due to space limit, we defer these results on random features to
+Section B.
+Results. We test two types of architectures, vanilla CNN and CNN with global average pooling
+(GAP), as described in Sections 4andH. We also test CNTKs with only 2,000 training data to
+see whether their performances are consistent with CNTKs and CNNs using the full training set.
+The results are summarized in Table 1. Notice that in Table 1, depth is the total number of layers
+(including both convolution layers and fully-connected layers).
+Several comments are in sequel. First, CNTKs are very powerful kernels. The best kernel, 11-layer
+CNTK with GAP, achieves 77.43% classiﬁcation accuracy on CIFAR-10. This results in a signiﬁcant
+new benchmark for performance of a pure kernel-based method on CIFAR-10, being 10% higher
+than methods reported in [ Novak et al. ,2019 ].
+Second, we ﬁnd that for both CNN and CNTK, depth can affect the classiﬁcation accuracy. This
+observation demonstrates that depth not only matters in deep neural networks but can also affect the
+performance of CNTKs.
+Third, the global average pooling operation can signiﬁcantly increase the classiﬁcation accuracy by
+8% - 10% for both CNN and CNTK. Based on this ﬁnding, we expect that many techniques that
+improve the performance of neural networks are in some sense universal, i.e., these techniques can
+also beneﬁt kernel methods.
+Fourth, we ﬁnd that there is still a 5% - 6% performance gap between CNTKs and CNNs. Since
+CNTKs exactly correspond to inﬁnitely wide CNNs, this performance gap implies that ﬁnite width
+has its beneﬁts. Therefore, it is likely that recent theoretical work on over-parameterization that
+operates in the NTK regime cannot fully explain the success of neural networks yet, and we believe it
+is an interesting open problem to characterize this gap.
+Potential application in neural architecture search. Finally, we ﬁnd that performances of CNTK-
+V-2Ks and CNTK-GAP-2Ks are highly correlated to their CNN-V , CNTK-V , CNN-GAP and CNTK-
+GAP counterparts. Again we see CNTK-GAP-2Ks outperform CNTK-V-2Ks by a large margin
+(about 8%-9%). One potential application of this observation is to guide neural architecture search.
+We can compute the kernel on a small training data, test it on a validation set, and choose neural
+network architectures based on the performance of this small kernel on the validation set. We leave
+large scale experiments of this idea for future work.
+6 Conclusion
+By giving the ﬁrst practical algorithm for computing CNTKs exactly, this paper allows investigation
+of the behavior of inﬁnitely wide (hence inﬁnitely over-parametrized) deep nets, which turns out to
+8not be much worse than that of their ﬁnite counterparts. We also give a fully rigorous proof that a
+sufﬁciently wide net is approximately equivalent to the kernel regression predictor, thus yielding a
+powerful new off-the-shelf kernel. We leave it as an open problem to understand the behavior of
+inﬁnitely wide nets with features such as Batch Normalization or Residual Layers. Of course, one
+can also hope that the analysis of inﬁnite nets provides rigorous insight into ﬁnite ones.
+Acknowledgments
+We thank Jason D. Lee, Haochuan Li and Xiyu Zhai for useful discussions. S. Arora, W. Hu and
+Z. Li are supported by NSF, ONR, Simons Foundation, Schmidt Foundation, Mozilla Research,
+Amazon Research, DARPA and SRC. R. Salakhutdinov and R. Wang are supported in part by NSF
+IIS-1763562, Ofﬁce of Naval Research grant N000141812861, and Nvidia NV AIL award. We thank
+Amazon Web Services for providing compute time for the experiments in this paper.
+References
+Zeyuan Allen-Zhu, Yuanzhi Li, and Yingyu Liang. Learning and generalization in overparameterized
+neural networks, going beyond two layers. arXiv preprint arXiv:1811.04918 , 2018a.
+Zeyuan Allen-Zhu, Yuanzhi Li, and Zhao Song. A convergence theory for deep learning via over-
+parameterization. arXiv preprint arXiv:1811.03962 , 2018b.
+Sanjeev Arora, Simon S Du, Wei Hu, Zhiyuan Li, and Ruosong Wang. Fine-grained analysis of
+optimization and generalization for overparameterized two-layer neural networks. arXiv preprint
+arXiv:1901.08584 , 2019.
+Stéphane Boucheron, Gábor Lugosi, and Pascal Massart. Concentration inequalities: A nonasymptotic
+theory of independence . Oxford university press, 2013.
+Yuan Cao and Quanquan Gu. A generalization theory of gradient descent for learning over-
+parameterized deep relu networks. arXiv preprint arXiv:1902.01384 , 2019.
+Lenaic Chizat and Francis Bach. A note on lazy training in supervised differentiable programming.
+arXiv preprint arXiv:1812.07956 , 2018.
+Youngmin Cho and Lawrence K Saul. Kernel methods for deep learning. In Advances in neural
+information processing systems , pages 342–350, 2009.
+Amit Daniely. SGD learns the conjugate kernel class of the network. In Advances in Neural
+Information Processing Systems , pages 2422–2430, 2017.
+Amit Daniely, Roy Frostig, and Yoram Singer. Toward deeper understanding of neural networks:
+The power of initialization and a dual view on expressivity. In Advances In Neural Information
+Processing Systems , pages 2253–2261, 2016.
+Simon S Du and Wei Hu. Width provably matters in optimization for deep linear neural networks.
+arXiv preprint arXiv:1901.08572 , 2019.
+Simon S Du, Wei Hu, and Jason D Lee. Algorithmic regularization in learning deep homogeneous
+models: Layers are automatically balanced. In Advances in Neural Information Processing Systems
+31, pages 382–393. 2018a.
+Simon S Du, Jason D Lee, Haochuan Li, Liwei Wang, and Xiyu Zhai. Gradient descent ﬁnds global
+minima of deep neural networks. arXiv preprint arXiv:1811.03804 , 2018b.
+Simon S. Du, Xiyu Zhai, Barnabas Poczos, and Aarti Singh. Gradient descent provably optimizes
+over-parameterized neural networks. In International Conference on Learning Representations ,
+2019.
+Jianqing Fan, Cong Ma, and Yiqiao Zhong. A selective overview of deep learning. arXiv preprint
+arXiv:1904.05526 , 2019.
+9Adrià Garriga-Alonso, Carl Edward Rasmussen, and Laurence Aitchison. Deep convolutional
+networks as shallow gaussian processes. In International Conference on Learning Representations ,
+2019. URL https://openreview.net/forum?id=Bklfsi0cKm .
+Tamir Hazan and Tommi Jaakkola. Steps toward deep kernel methods from inﬁnite neural networks.
+arXiv preprint arXiv:1508.05133 , 2015.
+Arthur Jacot, Franck Gabriel, and Clément Hongler. Neural tangent kernel: Convergence and
+generalization in neural networks. arXiv preprint arXiv:1806.07572 , 2018.
+Jaehoon Lee, Jascha Sohl-dickstein, Jeffrey Pennington, Roman Novak, Sam Schoenholz, and
+Yasaman Bahri. Deep neural networks as gaussian processes. In International Conference on
+Learning Representations , 2018. URL https://openreview.net/forum?id=B1EA-M-0Z .
+Jaehoon Lee, Lechao Xiao, Samuel S Schoenholz, Yasaman Bahri, Jascha Sohl-Dickstein, and Jeffrey
+Pennington. Wide neural networks of any depth evolve as linear models under gradient descent.
+arXiv preprint arXiv:1902.06720 , 2019.
+Yuanzhi Li and Yingyu Liang. Learning overparameterized neural networks via stochastic gradient
+descent on structured data. arXiv preprint arXiv:1808.01204 , 2018.
+Julien Mairal, Piotr Koniusz, Zaid Harchaoui, and Cordelia Schmid. Convolutional kernel networks.
+InAdvances in neural information processing systems , pages 2627–2635, 2014.
+Alexander G de G Matthews, Mark Rowland, Jiri Hron, Richard E Turner, and Zoubin Ghahramani.
+Gaussian process behaviour in wide deep neural networks. arXiv preprint arXiv:1804.11271 , 2018.
+Radford M Neal. Priors for inﬁnite networks. In Bayesian Learning for Neural Networks , pages
+29–53. Springer, 1996.
+Roman Novak, Lechao Xiao, Yasaman Bahri, Jaehoon Lee, Greg Yang, Daniel A. Abolaﬁa, Jeffrey
+Pennington, and Jascha Sohl-dickstein. Bayesian deep convolutional networks with many channels
+are gaussian processes. In International Conference on Learning Representations , 2019. URL
+https://openreview.net/forum?id=B1g30j0qF7 .
+Nicolas Le Roux and Yoshua Bengio. Continuous neural networks. In Proceedings of the Eleventh
+International Conference on Artiﬁcial Intelligence and Statistics , volume 2 of Proceedings of
+Machine Learning Research , pages 404–411, San Juan, Puerto Rico, 2007.
+Mark Van der Wilk, Carl Edward Rasmussen, and James Hensman. Convolutional gaussian processes.
+InAdvances in Neural Information Processing Systems , pages 2849–2858, 2017.
+Christopher KI Williams. Computing with inﬁnite networks. In Advances in neural information
+processing systems , pages 295–301, 1997.
+Greg Yang. Scaling limits of wide neural networks with weight sharing: Gaussian process behavior,
+gradient independence, and neural tangent kernel derivation. arXiv preprint arXiv:1902.04760 ,
+2019.
+Chiyuan Zhang, Samy Bengio, Moritz Hardt, Benjamin Recht, and Oriol Vinyals. Understanding
+deep learning requires rethinking generalization. In Proceedings of the International Conference
+on Learning Representations (ICLR), 2017 , 2017.
+Difan Zou, Yuan Cao, Dongruo Zhou, and Quanquan Gu. Stochastic gradient descent optimizes
+over-parameterized deep ReLU networks. arXiv preprint arXiv:1811.08888 , 2018.
+10

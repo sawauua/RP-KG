@@ -1,0 +1,478 @@
+Learning Non-Linear Combinations of Kernels
+
+CorinnaCortes
+GoogleResearch
+76NinthAve
+NewYork,NY 10011
+corinna@google.comMehryarMohri
+CourantInstituteandGoogle
+251MercerStreet
+NewYork,NY 10012
+mohri@cims.nyu.eduAfshin Rostamizadeh
+CourantInstituteandGoogle
+251MercerStreet
+NewYork,NY 10012
+rostami@cs.nyu.edu
+Abstract
+Thispaperstudiesthegeneralproblemoflearningkernelsb asedona polynomial
+combination of base kernels. We analyze this problem in the c ase of regression
+andthekernelridgeregressionalgorithm. Weexaminetheco rrespondinglearning
+kerneloptimizationproblem,showhowthatminimaxproblem canbereducedtoa
+simpler minimizationproblem,andprovethat the globalsol ution of thisproblem
+always lies on the boundary. We give a projection-based grad ient descent algo-
+rithmforsolvingtheoptimizationproblem,shownempirica llytoconvergeinfew
+iterations. Finally, we report the results of extensive exp eriments with this algo-
+rithm using several publicly available datasets demonstra tingthe effectivenessof
+ourtechnique.
+1 Introduction
+Learningalgorithmsbasedonkernelshavebeenusedwithmuc hsuccessinavarietyoftasks[17,19].
+Classiﬁcation algorithms such as support vector machines ( SVMs) [6,10], regression algorithms,
+e.g.,kernelridgeregressionandsupportvectorregressio n(SVR)[16,22],andgeneraldimensional-
+ityreductionalgorithmssuchaskernelPCA (KPCA) [18]all b eneﬁtfromkernelmethods. Positive
+deﬁnite symmetric (PDS) kernel functions implicitly speci fy an inner product in a high-dimension
+Hilbert space where large-marginsolutionsare sought. So l ong as the kernel functionused is PDS,
+convergenceofthetrainingalgorithmisguaranteed.
+However,inthe typicaluse ofthese kernelmethodalgorithm s,thechoiceof thePDS kernel,which
+is crucial to improved performance, is left to the user. A les s demanding alternative is to require
+theusertoinsteadspecifya familyofkernelsandtouse thet rainingdatatoselect themostsuitable
+kerneloutofthatfamily. Thisiscommonlyreferredto asthe problemof learningkernels .
+There is a large recent body of literature addressing variou s aspects of this problem, including de-
+rivingefﬁcientsolutionstotheoptimizationproblemsitg eneratesandprovidingabettertheoretical
+analysisof the problemboth in classiﬁcation and regressio n[1,8,9,11,13,15,21]. With the excep-
+tionofafewpublicationsconsideringinﬁnite-dimensiona lkernelfamiliessuchashyperkernels[14]
+orgeneralconvexclassesofkernels[2],thegreatmajority ofanalysesandalgorithmicresultsfocus
+on learning ﬁnite linearcombinations of base kernels as originally considered by [1 2]. However,
+despite the substantial progress made in the theoretical un derstanding and the design of efﬁcient
+algorithmsfor theproblemof learningsuch linearcombinat ionsofkernels,nomethodseemsto re-
+liablygiveimprovementsoverbaselinemethods. Forexampl e,thelearnedlinearcombinationdoes
+notconsistentlyoutperformeithertheuniformcombinatio nofbasekernelsorsimplythebestsingle
+base kernel (see, for example, UCI dataset experiments in [9 ,12], see also NIPS 2008 workshop).
+This suggests exploring other non-linear families of kernels to obtain consistent and signiﬁcant
+performanceimprovements.
+Non-linear combinations of kernels have been recently cons idered by [23]. However, here too,
+experimental results have not demonstrated a consistent pe rformance improvement for the general
+1learningtask. Anothermethod,hierarchicalmultiplelear ning[3],considerslearningalinearcombi-
+nationof anexponentialnumberof linearkernels,whichcan beefﬁcientlyrepresentedasaproduct
+of sums. Thus, this method can also be classiﬁed as learning a non-linear combination of kernels.
+However, in [3] the base kernels are restricted to concatenation kernels, where the base kernels
+apply to disjoint subspaces. For this approach the authors p rovide an effective and efﬁcient algo-
+rithmandsomeperformanceimprovementisactuallyobserve dforregressionproblemsinveryhigh
+dimensions.
+This paper studies the general problem of learning kernels b ased on a polynomial combination of
+base kernels. We analyze that problem in the case of regressi on using the kernel ridge regression
+(KRR) algorithm. We show how to simplify its optimization pr oblem from a minimax problem
+to a simpler minimization problem and prove that the global s olution of the optimization problem
+alwaysliesonthe boundary. We givea projection-basedgrad ientdescentalgorithmforsolvingthis
+minimizationproblemthatisshownempiricallytoconverge infewiterations. Furthermore,wegive
+anecessaryandsufﬁcientconditionforthisalgorithmtore achaglobaloptimum. Finally,wereport
+the results of extensive experiments with this algorithm us ing several publicly available datasets
+demonstratingtheeffectivenessofourtechnique.
+The paper is structured as follows. In Section 2, we introduc e the non-linear family of kernels
+considered. Section 3 discusses the learning problem, form ulates the optimization problem, and
+presents our solution. In Section 4, we study the performanc e of our algorithm for learning non-
+linearcombinationsofkernelsinregression(NKRR)onseve ralpubliclyavailabledatasets.
+2 Kernel Family
+This section introduces and discusses the family of kernels we consider for our learning kernel
+problem. Let K1, . . . , K pbeaﬁnitesetofkernelsthatwecombinetodeﬁnemorecomplex kernels.
+We refer to these kernels as base kernels . In much of the previous work on learning kernels, the
+family of kernels considered is that of linear or convex comb inations of some base kernels. Here,
+we considerpolynomialcombinationsof higherdegree d≥1of the base kernelswith non-negative
+coefﬁcientsofthe form:
+Kµ=/summationdisplay
+0≤k1+···+kp≤d, k i≥0, i∈[0,p]µk1···kpKk1
+1···Kkp
+p, µ k1···kp≥0. (1)
+Any kernel function Kµof this form is PDS since productsand sums of PDS kernels are P DS [4].
+Note that Kµis in fact a linear combinationof the PDS kernels Kk1
+1···Kkp
+p. However,the number
+of coefﬁcients µk1···kpis inO(pd), which may be too large for a reliable estimation from a sampl e
+of size m. Instead, we can assume that for some subset Iof allp-tuples (k1, . . . , k p),µk1···kpcan
+be written as a product of non-negative coefﬁcients µ1, . . ., µ p:µk1···kp=µk1
+1···µkp
+p. Then, the
+generalformofthepolynomialcombinationsweconsiderbec omes
+K=/summationdisplay
+(k1,...,k p)∈Iµk1
+1···µkp
+pKk1
+1···Kkp
+p+/summationdisplay
+(k1,...,k p)∈Jµk1···kpKk1
+1···Kkp
+p,(2)
+where Jdenotes the complement of the subset I. The total number of free parameters is then
+reduced to p+|J|. The choice of the set Iand its size depends on the sample size mand possible
+prior knowledge about relevant kernel combinations. The se cond sum of equation (2) deﬁning our
+general family of kernels represents a linear combination o f PDS kernels. In the following, we
+focus on kernels that have the form of the ﬁrst sum and that are thus non-linear in the parameters
+µ1, . . . , µ p. Morespeciﬁcally,weconsiderkernels Kµdeﬁnedby
+Kµ=/summationdisplay
+k1+···+kp=dµk1
+1···µkp
+pKk1
+1···Kkp
+p, (3)
+where µ=(µ1, . . . , µ p)⊤∈Rp. Fortheeaseofpresentation,ouranalysisisgivenforthec ased=2,
+wherethequadratickernelcanbegiventhefollowingsimple rexpression:
+Kµ=p/summationdisplay
+k,l=1µkµlKkKl. (4)
+But, the extension to higher-degree polynomials is straigh tforward and our experiments include
+resultsfordegrees dupto4.
+23 Algorithm forLearning Non-Linear KernelCombinations
+3.1 OptimizationProblem
+We consider a standard regression problem where the learner receives a training sample of size
+m,S= ((x1, y1), . . .,(xm, ym))∈(X×Y)m, where Xis the input space and Y∈Rthe label
+space. Thefamilyofhypotheses Hµoutofwhichthelearnerselectsahypothesisisthereproduc ing
+kernel Hilbert space (RKHS) associated to a PDS kernel funct ionKµ:X×X→Ras deﬁned in
+the previous section. Unlike standard kernel-based regres sion algorithms however, here, both the
+parametervector µdeﬁningthekernel Kµandthehypothesisarelearnedusingthetrainingsample
+S.
+The learning kernel algorithm we consider is derived from ke rnel ridge regression (KRR). Let y=
+[y1, . . . , y m]⊤∈Rmdenote the vector of training labels and let Kµdenote the Gram matrix of the
+kernel Kµfor the sample S:[Kµ]i,j=Kµ(xi, xj), for all i, j∈[1, m]. The standard KRR dual
+optimization algorithm for a ﬁxed kernel matrix Kµis given in terms of the Lagrange multipliers
+α∈Rmby[16]:
+max
+α∈Rm−α⊤(Kµ+λI)α+ 2α⊤y (5)
+The related problem of learning the kernel Kµconcomitantly can be formulated as the following
+min-maxoptimizationproblem[9]:
+min
+µ∈Mmax
+α∈Rm−α⊤(Kµ+λI)α+ 2α⊤y, (6)
+whereMis a positive, bounded, and convex set. The positivity of µensures that Kµis positive
+semi-deﬁnite (PSD) and its boundedness forms a regularizat ion controlling the norm of µ.1Two
+naturalchoicesfortheset Marethe norm-1andnorm-2boundedsets,
+M1={µ|µ/{ollowsequal0∧/ba∇dblµ−µ0/ba∇dbl1≤Λ} (7)
+M2={µ|µ/{ollowsequal0∧/ba∇dblµ−µ0/ba∇dbl2≤Λ}. (8)
+These deﬁnitions include an offset parameter µ0for the weights µ. Some natural choices for µ0
+are:µ0=0, orµ0//ba∇dblµ0/ba∇dbl=1. Note that here, since the objective function is not linear i nµ, the
+norm-1-typeregularizationmaynotleadtoa sparsesolutio n.
+3.2 AlgorithmFormulation
+For learning linear combinations of kernels, a typical tech nique consists of applying the minimax
+theorem to permute the minandmaxoperators, which can lead to optimization problems com-
+putationally more efﬁcient to solve [8,12]. However, in the non-linear case we are studying, this
+techniqueisunfortunatelynotapplicable.
+Instead,ourmethodforlearningnon-linearkernelsandsol vingthemin-maxprobleminequation(6)
+consists of ﬁrst directly solving the inner maximization pr oblem. In the case of KRR for any ﬁxed
+µtheoptimumisgivenby
+α= (Kµ+λI)−1y. (9)
+Plugging the optimal expression of αin the min-max optimization yields the following equivalen t
+minimizationintermsof µonly:
+min
+µ∈MF(µ) =y⊤(Kµ+λI)−1y. (10)
+We refer to this optimization as the NKRR problem. Although t he original min-max problem has
+been reduced to a simpler minimization problem, the functio nFis not convex in general as illus-
+trated by Figure 1. For small values of µ, concave regions are observed. Thus, standard interior-
+pointorgradientmethodsarenotguaranteedto besuccessfu latﬁndinga globaloptimum.
+Inthefollowing,wegiveananalysiswhichshowsthatunderc ertainconditionsitishoweverpossible
+toguaranteetheconvergenceofa gradient-descenttypealg orithmtoaglobalminimum.
+Algorithm 1 illustrates a general gradient descent algorit hm for the norm-2 bounded setting which
+projects µbacktothefeasibleset M2aftereachgradientstep (projectingto M1isverysimilar).
+1Toclarifythe difference betweensimilaracronyms, a PDSfu nctioncorresponds toa PSDmatrix[4].
+300.51
+0
+0.5
+1195200205210
+µ2 µ1F(µ1,µ2)
+00.51 0
+0.5
+12020.521
+µ2 µ1F(µ1,µ2)
+00.51 0
+0.5
+12.062.072.082.09
+µ2 µ1F(µ1,µ2)
+Figure 1: Example plots for Fdeﬁned over two linear base kernels generated from the ﬁrst t wo
+featuresof the sonardataset. Fromleft to right λ= 1,10,100. Forlargervaluesof λit is clearthat
+thereareinfact concaveregionsofthefunctionnear 0.
+Algorithm1 Projection-basedGradientDescentAlgorithm
+Input: µinit∈M 2,η∈[0,1],ǫ >0,Kk,k∈[1, p]
+µ′←µinit
+repeat
+µ←µ′
+µ′←−η∇F(µ) +µ
+∀k, µ′
+k←max(0 , µ′
+k)
+normalize µ′,s.t./ba∇dblµ′−µ0/ba∇dbl= Λ
+until/ba∇dblµ′−µ/ba∇dbl< ǫ
+In Algorithm 1 we have ﬁxed the step size η, however this can be adjusted at each iteration via
+a line-search. Furthermore, as shown later, the thresholdi ng step that forces µ′to be positive is
+unnecessarysince∇Fisneverpositive.
+Note that Algorithm1 is simpler thanthe wrappermethodprop osedby [20]. Because of the closed
+form expression (10), we do not alternate between solving fo r the dual variables and performing a
+gradientstep inthe kernelparameters. We onlyneedtooptim izewithrespectto thekernelparame-
+ters.
+3.3 AlgorithmProperties
+We ﬁrstexplicitlycalculatethegradientoftheobjectivef unctionfortheoptimizationproblem(10).
+Inwhatfollows,◦denotestheHadamard(pointwise)productbetweenmatrices .
+Proposition1. Forany k∈[1, p],thepartialderivativeof F:µ→y⊤(Kµ+λI)−1ywithrespect
+toµiisgivenby
+∂F
+∂µk=−2α⊤Ukα, (11)
+whereUk=/parenleftbig/summationtextp
+r=1(µrKr)◦Kk/parenrightbig
+.
+Proof. Inviewoftheidentity ∇MTr(y⊤M−1y)=−M−1⊤yy⊤M−1⊤,we canwrite:
+∂F
+∂µk=Tr/bracketleftbigg∂y⊤(Kµ+λI)−1y
+∂(Kµ+λI)∂(Kµ+λI)
+∂µk/bracketrightbigg
+=−Tr/bracketleftbigg
+(Kµ+λI)−1yy⊤(Kµ+λI)−1∂(Kµ+λI)
+∂µk/bracketrightbigg
+=−Tr/bracketleftBigg
+(Kµ+λI)−1yy⊤(Kµ+λI)−1/parenleftBig
+2p/summationdisplay
+r=1(µrKr)◦Kk/parenrightBig/bracketrightBigg
+=−2y⊤(Kµ+λI)−1/parenleftBigp/summationdisplay
+r=1(µrKr)◦Kk/parenrightBig
+(Kµ+λI)−1y=−2α⊤Ukα.
+4Matrix Ukjust deﬁned in proposition1 is always PSD, thus∂F
+∂µk≤0for all i∈[1, p]and∇F≤0.
+As already mentioned, this fact obliterates the thresholdi ng step in Algorithm 1. We now provide
+guaranteesforconvergencetoaglobaloptimum. We shall ass umethat λisstrictlypositive: λ>0.
+Proposition 2. Any stationary point µ⋆of the function F:µ→y⊤(Kµ+λI)−1ynecessarily
+maximizes F:
+F(µ⋆) = max
+µF(µ) =/ba∇dbly/ba∇dbl2
+λ. (12)
+Proof.InviewoftheexpressionofthegradientgivenbyPropositio n1,atanypoint µ⋆,
+µ⋆⊤∇F(µ⋆) =α⊤p/summationdisplay
+i=1µ⋆
+kUkα=α⊤Kµ⋆α. (13)
+By deﬁnition, if µ⋆is a stationary point, ∇F(µ⋆) = 0, which implies µ⋆⊤∇F(µ⋆) = 0. Thus,
+α⊤Kµ⋆α=0,whichimplies Kµ⋆α=0,thatis
+Kµ⋆(Kµ⋆+λI)−1y= 0⇔(Kµ⋆+λI−λI)(Kµ⋆+λI)−1y= 0 (14)
+⇔y−λ(Kµ⋆+λI)−1y=0 (15)
+⇔(Kµ⋆+λI)−1y=y
+λ. (16)
+Thus, for any such stationary point µ⋆,F(µ⋆) =y⊤(Kµ⋆+λI)−1y=y⊤y
+λ, which is clearly a
+maximum.
+We nextshow that there cannotbe an interior stationarypoin t, and thusany local minimumstrictly
+withinthefeasibleset, unlessthefunctionisconstant.
+Proposition 3. If any point µ⋆>0is a stationary point of F:µ→y⊤(Kµ+λI)−1y, then the
+functionisnecessarilyconstant.
+Proof.Assume that µ⋆>0is a stationary point, then, by Proposition 2, F(µ⋆) =y⊤(Kµ⋆+
+λI)−1y=y⊤y
+λ,whichimpliesthat yisaneigenvectorof (Kµ⋆+λI)−1witheigenvalue λ−1. Equiv-
+alently, yis an eigenvectorof Kµ⋆+λIwith eigenvalue λ, which isequivalentto y∈null(Kµ⋆).
+Thus,
+y⊤Kµ⋆y=p/summationdisplay
+k,l=1µkµlm/summationdisplay
+r,s=1yrysKk(xr, xs)Kl(xr, xs)
+/bracehtipupleft /bracehtipdownright/bracehtipdownleft /bracehtipupright
+(∗)= 0. (17)
+Since the product of PDS functions is also PDS, (*) must be non -negative. Furthermore, since by
+assumption µi>0for all i∈[1, p], it must be the case that the term (*) is equal to zero. Thus,
+equation17is equalto zeroforall µandthefunction Fisequaltotheconstant /ba∇dbly/ba∇dbl2/λ.
+Thepreviouspropositionsaresufﬁcienttoshowthatthegra dientdescentalgorithmwillnotbecome
+stuck at a local minimum while searching the interior of a con vex setMand, furthermore, they
+indicatethattheoptimumisfoundat theboundary.
+The following proposition gives a necessary and sufﬁcient c ondition for the convexity of Fon a
+convex region C. If the boundary region deﬁned by /ba∇dblµ−µ0/ba∇dbl= Λis contained in this convex
+region, then Algorithm 1 is guaranteed to convergeto a globa l optimum. Let u∈Rprepresent an
+arbitrary direction of µinC. We simplify the analysis of convexityin the following deri vation by
+separating the terms that depend on Kµand those depending on Ku, which arise when showing
+the positive semi-deﬁniteness of the Hessian, i.e. u⊤∇2Fu/{ollowsequal0. We denote by⊗the Kronecker
+productoftwo matrices.
+Proposition 4. The function F:µ→y⊤(Kµ+λI)−1yis convex over the convex set Ciff the
+followingconditionholdsforall µ∈Candall u:
+/an}b∇acketle{tM,N−/tildewide1/an}b∇acket∇i}htF≥0, (18)
+5Data m p lin. base lin. ℓ1lin.ℓ2quad. base quad. ℓ1quad. ℓ2
+Parkinsons 194 21 .70±.03.70±.04.70±.03.65±.03.66±.03.64±.03
+Iono 351 34 .82±.03.81±.04.81±.03.62±.05.62±.05.60±.05
+Sonar 208 60 .90±.02.92±.03.90±.04.84±.03.80±.04.80±.04
+Breast 683 9 .70±.02.71±.02.70±.02.70±.02.70±.01.70±.01
+Table1: Thesquare-rootofthemeansquarederrorisreporte dforeachmethodandseveraldatasets.
+whereM=/parenleftbig
+1⊗vec(αα⊤)⊤/parenrightbig
+◦(Ku⊗Ku),N= 4/parenleftbig
+1⊗vec(V)⊤/parenrightbig
+◦(Kµ⊗Kµ), and/tildewide1is the
+matrix withzero-oneentriesconstructedto selectthe term s[M]ijklwhere i=kandj=l,i.e. it is
+non-zeroonlyinthe (i, j)th coordinateof the (i, j)thm×mblock.
+Proof. For any u∈Rpthe expressionof the Hessian of Fat the point µ∈Ccan be derivedfrom
+thatofitsgradientandshownto be
+u⊤(∇2F)u= 4α⊤(Kµ◦Ku)V(Kµ◦Ku)α−α⊤(Ku◦Ku)α. (19)
+Expandingeachterm,we obtain:
+α⊤(Kµ◦Ku)V(Kµ◦Ku)α=m/summationdisplay
+i,j=1αiαjm/summationdisplay
+k,l=1[Kµ]ik[Ku]ik[V]kl[Kµ]ik[Kµ]lj(20)
+=m/summationdisplay
+i,j,k,l=1(αiαj[Ku]ik[Ku]lj)([V]kl[Kµ]ik[Kµ]lj)(21)
+andα⊤(Ku◦Ku)α=/summationtextm
+i,j=1αiαj[Ku]ij[Ku]ij. Let1∈Rm2deﬁne the column vector of all
+onesandlet vec(A)denotethevectorizationofamatrix Abystackingitscolumns. Letthematrices
+MandNbe deﬁned as in the statement of the proposition. Then, [M]ijkl= (αiαj[Ku]ik[Ku]lj)
+and[N]ijkl= [V]kl[Kµ]ik[Kµ]lj. Then, in view of the deﬁnition of /tildewide1, the terms of equation (19)
+canberepresentedwiththeFrobeniusinnerproduct,
+u⊤(∇2F)u=/an}b∇acketle{tM,N/an}b∇acket∇i}htF−/an}b∇acketle{tM,/tildewide1/an}b∇acket∇i}htF=/an}b∇acketle{tM,N−/tildewide1/an}b∇acket∇i}htF.
+For any µ∈Rp, letKµ=/summationtext
+iµiKiand let V= (Kµ+λI)−1. We now show that the condition
+ofProposition4 issatisﬁedforconvexregionsforwhich Λ,andtherefore µ,issufﬁcientlylarge,in
+the case where KuandKµare diagonal. In that case, M,NandVare diagonal as well and the
+conditionofProposition4canberewrittenasfollows:
+/summationdisplay
+i,j[Ku]ii[Ku]jjαiαj(4[Kµ]ii[Kµ]jjVij−1i=j)≥0. (22)
+Usingthefact that Visdiagonal,thisinequalitywe canbefurthersimpliﬁed
+m/summationdisplay
+i=1[Ku]2
+iiα2
+i(4[Kµ]2
+iiVii−1)≥0. (23)
+Asufﬁcientconditionforthisinequalitytoholdisthateac hterm (4[Kµ]2
+iiVii−1)benon-negative,
+orequivalentlythat 4K2
+µV−I/{ollowsequal0,thatis Kµ/{ollowsequal/radicalBig
+λ
+3I. Therefore,itsufﬁcesto select µsuchthat
+mini/summationtextp
+k=1µk[Kk]ii≥/radicalbig
+λ/3.
+4 Empirical Results
+To test the advantage of learning non-linear kernel combina tions, we carried out a number of ex-
+periments on publicly available datasets. The datasets are chosen to demonstrate the effectiveness
+of the algorithm under a numberof conditions. For general pe rformanceimprovement,we chose a
+numberofUCIdatasetsfrequentlyusedinkernellearningex periments,e.g.,[7,12,15]. Forlearning
+with thousandsof kernels, we chose the sentiment analysis d ataset of Blitzer et. al [5]. Finally, for
+learningwithhigher-orderpolynomials,weselecteddatas etswithlargenumberofexamplessuchas
+kin-8nmfromthe Delve repository. The experimentswere run ona 2.33 GHz Intel XeonProcessor
+with2GBofRAM.
+60 1000 2000 3000 40001.41.451.51.551.61.651.7KitchenRMSE
+# bigrams  
+L2 reg. Baseline L1 reg.
+01000 20003000 4000 50001.41.451.51.551.61.651.7ElectronicsRMSE
+# bigrams  
+L2 reg. Baseline L1 reg.
+Figure 2: The performance of baseline and learned quadratic kernels (plus or minus one standard
+deviation)versusthenumberofbigrams(andkernels)used.
+4.1 UCIDatasets
+We ﬁrst analyzed the performance of the kernels learned as qu adratic combinations. For each
+dataset,featureswerescaledtolieintheinterval [0,1]. Then,bothlabelsandfeatureswerecentered.
+In the case of classiﬁcation dataset, the labels were set to ±1and the RMSE was reported. We as-
+sociateda basekerneltoeachfeature,whichcomputesthepr oductofthisfeaturebetweendifferent
+examples. We compared both linear and quadratic combinatio ns, each with a baseline (uniform),
+norm-1-regularizedandnorm-2-regularizedweightingusi ngµ0=1correspondingtotheweightsof
+thebaselinekernel. Theparameters λandΛwereselectedvia10-foldcrossvalidationandtheerror
+reportedwasbasedon30random50/50splitsoftheentiredat asetintotrainingandtestsets. Forthe
+gradient descent algorithm, we started with η= 1and reduced it by a factor of 0.8if the step was
+found to be too large, i.e., the difference /ba∇dblµ′−µ/ba∇dblincreased. Convergencewas typically obtained
+inless than25steps, eachrequiringafractionofa second( ∼0.05seconds).
+The results, which are presented in Table 1, are in line with p revious ones reported for learning
+kernelsonthesedatasets[7,8,12,15].Theyindicatethatl earningquadraticcombinationkernelscan
+sometimesofferimprovementsand that it clearly doesnot de gradewith respect to the performance
+ofthebaselinekernel. Thelearnedquadraticcombinationp erformswell,particularlyontaskswhere
+the numberof features was large comparedto the number of poi nts. This suggests that the learned
+kernel is better regularized than the plain quadratic kerne l and can be advantageous is scenarios
+whereover-ﬁttingisanissue.
+4.2 TextBased Dataset
+We next analyzed a text-based task where features are freque nt word n-grams. Each base kernel
+computes the product between the counts of a particular n-gram for the given pair of points. Such
+kernels have a direct connection to count-based rational ke rnels, as described in [8]. We used the
+sentiment analysis dataset of Blitzer et. al [5]. This datas et contains text-based user reviews found
+forproductson amazon.com . Eachtextreviewisassociatedwitha0-5starrating. Thepr oductre-
+viewsfall intotwocategories: electronicsandkitchen-wa res,eachwith2,000data-points. Thedata
+wasnotcenteredinthiscasesincewewishedtopreservethes parsity,whichofferstheadvantageof
+signiﬁcantlymoreefﬁcientcomputations. A constantfeatu rewasincludedto actasanoffset.
+Foreach domain,the parameters λandΛwere chosenvia 10-foldcrossvalidationon1,000points.
+Once these parameters were ﬁxed, the performance of each alg orithm was evaluated using 20 ran-
+dom50/50splits of the entire 2,000 points into training and test sets . We used the performanceof
+the uniformly weighted quadratic combination kernel as a ba seline, and showed the improvement
+when learning the kernel with norm-1 or norm-2 regularizati on using µ0=1correspondingto the
+weights of the baseline kernel. As shown by Figure 2, the lear ned kernels signiﬁcantly improved
+over the baseline quadratic kernel in both the kitchen and el ectronics categories. For this case too,
+thenumberoffeatureswaslargeincomparisonwiththenumbe rofpoints. Using900trainingpoints
+and about 3,600 bigrams, and thus kernels, each iteration of the algorithm took approximately 25
+70 20 40 60 80 1000.100.150.200.25
+Training data subsampling factorMSEKRR, with (dashed) and without (solid) learning
+1st degree
+2nd degree
+3rd degree
+4th degree
+Figure 3: Performance on the kin-8nmdataset. For all polynomials, we compared un-weighted,
+standard KRR (solid lines) with norm-2 regularized kernel l earning (dashed lines). For 4th degree
+polynomialsweobservedaclearperformanceimprovement,e speciallyformediumamountoftrain-
+ingdata(subsamplingfactorof10-50). Standarddeviation sweretypicallyintheorder 0.005,sothe
+resultswerestatistically signiﬁcant.
+secondsto computewith our Matlab implementation. When usi ng norm-2regularization,the algo-
+rithm generally convergesin under 30 iterations, while the norm-1 regularization requires an even
+fewernumberofiterations,typicallylessthan5.
+4.3 Higher-orderPolynomials
+We ﬁnally investigated the performanceof higher-ordernon -linear combinations. For these exper-
+iments, we used the kin-8nmdataset from the Delve repository. This dataset has 20,000 e xamples
+with 8 input features. Here too, we used polynomial kernels o ver the features, but this time we
+experimentedwith polynomialswith degreesas high as 4. Aga in, we made the assumption that all
+coefﬁcients of µare in the form of products of µis (see Section 2), thus only 8 kernel parameters
+neededtobeestimated.
+We split the data into 10,000 examples for training and 10,00 0 examples for testing, and, to inves-
+tigate the effect of the sample size on learning kernels, sub sampled the training data so that only a
+fraction from 1 to 100 was used. The parameters λandΛwere determined by 10-fold cross vali-
+dation on the training data, and results are reported on the t est data, see Figure 3. We used norm-2
+regularizationwith µ0=1andcompareourresultswiththoseofuniformlyweightedKRR .
+For lower degree polynomials, the performance was essentia lly the same, but for 4th degree poly-
+nomialsweobservedasigniﬁcantperformanceimprovemento flearningkernelsovertheuniformly
+weightedKRR, especiallyforamediumamountoftrainingdat a(subsamplingfactorof10-50). For
+the sake of readability, the standard deviationsare not ind icated in the plot. They were typically in
+the order of 0.005, so the results were statistically signiﬁ cant. This result corroborates the ﬁnding
+on the UCI dataset, that learning kernels is better regulari zed than plain unweighted KRR and can
+beadvantageousisscenarioswhereoverﬁttingisan issue.
+5 Conclusion
+We presentedan analysis of the problemof learningpolynomi alcombinationsof kernelsin regres-
+sion. This extends learning kernel ideas and helps explore k ernel combinations leading to better
+performance. We proved that the global solution of the optim ization problem always lies on the
+boundaryandgavea simpleprojection-basedgradientdesce ntalgorithmshownempiricallytocon-
+verge in few iterations. We also gave a necessary and sufﬁcie nt condition for that algorithm to
+converge to a global optimum. Finally, we reported the resul ts of several experiments on publicly
+availabledatasetsdemonstratingthebeneﬁtsoflearningp olynomialcombinationsofkernels. Weare
+wellawarethatthisconstitutesonlyapreliminarystudyan dthatabetteranalysisoftheoptimization
+problem and solution should be further investigated. We hop e that the performanceimprovements
+reportedwill furthermotivatesuchanalyses.
+8References
+[1] A.Argyriou,R.Hauser,C.Micchelli,andM.Pontil. ADC- programmingalgorithmforkernel
+selection. In InternationalConferenceonMachineLearning ,2006.
+[2] A. Argyriou, C. Micchelli, and M. Pontil. Learning conve x combinations of continuously
+parameterizedbasickernels. In ConferenceonLearningTheory ,2005.
+[3] F.Bach. Exploringlargefeaturespaceswithhierarchic almultiplekernellearning. In Advances
+inNeuralInformationProcessingSystems ,2008.
+[4] C. Berg, J. P. R. Christensen, and P. Ressel. Harmonic Analysis on Semigroups . Springer-
+Verlag: Berlin-NewYork,1984.
+[5] J.Blitzer,M.Dredze,andF.Pereira. Biographies,Boll ywood,Boom-boxesandBlenders: Do-
+main Adaptation for Sentiment Classiﬁcation. In Association for Computational Linguistics ,
+2007.
+[6] B. Boser, I. Guyon, and V. Vapnik. A training algorithm fo r optimal margin classiﬁers. In
+ConferenceonLearningTheory ,1992.
+[7] O. Chapelle, V. Vapnik, O. Bousquet, and S. Mukherjee. Ch oosing multiple parameters for
+supportvectormachines. MachineLearning ,46(1-3),2002.
+[8] C. Cortes,M.Mohri,andA. Rostamizadeh. Learningseque ncekernels. In MachineLearning
+forSignalProcessing ,2008.
+[9] C. Cortes, M. Mohri,and A. Rostamizadeh. L2regularizationfor learningkernels. In Uncer-
+taintyinArtiﬁcialIntelligence ,2009.
+[10] C. CortesandV. Vapnik. Support-VectorNetworks. MachineLearning ,20(3),1995.
+[11] T. Jebara. Multi-task feature and kernel selection for SVMs. In International Conference on
+MachineLearning ,2004.
+[12] G. Lanckriet, N. Cristianini, P. Bartlett, L. E. Ghaoui , and M. Jordan. Learning the kernel
+matrixwith semideﬁniteprogramming. JournalofMachineLearningResearch ,5,2004.
+[13] C.MicchelliandM.Pontil.Learningthekernelfunctio nviaregularization. JournalofMachine
+LearningResearch ,6,2005.
+[14] C. S. Ong, A. Smola, and R. Williamson. Learning the kern el with hyperkernels. Journal of
+MachineLearningResearch ,6,2005.
+[15] A. Rakotomamonjy, F. Bach, Y. Grandvalet, and S. Canu. S implemkl. Journal of Machine
+LearningResearch ,9,2008.
+[16] C. Saunders, A. Gammerman, and V. Vovk. Ridge Regressio n Learning Algorithm in Dual
+Variables. In InternationalConferenceonMachineLearning ,1998.
+[17] B. Sch¨ olkopfandA.Smola. Learningwith Kernels . MITPress: Cambridge,MA, 2002.
+[18] B. Scholkopf,A. Smola,and K. Muller. Nonlinearcompon entanalysis asa kerneleigenvalue
+problem. Neuralcomputation ,10(5),1998.
+[19] J. Shawe-TaylorandN. Cristianini. Kernel MethodsforPattern Analysis . CambridgeUniver-
+sity Press,2004.
+[20] S.Sonnenburg,G.R¨ atsch,C.Sch¨ afer,andB.Sch¨ olko pf. Largescalemultiplekernellearning.
+JournalofMachineLearningResearch ,7,2006.
+[21] N. Srebro and S. Ben-David. Learning bounds for support vector machines with learned ker-
+nels. InConferenceonLearningTheory ,2006.
+[22] V. N.Vapnik. StatisticalLearningTheory . Wiley-Interscience,New York,1998.
+[23] M. Varma and B. R. Babu. More generality in efﬁcient mult iple kernel learning. In Interna-
+tionalConferenceonMachineLearning ,2009.
+9

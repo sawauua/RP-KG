@@ -1,0 +1,465 @@
+Multi-Label Prediction via Compressed Sensing
+
+Daniel Hsu
+U
+C San Diego
+djhsu@cs.ucsd.eduSham M. Kakade
+TTI-Chicago
+sham@tti-c.org
+John Langford
+Yahoo! Research
+jl@hunch.netTong Zhang
+Rutgers University
+tongz@rci.rutgers.edu
+Abstract
+We consider multi-label prediction problems with large output spaces under the
+assumption of output sparsity – that the target (label) vectors have small support.
+We develop a general theory for a variant of the popular error correcting output
+code scheme, using ideas from compressed sensing for exploiting this sparsity.
+The method can be regarded as a simple reduction from multi-label regression
+problems to binary regression problems. We show that the number of subprob-
+lems need only be logarithmic in the total number of possible labels, making this
+approach radically more efﬁcient than others. We also state and prove robustness
+guarantees for this method in the form of regret transform bounds (in general),
+and also provide a more detailed analysis for the linear prediction setting.
+1 Introduction
+Suppose we have a large database of images, and we want to learn to predict who or what is in any
+given one. A standard approach to this task is to collect a sample of these images xalong with
+corresponding labels y= (y1,... ,y d)∈{0,1}d, where yi= 1if and only if person or object i
+is depicted in image x, and then feed the labeled sample to a multi-label learning algorithm. Here,
+dis the total number of entities depicted in the entire database. When dis very large (e.g. 103,
+104), the simple one-against-all approach of learning a single predictor for each entity can become
+prohibitively expensive, both at training and testing time.
+Our motivation for the present work comes from the observation that although the output (label)
+space may be very high dimensional, the actual labels are often sparse. That is, in each image, only
+a small number of entities may be present and there may only be a small amount of ambiguity in
+who or what they are. In this work, we consider how this sparsity in the output space, or output
+sparsity, eases the burden of large-scale multi-label learning.
+Exploiting output sparsity. A subtle but critical point that distinguishes output sparsity frommore
+commonnotionsofsparsity(say,infeatureorweightvectors)isthatweareinterestedinthesparsity
+ofE[y|x]ratherthan y. Ingeneral, E[y|x]maybesparsewhiletheactualoutcome ymaynot(e.g. if
+thereismuchunbiasednoise);and,viceversa, ymaybesparsewithprobabilityonebut E[y|x]may
+have large support (e.g. if there is littledistinction between several labels).
+Conventional linear algebra suggests that we must predict dparameters in order to ﬁnd the value of
+thed-dimensionalvector E[y|x]foreach x. Acrucialobservation–centraltotheareaofcompressed
+sensing[1]–isthatmethodsexisttorecover E[y|x]fromjust O(klogd)measurementswhen E[y|x]
+isk-sparse. This is the basis of our approach.
+1Ourcontributions. W eshowhowtoapplyalgorithmsforcompressedsensingtotheoutputcoding
+approach [2]. At a high level, the output coding approach creates a collection of subproblems of
+the form “Is the label in this subset or its complement?”, solves these problems, and then uses their
+solution to predict the ﬁnal label.
+Theroleofcompressedsensinginourapplicationisdistinctfromitsmoreconventionalusesindata
+compression. Although we do employ a sensing matrix to compress training data, we ultimately
+are not interested in recovering data explicitly compressed this way. Rather, we learn to predict
+compressed label vectors, and then use sparse reconstruction algorithms to recover uncompressed
+labels from these predictions. Thus we are interested in reconstruction accuracy of predictions,
+averaged over the data distribution.
+The main contributions of this work are:
+1. A formal application of compressed sensing to prediction problems with output sparsity.
+2. An efﬁcient output coding method, in which the number of required predictions is only
+logarithmic in the number of labels d, making it applicable to very large-scale problems.
+3. Robustness guarantees, in the form of regret transform bounds (in general) and a further
+detailed analysis for the linear prediction setting.
+Priorwork. Theubiquity ofmulti-labelpredictionproblems indomains rangingfrommultipleob-
+ject recognition in computer vision to automatic keyword tagging for content databases has spurred
+the development of numerous general methods for the task. Perhaps the most straightforward ap-
+proachisthewell-knownone-against-allreduction[3],butthiscanbetooexpensivewhenthenum-
+ber of possible labels is large (especially if applied to the power set of the label space [4]). When
+structure can be imposed on the label space (e.g. class hierarchy), efﬁcient learning and prediction
+methods are often possible [5, 6, 7, 8, 9]. Here, we focus on a different type of structure, namely
+outputsparsity,whichisnotaddressedinpreviouswork. Moreover,ourmethodisgeneralenoughto
+take advantage of structured notions of sparsity (e.g. group sparsity) when available [10]. Recently,
+heuristics have been proposed for discovering structure in large output spaces that empirically offer
+some degree of efﬁciency [11].
+As previously mentioned, our work is most closely related to the class of output coding method
+for multi-class prediction, which was ﬁrst introduced and shown to be useful experimentally in [2].
+Relative to this work, we expand the scope of the approach to multi-label prediction and provide
+boundsonregretanderrorwhichguidethedesignofcodes. Thelossbaseddecodingapproach[12]
+suggests decoding so as to minimize loss. However, it does not provide signiﬁcant guidance in the
+choiceofencodingmethod,orthefeedbackbetweenencodinganddecodingwhichweanalyzehere.
+The output coding approach is inconsistent when classiﬁers are used and the underlying problems
+being encoded are noisy. This is proved and analyzed in [13], where it is also shown that using a
+Hadamard code creates a robust consistent predictor when reduced to binary regression. Compared
+to this method, our approach achieves the same robustness guarantees up to a constant factor, but
+requires training and evaluating exponentially (in d) fewer predictors.
+Our algorithms rely on several methods fromcompressed sensing, which we detail where used.
+2 Preliminaries
+LetXbe an arbitrary input space and Y⊂Rdbe ad-dimensional output (label) space. We assume
+the data source is deﬁned by a ﬁxed but unknown distribution over X×Y. Our goal is to learn a
+predictor F:X→Ywith low expected ℓ2
+2-error Ex/bardblF(x)−E[y|x]/bardbl2
+2(the sum of mean-squared-
+errors over all labels) using a set of ntraining data{(xi,yi)}n
+i=1.
+We focus on the regime in which the output space is very high-dimensional (d very large), but for
+any given x∈ X, the expected value E[y|x]of the corresponding label y∈ Yhas only a few
+non-zero entries. A vector is k-sparseif it has at most knon-zero entries.
+23 Learningand Prediction
+3
+.1 Learning to Predict Compressed Labels
+LetA:Rd→Rmbe a linear compression function, where m≤d(but hopefully m≪d). We use
+Ato compress (i.e. reduce the dimension of) the labels Y, and learn a predictor H:X→A(Y)of
+these compressed labels. Since Ais linear, we simply represent A∈Rm×das a matrix.
+Speciﬁcally, given a sample {(xi,yi)}n
+i=1, we form a compressed sample {(xi,Ayi)}n
+i=1and then
+learnapredictor HofE[Ay|x]withtheobjectiveofminimizingthe ℓ2
+2-error Ex/bardblH(x)−E[Ay|x]/bardbl2
+2.
+3.2 Predicting Sparse Labels
+To obtain a predictor FofE[y|x], we compose the predictor HofE[Ay|x](learned using the com-
+pressed sample) with a reconstruction algorithm R:Rm→Rd. The algorithm Rmaps predictions
+of compressed labels h∈Rmto predictions of labels y∈Yin the original output space. These
+algorithms typically aim to ﬁnd a sparse vector ysuch that Ayclosely approximates h.
+Recent developments in the area of compressed sensing have produced a spate of reconstruction
+algorithms with strong performance guarantees when the compression function Asatisﬁes certain
+properties. We abstract out the relevant aspects of these guarantees in the following deﬁnition.
+Deﬁnition. Analgorithm Risavalidreconstructionalgorithmforafamilyofcompressionfunctions
+(Ak⊂/uniontext
+m≥1Rm×d:k∈N)and sparsity error sperr : N×Rd→R, if there exists a function
+f:N→Nand constants C1,C2∈Rsuch that: on input k∈N,A∈A kwithmrows, and
+h∈Rm, the algorithm R(k,A,h)returns an f(k)-sparse vector/hatwideysatisfying
+/bardbl/hatwidey−y/bardbl2
+2≤C1·/bardblh−Ay/bardbl2
+2+C2·sperr( k,y)
+forall y∈Rd. Thefunction fistheoutputsparsity ofRandtheconstants C1andC2aretheregret
+factors.
+Informally, if the predicted compressed label H(x)is close to E[Ay|x] =AE[y|x], then the sparse
+vector/hatwideyreturned by the reconstruction algorithm should be close to E[y|x]; this latter distance
+/bardbl/hatwidey−E[y|x]/bardbl2
+2shoulddegradegracefullyintermsoftheaccuracyof H(x)andthesparsityof E[y|x].
+Moreover, the algorithm should be agnostic about the sparsity of E[y|x](and thus the sparsity error
+sperr( k,E[y|x])), as well as the “measurement noise” (the prediction error /bardblH(x)−E[Ay|x]/bardbl2).
+This is a subtle condition and precludes certain reconstruction algorithm (e.g. Basis Pursuit [14])
+thatrequiretheusertosupplyaboundonthemeasurementnoise. However,theconditionisneeded
+in our application, as such bounds on the prediction error (for each x) are not generally known
+beforehand.
+We make a few additional remarks on the deﬁnition.
+1. Theminimumnumberofrowsofmatrices A∈Akmayingeneraldependon k(aswellas
+theambientdimension d). Inthenextsection,weshowhowtoconstructsuch Awithclose
+to the optimal number of rows.
+2. The sparsity error sperr( k,y)should measure how poorly y∈Rdis approximated by a
+k-sparse vector.
+3. A reasonable output sparsity f(k)for sparsity level kshould not be much more than k,
+e.g.f(k) =O(k).
+Concreteexamplesofvalidreconstructionalgorithms(alongwiththeassociated Ak,sperr,etc.) are
+given in the next section.
+4 Algorithms
+OurprescribedrecipeissummarizedinAlgorithms1and2. Wegivesomeexamplesofcompression
+functions and reconstruction algorithms in the following subsections.
+3Algorithm 1 T raining algorithm
+parameters s parsity level k, compression
+function A∈A kwithmrows, regression
+learning algorithm L
+inputtraining data S⊂X× Rd
+fori= 1,... ,mdo
+hi←L({(x,(Ay)i) : (x,y)∈S})
+end for
+outputregressors H= [h1,... ,h m]Algorithm 2 P rediction algorithm
+parameters s parsity level k, compression
+function A∈A kwithmrows, valid re-
+construction algorithm RforAk
+inputregressors H= [h1,... ,h m], test
+pointx∈X
+output/hatwidey=/vectorR(k,A,[h1(x),... ,h m(x)])
+Figure 1: Training and prediction algorithms.
+4
+.1 Compression Functions
+Severalvalidreconstructionalgorithmsareknownforcompressionmatricesthatsatisfya restricted
+isometry property.
+Deﬁnition. A matrix A∈Rm×dsatisﬁes the (k,δ)-restricted isometry property (( k,δ)-RIP), δ∈
+(0,1), if(1−δ)/bardblx/bardbl2
+2≤/bardblAx/bardbl2
+2≤(1 +δ)/bardblx/bardbl2
+2for all k-sparse x∈Rd.
+While some explicit constructions of (k,δ)-RIP matrices are known (e.g. [15]), the best guarantees
+are obtained when the matrix is chosen randomly from an appropriate distribution, such as one of
+the following [16, 17].
+•All entries i.i.d. Gaussian N(0,1/m), with m=O(klog(d/k)).
+•All entries i.i.d. Bernoulli B(1/2)over{±1/√m}, with m=O(klog(d/k)).
+•mrandomly chosen rows of the d×dHadamard matrix over {±1/√m}, with m=
+O(klog5d).
+The hidden constants in the big-O notation depend inversely on δand the probability of failure.
+Astrikingfeatureoftheseconstructionsistheverymilddependenceof montheambientdimension
+d. This translates to a signiﬁcant savings in the number of learning problems one has to solve after
+employing our reduction.
+Some reconstruction algorithms require a stronger guarantee of bounded coherence µ(A)≤
+O(1/k), where µ(A)deﬁned as
+µ(A) = max
+1≤i<j ≤d|(A⊤A)i,j|//radicalBig
+|(A⊤A)i ,i||(A⊤A)j,j|
+It is easy to check that the Gaussian, Bernoulli, and Hadamard-based random matrices given
+above have coherence bounded by O(/radicalbig
+(logd)/ m )with high probability. Thus, one can take
+m=O(k2logd)to guarantee 1/kcoherence. This is a factor kworse than what was needed
+for(k,δ)-RIP, but the dependence on dis stillsmall.
+4.2 Reconstruction Algorithms
+In this section, we give some examples of valid reconstruction algorithms. Each of these algorithm
+is valid with respect tothe sparsityerror given by
+sperr( k,y) =/bardbly−y(1:k)/bardbl2
+2+1
+k/bardbly−y(1:k)/bardbl2
+1
+where y(1:k)is the best k-sparse approximation of y(i.e.the vector with just the klargest (in mag-
+nitude) coefﬁcients of y).
+The following theorem relates reconstruction quality to approximate sparse regression, giving a
+sufﬁcient condition for any algorithm to be valid for RIP matrices.
+4Algorithm 3 P rediction algorithm with R=OMP
+parameters s parsity level k, compression function A= [a1|...|ad]∈Akwithmrows,
+inputregressors H= [h1,... ,h m], test point x∈X
+h←[h1(x),... ,h m(x)]⊤(predict compressed label vector)
+/hatwidey←/vector0,J←∅,r←h
+fori= 1,... ,2kdo
+j∗←arg max j|r⊤aj|//bardblaj/bardbl2(column of Amost correlated with residual r)
+J←J∪{j∗}(addj∗to set of selected columns)
+/hatwideyJ←(AJ)†h,/hatwideyJc←/vector0(least-squares restricted to columns in J)
+r←h−A/hatwidey(update residual)
+end for
+output/hatwidey
+Figure 2: Prediction algorithm specialized with Orthogonal Matching Pursuit.
+Theorem1. LetAk={(k+f(k),δ)-RIP matrices}forsomefunction f:N→N,andlet A∈Ak
+havemrows. If for any h∈Rm, a reconstruction algorithm Rreturns an f(k)-sparse solution
+/hatwidey=R(k,A,h)satisfying
+/bardblA/hatwidey−h/bardbl2
+2≤inf
+y∈RdC/bardblAy(1:k)−h/bardbl2
+2,
+thenitisavalidreconstructionalgorithmfor Akandsperrgivenabove,withoutputsparsity fand
+regret factors C1= 2(1 +√
+C)2/( 1−δ)andC2= 4(1 + (1 +√
+C)/( 1−δ))2.
+Proofs are deferred to Appendix B.
+Iterative and greedy algorithms. Orthogonal Matching Pursuit (OMP) [18], FoBa [19], and
+CoSaMP [20] are examples of iterative or greedy reconstruction algorithms. OMP is a greedy
+forward selection method that repeatedly selects a new column of Ato use in ﬁtting h(see Al-
+gorithm3). FoBaissimilar,exceptitalsoincorporatesbackwardstepstoun-selectcolumnsthatare
+later discovered to be unnecessary. CoSaMP is also similar to OMP, but instead selects larger sets
+of columns in each iteration.
+FoBa and CoSaMP are valid reconstruction algorithms for RIP matrices ((8 k,0.1)-RIP and
+(4k,0.1)-RIP, respectively) and have linear output sparsity (8k and2k). These guarantees are ap-
+parent from the cited references. For OMP, we give the following guarantee.
+Theorem2. Ifµ(A)≤0.1/k,thenafter f(k) = 2kstepsofOMP,thealgorithmreturns /hatwideysatisfying
+/bardblA/hatwidey−h/bardbl2
+2≤23/bardblAy (1:k)−h/bardbl2
+2∀y∈Rd.
+This theorem, combined with Theorem 1, implies that OMP is valid for matrices Awithµ(A)≤
+0.1/kand has output sparsity f(k) = 2k.
+ℓ1algorithms. Basis Pursuit (BP) [14] and its variants are based on ﬁnding the minimum ℓ1-norm
+solution to a linear system. While the basic form of BP is ill-suited for our application (it requires
+the user to supply the amount of measurement error /bardblAy−h/bardbl2), its more advanced path-following
+or multi-stage variants may be valid [21].
+5 Analysis
+5.1 General Robustness Guarantees
+We now state our main regret transform bound, which follows immediately from the deﬁnition of a
+valid reconstruction algorithm and linearity of expectation.
+Theorem 3 (Regret Transform). LetRbe a valid reconstruction algorithm for {Ak:k∈N}and
+sperr : N×Rd→R. Then there exists some constants C1andC2such that the following holds.
+5Pick any k∈N,A∈ Akwithmrows, and H:X→ Rm. LetF:X→ Rdbe the composition of
+R(k,A,·)andH,i.e.F(x) =R(k,A,H (x)). Then
+Ex/bardblF(x)−E[y|x]/bardbl2
+2≤C1·Ex/bardblH(x)−E[Ay|x]/bardbl2
+2+C2·sperr( k,E[y|x]).
+Thesimplicityofthistheoremisaconsequenceofthecarefulcompositionofthelearnedpredictors
+with the reconstruction algorithm meeting the formal speciﬁcations described above.
+In order compare this regret bound with the bounds afforded by Sensitive Error Correcting Output
+Codes(SECOC)[13],weneedtorelate Ex/bardblH(x)−E[Ay|x]/bardbl2
+2totheaveragescaledmean-squared-
+error over all induced regression problems; the error is scaled by the maximum difference Li=
+max y∈Y(Ay)i−miny(Ay)ibetween induced labels:
+¯r=1
+mm/summationdisplay
+i=1Ex/parenleftbiggH(x)i−E[(Ay)i|x]
+Li/parenrightbigg2
+.
+I
+nk-sparse multi-label problems, we have Y={y∈{0,1}d:/bardbly/bardbl0≤k}. In these terms, SECOC
+can be tuned to yield Ex/bardblF(x)−E[y|x]/bardbl2
+2≤4k2·¯rfor general k.
+For now, ignore the sparsity error. For simplicity, let A∈Rm×dwith entries chosen i.i.d. from the
+Bernoulli B(1/2)distribution over{±1/√m}, where m=O(klogd). Then for any k-sparse y,
+we have/bardblAy/bardbl∞≤k/√m, and thus Li≤2k/√mf or each i. This gives the bound
+C1·Ex/bardblH(x)−E[Ay|x]/bardbl2
+2≤4C1·k2·¯r,
+which is within a constant factor of the guarantee afforded by SECOC. Note that our reduction
+induces exponentially (in d) fewer subproblems than SECOC.
+Now we consider the sparsity error. In the extreme case m=d,E[y|x]is allowed to be fully
+dense (k =d) and sperr( k,E[y|x]) = 0. When m=O(klogd)< d, we potentially incur an
+extrapenaltyin sperr( k,E[y|x]),whichrelateshowfar E[y|x]isfrombeing k-sparse. Forexample,
+suppose E[y|x]has small ℓpnorm for 0≤p <2. Then even if E[y|x]has full support, the penalty
+will decrease polynomially in k≈m/logd.
+5.2 Linear Prediction
+Adanger of using generic reductions isthat one might create aproblem instance that is even harder
+to solve than the original problem. This is an oft cited issue with using output codes for multi-
+class problems. In the case of linear prediction, however, the danger is mitigated, as we now show.
+Suppose, for instance, there is a perfect linear predictor of E[y|x],i.e.E[y|x] = B⊤xfor some
+B∈Rp×d(hereX=Rp). Then it is easy to see that H=BA⊤is a perfect linear predictor of
+E[Ay|x]:
+H⊤x=AB⊤x=AE[y|x] = E[Ay|x].
+The following theorem generalizes this observation to imperfect linear predictors for certain well-
+behaved A.
+Theorem 4. SupposeX⊂Rp. LetB∈Rp×dbe a linear function with
+Ex/vextenddouble/vextenddoubleB⊤x−E[y|x]/vextenddouble/vextenddouble2
+2=ǫ.
+LetA∈Rm×dhave entries drawn i.i.d. from N(0,1/m), and let H=BA⊤. Then with high
+probability (over the choice of A),
+Ex/bardblH⊤x−AE[y|x]/bardbl2
+2≤/parenleftbig
+1 +O(1/√m)/parenrightbig
+ǫ .
+Remark5. SimilarguaranteescanbeprovenfortheBernoulli-basedmatrices. Notethat ddoesnot
+appearinthebound,whichisincontrasttotheexpectedspectralnormof A: roughly 1+O(/radicalbig
+d/m).
+T
+heorem 4 implies that the errors of anylinear predictor are not magniﬁed much by the compres-
+sion function. So a good linear predictor for the original problem implies an almost-as-good linear
+predictor for the induced problem. Using this theorem together with known results about linear
+prediction[22],itisstraightforwardtoderivesamplecomplexityboundsforachievingagivenerror
+relative to that of the best linear predictor in some class. The bound will depend polynomially in k
+but only logarithmically in d. This is cosmetically similar to learning bounds for feature-efﬁcient
+algorithms (e.g. [23, 22]) which are concerned with sparsity in the weight vector, rather than in the
+output.
+66 ExperimentalValidation
+W
+econductedanempiricalassessmentofourproposedreductionontwolabeleddatasetswithlarge
+label spaces. These experiments demonstrate the feasibility of our method – a sanity check that the
+reductiondoesinfactpreservelearnability–andcomparedifferentcompressionandreconstruction
+options.
+6.1 Data
+Image data.1The ﬁrst data set was collected by the ESP Game [24], an online game in which
+players ultimately provide word tags for a diverse set of web images.
+The set contains nearly 68000images, with about 22000unique labels. We retained just the 1000
+most frequent labels: the least frequent of these occurs 39times in the data, and the most frequent
+occurs about 12000times. Each image contains about four labels on average. We used half of the
+data for training and half for testing.
+We represented each image as a bag-of-features vector in a manner similar to [25]. Speciﬁcally, we
+identiﬁed 1024representative SURF features points [26] from 10×10gray-scale patches chosen
+randomly from the training images; this partitions the space of image patches (represented with
+SURF features) into Voronoi cells. We then built a histogram for each image, counting the number
+of patches that fall in each cell.
+Text data.2The second data set was collected by Tsoumakas et al. [11] from del.icio.us, a
+social bookmarking service in which users assign descriptive textual tags to web pages.
+The set contains about 16000labeled web page and 983unique labels. The least frequent label
+occurs 21times and the most frequent occurs almost 6500times. Each web page is assigned 19
+labels on average. Again, we used half the data for training and half for testing.
+Eachwebpageisrepresentedasabooleanbag-of-wordsvector,withthevocabularychosenusinga
+combination of frequency thresholding and χ2feature ranking. See [11] for details.
+Each binary label vector (inboth data sets) indicates the labels of the corresponding data point.
+6.2 Output Sparsity
+We ﬁrst performed a bit of exploratory data analysis to get a sense of how sparse the target in our
+datais. Wecomputed theleast-squareslinearregressor /hatwideB∈Rp×donthetrainingdata(withoutany
+output coding) and predicted the label probabilities /hatwidep(x) =/hatwideB⊤xon the test data (clipping values
+to the range [0,1]). Using/hatwidep(x)as a surrogate for the actual target E[y|x], we examined the relative
+ℓ2
+2error of/hatwidepand its best k-sparse approximation ǫ(k,/hatwidep(x)) =/summationtextd
+i=k+1/hatwidep(i)(x)2//bardbl/hatwidep(x)/bardbl2
+2, where
+/hatwidep(1)(x)≥...≥/hatwidep(d)(x).
+Examining Exǫ(k,/hatwidep(x))as a function of k, we saw that in both the image and text data, the fall-
+off with kis eventually super-polynomial, but we are interested in the behavior for small kwhere it
+appearspolynomial k−rforsome r. Around k= 10,weestimatedanexponentof 0.50fortheimage
+data and 0.55for the text data. This is somewhat below the standard of what is considered sparse
+(e.g.vectors with small ℓ1-norm show k−1decay). Thus, we expect the reconstruction algorithms
+will have to contend with the sparsityerror of the target.
+6.3 Procedure
+Weusedleast-squareslinearregressionasourbaselearningalgorithm,withnoregularizationonthe
+image data and with ℓ2-regularization with the text data (λ = 0.01) for numerical stability. We did
+not attempt any parameter tuning.
+1http://hunch.net/∼learning/ESP-ImageSet.tar.gz
+2http://mlkd.csd.auth.gr/multilabel.html
+7Thecompressionfunctionsweusedweregeneratedbyselectin gmrandomrowsofthe 1024×1024
+Hadamard matrix, for m∈{100,200,300,400}. We also experimented with Gaussian matrices;
+these yielded similar but uniformly worse results.
+We tested the greedy and iterative reconstruction algorithms described earlier (OMP, FoBa, and
+CoSaMP) as well as a path-following version of Lasso based on LARS [21]. Each algorithm was
+used to recover a k-sparse label vector /hatwideykfrom the predicted compressed label H(x), fork=
+1,... , 10. We measured the ℓ2
+2distance/bardbl/hatwideyk−y/bardbl2
+2of the prediction to the true test label y. In
+addition, we measured the precision of the predicted support at various values of kusing the 10-
+sparse label prediction. That is, we ordered the coefﬁcients of each 10-sparse label prediction /hatwidey10
+by magnitude, and measured the precision of predicting the ﬁrst kcoordinates|supp(/hatwidey10
+(1:k))∩
+supp(y)|/k. Actually, for k≥6, we used/hatwidey2kinstead of/hatwidey10.
+We used correlation decoding (CD) as a baseline method, as it is a standard decoding method for
+ECOCapproaches. CDpredictsusingthetop kcoordinatesin A⊤H(x),orderedbymagnitude. For
+mean-squared-error comparisons, we used the least-squares approximation of H(x)using these k
+columns of A. Note that CD is not a valid reconstruction algorithm when m < d.
+6.4 Results
+As expected, the performance of the reduction, using any reconstruction algorithm, improves as the
+number of induced subproblems mis increased (see ﬁgures in Appendix A) When mis small and
+A/ne}ationslash∈A K, the reconstruction algorithm cannot reliably choose k≥Kcoordinates, so its perfor-
+mance may degrade after this point by over-ﬁtting. But when the compression function Ais inAK
+for a sufﬁciently large K, then the squared-error decreases as the output sparsity kincreases up to
+K. Note the fact that precision-at-k decreases as kincreases is expected, as fewer data will have at
+leastkcorrect labels.
+All of the reconstruction algorithms at least match or out-performed the baseline on the mean-
+squared-error criterion, except when m= 100. When Ahas few rows, (1) A∈A Konly for very
+smallK, and (2) many of its columns will have signiﬁcant correlation. In this case, when choosing
+k > Kcolumns, it is better to choose correlated columns to avoid over-ﬁtting. Both OMP and
+FoBaexplicitlyavoidthisandthusdonotfarewell;butCoSaMP,Lasso,andCDdoallowselecting
+correlated columns and thus perform better in this regime.
+The results for precision-at-k are similar to that of mean-squared-error, except that choosing corre-
+lated columns does not necessarily help in the small mregime. This is because the extra correlated
+columns need not correspond to accurate label coordinates.
+Insummary,theexperimentsdemonstratethefeasibilityandrobustnessofourreductionmethodfor
+two natural multi-label prediction tasks. They show that predictions of relatively few compressed
+labels are sufﬁcient to recover an accurate sparse label vector, and as our theory suggests, the ro-
+bustness of the reconstruction algorithms is a key factor in their success.
+Acknowledgments
+We thank Andy Cotter for help processing the image features for the ESP Game data. This work
+was completed while the ﬁrst author was an intern at TTI-C in 2008.
+References
+[1] David Donoho. Compressedsensing. IEEETrans. Info. Theory, 52(4):1289–1306, 2006.
+[2] T. Dietterich and G. Bakiri. Solving multiclass learning problems via error-correcting output codes.
+Journal of Artiﬁcial Intelligence Research, 2:263–286, 1995.
+[3] R.RifkinandA.Klautau. Indefenseofone-vs-allclassiﬁcation. JournalofMachineLearningResearch,
+5:101–141, 2004.
+[4] M.Boutell,J.Luo,X.Shen,andC.Brown.Learningmulti-labelsceneclassiﬁcation. PatternRecognition,
+37(9):1757–1771, 2004.
+[5] A. Clare and R.D. King. Knowledge discovery in multi-label phenotype data. In European Conference
+on Principlesof Data Mining and Knowledge Discovery, 2001.
+8[6] B. Taskar, C. Guestrin, and D. Koller. Max-margin markov network s. InNIPS,2003.
+[7] N. Cesa-Bianchi, C. Gentile, and L. Zaniboni. Incremental algorithms for hierarchical classiﬁcation.
+Journal of Machine Learning Research, 7:31–54, 2006.
+[8] I. Tsochantaridis, T. Hofmann, T. Joachims, and Y. Altun. Support vector machine learning for interde-
+pendent and structured output spaces. In ICML,2004.
+[9] J.Rousu,C.Saunders,S.Szedmak,andJ.Shawe-Taylor. Kernel-basedlearningofhierarchicalmultilabel
+classiﬁcation models. Journal of Machine Learning Research, 7:1601–1626, 2006.
+[10] J. Huang, T. Zhang, and D. Metaxax. Learning with structured sparsity. In ICML,2009.
+[11] G. Tsoumakas, I. Katakis, and I. Vlahavas. Effective and efﬁcient multilabel classiﬁcation in domains
+with large number of labels. In Proc. ECML/PKDD 2008 Workshop on Mining Multidimensional Data,
+2008.
+[12] Erin Allwein, Robert Schapire, and Yoram Singer. Reducing multiclass to binary: A unifying approach
+for margin classiﬁers. Journal of Machine Learning Research, 1:113–141, 2000.
+[13] J.LangfordandA.Beygelzimer. Sensitiveerrorcorrectingoutputcodes. In Proc.ConferenceonLearning
+Theory, 2005.
+[14] Emmanuel Cand `es, Justin Romberg, and Terrence Tao. Stable signal recovery from incomplete and
+inaccurate measurements. Comm. PureAppl. Math., 59:1207–122, 2006.
+[15] R. DeVore. Deterministic constructions of compressed sensing matrices. J. of Complexity, 23:918–925,
+2007.
+[16] Shahar Mendelson, Alain Pajor, and Nicole Tomczak-Jaegermann. Uniform uncertainty principle for
+Bernoulli and subgaussian ensembles. Constructive Approximation, 28(3):277–289, 2008.
+[17] M. Rudelson and R. Vershynin. Sparse reconstruction by convex relaxation: Fourier and Gaussian mea-
+surements. In Proc. Conference on Information Sciences and Systems , 2006.
+[18] S.MallatandZ.Zhang. Matchingpursuitswithtime-frequencydictionaries. IEEETransactionsonSignal
+Processing, 41(12):3397–3415, 1993.
+[19] Tong Zhang. Adaptive forward-backward greedy algorithm for sparse learning with linear models. In
+Proc. Neural Information Processing Systems , 2008.
+[20] D. Needell and J.A. Tropp. CoSaMP: Iterative signal recovery from incomplete and inaccurate samples.
+Applied and Computational Harmonic Analysis ,2007.
+[21] Bradley Efron, Trevor Hastie, Iain Johnstone, and Robert Tibshirani. Least angle regression. Annals of
+Statistics, 32(2):407–499, 2004.
+[22] Sham M. Kakade, Karthik Sridharan, and Ambuj Tewari. On the complexity of linear prediction: Risk
+bounds, margin bounds, and regularization. In Proc. Neural Information ProcessingSystems , 2008.
+[23] Andrew Ng. Feature selection, l1vs.l2regularization, and rotational invariance. In ICML,2004.
+[24] LuisvonAhnandLauraDabbish. Labelingimageswithacomputergame. In Proc.ACMConferenceon
+Human Factors in Computing Systems , 2004.
+[25] Marcin Marszałek, Cordelia Schmid, Hedi Harzallah, and Joost van de Weijer. Learning object repre-
+sentations for visual object class recognition. In Visual Recognition Challange Workshop, in conjunction
+with ICCV,2007.
+[26] Herbert Bay, Andreas Ess, Tinne Tuytelaars, and Luc Van Gool. SURF: Speeded up robust features.
+Computer Vision and Image Understanding, 110(3):346–359, 2008.
+[27] David Donoho, Michael Elad, and Vladimir Temlyakov. Stable recovery of sparse overcomplete repre-
+sentations in the presence of noise. IEEETrans.Info. Theory, 52(1):6–18, 2006.
+[28] Sanjoy Dasgupta. Learning Probability Distributions . PhD thesis, University of California, 2000.
+9

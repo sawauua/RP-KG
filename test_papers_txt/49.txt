@@ -1,0 +1,502 @@
+Exploring Large Feature Spaces
+with Hierarchical Multiple Kernel Learning
+FrancisBach
+I
+NRIA -WillowProject, ´EcoleNormaleSup´ erieure
+45,rued’Ulm,75230Paris,France
+francis.bach@mines.org
+Abstract
+For supervised and unsupervised learning, positive deﬁnite kernels allow to use
+largeandpotentiallyinﬁnitedimensionalfeaturespaceswithacomputationalcost
+that only depends on the number of observations. This is usually done through
+the penalization of predictor functions by Euclidean or Hilbertian norms. In this
+paper, we explore penalizing by sparsity-inducing norms such as the ℓ1-norm or
+the block ℓ1-norm. We assume that the kernel decomposes into a large sum of
+individual basis kernels which can be embedded in a directed acyclic graph; we
+show that it is then possible to perform kernel selection through a hierarchical
+multiplekernellearningframework,inpolynomialtimeinthenumberofselected
+kernels. This framework is naturally applied to non linear variable selection; our
+extensive simulations on synthetic datasets and datasets from the UCI repository
+show that efﬁciently exploring the large feature space through sparsity-inducing
+normsleadstostate-of-the-artpredictiveperformance.
+1 Introduction
+In the last two decades, kernel methods have been a proliﬁc theoretical and algorithmic machine
+learningframework. By usingappropriateregularizationbyHilbertiannorms,representertheorems
+enabletoconsiderlargeandpotentiallyinﬁnite-dimensionalfeaturespaceswhileworkingwithinan
+implicitfeaturespacenolargerthanthenumberofobservations. Thishasledtonumerousworkson
+kernel design adapted to speciﬁc data types and generic kernel-basedalgorithmsfor many learning
+tasks(see,e.g.,[1,2]).
+Regularizationbysparsity-inducingnorms,suchasthe ℓ1-normhasalsoattractedalotofinterestin
+recentyears. Whileearlyworkhasfocusedonefﬁcientalgorithmstosolvetheconvexoptimization
+problems,recentresearchhaslookedatthemodelselectionpropertiesandpredictiveperformanceof
+suchmethods,inthelinearcase[3]orwithinthemultiplekernellearningframework(see,e.g.,[4]).
+Inthispaper,weaimtobridgethegapbetweenthesetwolinesofresearchbytryingtouse ℓ1-norms
+insidethe feature space. Indeed, feature spaces are large and we expect the estimated predictor
+function to require only a small number of features, which is exactly the situation where ℓ1-norms
+haveprovenadvantageous. Thisleadstotwonaturalquestionsthatwetrytoanswerinthispaper: (1)
+Is it feasible to performoptimizationin this verylarge feature space with cost which is polynomial
+inthesizeoftheinputspace? (2)Doesitleadtobetterpredictiveperformanceandfeatureselection?
+Moreprecisely,weconsiderapositivedeﬁnitekernelthatcanbeexpressedasalargesumofpositive
+deﬁnitebasisorlocalkernels . Thisexactlycorrespondstothesituationwherealargefeaturespaceis
+the concatenationof smaller featurespaces, and we aim to do selection amongthese manykernels,
+which may be done through multiple kernel learning. One major difﬁculty however is that the
+number of these smaller kernels is usually exponential in the dimension of the input space and
+applyingmultiplekernellearningdirectlyin thisdecompositionwouldbeintractable.In order to peform selection efﬁciently, we make the extra ass umption that these small kernels can
+be embedded in a directed acyclic graph (DAG). Following [5], we consider in Section 2 a spe-
+ciﬁc combination of ℓ2-norms that is adapted to the DAG, and will restrict the authorized sparsity
+patterns; in our speciﬁc kernel framework, we are able to use the DAG to design an optimization
+algorithmwhichhaspolynomialcomplexityinthenumberofselectedkernels(Section3). Insimu-
+lations (Section 5), we focus on directed grids , where our framework allows to perform non-linear
+variableselection. We provideextensiveexperimentalvalidationof ournovelregularizationframe-
+work; in particular, we compare it to the regular ℓ2-regularizationand shows that it is always com-
+petitive and often leads to better performance,both on synthetic examples, and standard regression
+andclassiﬁcationdatasetsfromtheUCI repository.
+Finally,weextendinSection4someoftheknownconsistencyresultsoftheLassoandmultipleker-
+nellearning[3,4],andgiveapartialanswertothemodelselectioncapabilitiesofourregularization
+framework by giving necessary and sufﬁcient conditions for model consistency. In particular, we
+showthatourframeworkisadaptedtoestimatingconsistentlyonlythe hulloftherelevantvariables.
+Hence,byrestrictingthestatistical powerofourmethod,we gaincomputationalefﬁciency.
+2 Hierarchical multiple kernel learning (HKL)
+We considerthe problemof predictinga randomvariable Y∈ Y ⊂ Rfroma randomvariable X∈
+X, where XandYmay be quite general spaces. We assume that we are given ni.i.d. observations
+(xi, yi)∈ X × Y ,i= 1, . . . , n. We deﬁne the empirical risk of a function ffromXtoRas
+1
+n/summationtextn
+i= 1ℓ(yi, f(xi)), where ℓ:Y ×R/ma√sto→R+is aloss function . We only assume that ℓis convex
+with respect to the second parameter (but not necessarily differentiable). Typical examples of loss
+functionsarethesquarelossforregression,i.e., ℓ(y,ˆy) =1
+2(y−ˆy)2fory∈R,andthelogisticloss
+ℓ(y,ˆy) = log(1+ e−yˆy)orthehingeloss ℓ(y,ˆy) = max {0,1−yˆy}forbinaryclassiﬁcation,where
+y∈ {−1,1},leadingrespectivelytologistic regressionandsupportvectormachines[1, 2].
+2.1 Graph-structuredpositive deﬁnitekernels
+We assume that we are given a positive deﬁnite kernel k:X × X → R, and that this kernel can
+be expressed as the sum, over an index set V, of basis kernels kv,v∈V, i.e, for all x, x′∈ X,
+k(x, x′) =/summationtext
+v∈Vkv(x, x′). Foreach v∈V,wedenoteby FvandΦvthefeaturespaceandfeature
+map of kv, i.e., for all x, x′∈ X,kv(x, x′) =/an}bracketle{tΦv(x),Φv(x′)/an}bracketri}ht. Throughout the paper, we denote
+by/bardblu/bardbltheHilbertiannormof uandby /an}bracketle{tu, v/an}bracketri}httheassociateddotproduct,wheretheprecisespaceis
+omittedandcanalwaysbeinferredfromthecontext.
+Our sum assumption corresponds to a situation where the feature map Φ(x)and feature space F
+forkis theconcatenation of the feature maps Φv(x)for each kernel kv, i.e,F=/producttext
+v∈VFvand
+Φ(x) = (Φ v(x))v∈V. Thus,lookingforacertain β∈ Fandapredictorfunction f(x) =/an}bracketle{tβ,Φ(x)/an}bracketri}ht
+isequivalenttolookingjointlyfor βv∈ Fv,forall v∈V,andf(x) =/summationtext
+v∈V/an}bracketle{tβv,Φv(x)/an}bracketri}ht.
+Asmentionedearlier,wemaketheassumptionthattheset Vcanbeembeddedintoa directedacyclic
+graph. Directed acyclic graphs (DAGs) allow to naturally deﬁne the notions of parents,children,
+descendants andancestors . Givena node w∈V, we denoteby A(w)⊂Vthe set of its ancestors,
+and by D(w)⊂V, the set of its descendants. We use the convention that any wis a descendant
+and an ancestor of itself, i.e., w∈A(w)andw∈D(w). Moreover, for W⊂V, we let denote
+sources( W)the set of sourcesof the graph Grestricted to W(i.e., nodes in Wwith no parents
+belongingto W). Givena subset of nodes W⊂V, we can deﬁne the hullofWas the unionof all
+ancestors of w∈W, i.e.,hull(W) =/uniontext
+w∈WA(w). Given a set W, we deﬁne the set of extreme
+pointsofWasthesmallestsubset T⊂Wsuchthat hull(T) = hull( W)(notethatitisalwayswell
+deﬁned,as/intersectiontext
+T⊂V,hull(T)=hull( W)T). See Figure1forexamplesofthesenotions.
+The goal of this paper is to perform kernel selection among the kernels kv,v∈V. We essentially
+usethegraphtolimitthesearchtospeciﬁcsubsetsof V. Namely,insteadofconsideringallpossible
+subsets of active (relevant) vertices, we are only interested in estimating correctly the hull of these
+relevantvertices;inSection2.2,we designa speciﬁcsparsity-inducingnormsadaptedtohulls.
+Inthispaper,weprimarilyfocusonkernelsthatcanbeexpressedas“productsofsums”,andonthe
+associated p-dimensionaldirectedgrids,whilenotingthatourframeworkisapplicabletomanyother
+kernels. Namely,weassumethattheinputspace Xfactorizesinto pcomponents X=X1×· · ·×X p
+and that we are given psequences of length q+ 1of kernels kij(xi, x′
+i),i∈ {1, . . ., p },j∈Figure1: Exampleofgraphandassociatednotions. (Left)Exa mpleofa2D-grid. (Middle)Example
+of sparsity pattern ( ×in light blue) and the complement of its hull ( +in light red). (Right) Dark
+bluepoints( ×)areextremepointsofthesetofallactivepoints(blue ×);darkredpoints( +)arethe
+sourcesoftheset ofall redpoints( +).
+{0, . . ., q }, such that k(x, x′) =/summationtextq
+j1,...,j p=0/producttextp
+i=1kiji(xi, x′
+i) =/producttextp
+i=1/parenleftBig/summationtextq
+ji=0kiji(xi, x′
+i)/parenrightBig
+. We
+thushaveasumof (q+1)pkernels,thatcanbecomputedefﬁcientlyasaproductof psums. Anatural
+DAG on V=/producttextp
+i=1{0, . . ., q }is deﬁned by connecting each (j1, . . . , j p)to(j1+1, j2, . . ., j p),
+. . .,(j1, . . . , j p−1, jp+1). As shown in Section 2.2, this DAG will correspond to the constraint
+of selecting a given product of kernels only after all the subproducts are selected. Those DAGs
+areespecially suitedto nonlinearvariableselection,in particularwith thepolynomialandGaussian
+kernels. Inthiscontext,productsofkernelscorrespondtointeractionsbetweencertainvariables,and
+ourDAGimpliesthatweselect aninteractiononlyafterall sub-interactionswerealreadyselected.
+Polynomial kernels We consider Xi=R,kij(xi, x′
+i) =/parenleftbigq
+j/parenrightbig
+(xix′
+i)j; the full kernel is then equal
+tok(x, x′) =/producttextp
+i=1/summationtextq
+j=0/parenleftbigq
+j/parenrightbig
+(xix′
+i)j=/producttextp
+i=1(1 +xix′
+i)q. Note that this is not exactly the usual
+polynomialkernel(whosefeaturespaceisthespaceofmultivariatepolynomialsof totaldegreeless
+thanq),sinceourkernelconsiderspolynomialsof maximaldegree q.
+Gaussian kernels We also consider Xi=R, and the Gaussian-RBF kernel e−b(x−x′)2. The
+following decomposition is the eigendecomposition of the non centered covariance operator for a
+normaldistributionwithvariance 1/4a(see, e.g.,[6]):
+e−b(x−x′)2=/summationtext∞
+k=0(b/A)k
+2kk![e−b
+A(a+c)x2Hk(√
+2c x)][e−b
+A(a+c)(x′)2Hk(√
+2c x′)],
+where c2=a2+ 2ab,A=a+b+c, andHkis thek-th Hermite polynomial. By appropriately
+truncating the sum, i.e, by considering that the ﬁrst qbasis kernels are obtained from the ﬁrst q
+single Hermite polynomials, and the (q+ 1)-th kernel is summing over all other kernels, we ob-
+tain a decomposition of a uni-dimensional Gaussian kernel into q+ 1components ( qof them are
+one-dimensional, the last one is inﬁnite-dimensional, but can be computed by differencing). The
+decomposition ends up being close to a polynomial kernel of inﬁnite degree, modulated by an ex-
+ponential [2]. One may also use an adaptive decomposition using kernel PCA (see, e.g., [2, 1]),
+which is equivalent to using the eigenvectors of the empirical covariance operator associated with
+the data (andnot the populationone associated with the Gaussian distributionwith same variance).
+Insimulations,we triedbothwith nosigniﬁcantdifferences.
+ANOVA kernels When q= 1, the directed grid is isomorphic to the power set (i.e., the set
+of subsets) with the inclusion DAG. In this setting, we can decompose the ANOVA kernel [2] as/producttextp
+i=1(1 +e−b(xi−x′
+i)2) =/summationtext
+J⊂{1,...,p}/producttext
+i∈Je−b(xi−x′
+i)2=/summationtext
+J⊂{1,...,p}e−b/bardblxJ−x′
+J/bardbl2
+2, and our
+frameworkwill select therelevantsubsetsfortheGaussiankernels.
+Kernelsorfeatures? Inthispaper,weemphasizethe kernelview ,i.e.,wearegivenakernel(and
+thusafeaturespace)andweexploreitusing ℓ1-norms. Alternatively,wecouldusethe featureview ,
+i.e., we have a large structured set of features that we try to select from; however, the techniques
+developed in this paper assume that (a) each feature might be inﬁnite-dimensional and (b) that we
+can sum all the local kernels efﬁciently (see in particular Section 3.2). Following the kernel view
+thusseemsslightlymorenatural.
+2.2 Graph-basedstructuredregularization
+Given β∈/producttext
+v∈VFv, the natural Hilbertian norm /bardblβ/bardblis deﬁned through /bardblβ/bardbl2=/summationtext
+v∈V/bardblβv/bardbl2.
+Penalizingwiththisnormisefﬁcientbecausesummingallkernels kvisassumedfeasibleinpolyno-
+mial time and we can bring to bear the usual kernel machinery; however, it does not lead to sparse
+solutions,wheremany βvwill beexactlyequaltozero.As said earlier,we are onlyinterested in the hull ofthe selec ted elements βv∈ Fv,v∈V; the hull
+of a set Iis characterized by the set of v, such that D(v)⊂Ic, i.e., such that all descendants of v
+are in the complement Ic:hull(I) ={v∈V,D(v)⊂Ic}c. Thus, if we try to estimate hull(I), we
+need to determine which v∈Vare such that D(v)⊂Ic. In our context, we are hence looking at
+selectingvertices v∈Vforwhich βD(v)= (βw)w∈D(v)= 0.
+We thus consider the following structured block ℓ1-norm deﬁned as/summationtext
+v∈Vdv/bardblβD(v)/bardbl=/summationtext
+v∈Vdv(/summationtext
+w∈D(v)/bardblβw/bardbl2)1/2, where (dv)v∈Vare positive weights. Penalizing by such a norm
+will indeed impose that some of the vectors βD(v)∈/producttext
+w∈D(v)Fware exactly zero. We thus con-
+siderthefollowingminimizationproblem1:
+minβ∈Q
+v∈VFv1
+n/summationtextn
+i= 1ℓ(yi,/summationtext
+v∈V/an}bracketle{tβv,Φv(xi)/an}bracketri}ht) +λ
+2/parenleftbig/summationtext
+v∈Vdv/bardblβD (v)/bardbl/parenrightbig2.(1)
+Our Hilbertian norm is a Hilbert space instantiation of the hierarchical norms recently introduced
+by[5]andalsoconsideredby[7]intheMKLsetting. IfallHilbertspacesareﬁnitedimensional,our
+particular choice of norms corresponds to an “ ℓ1-norm of ℓ2-norms”. While with uni-dimensional
+groups/kernels, the “ ℓ1-norm of ℓ∞-norms” allows an efﬁcient path algorithm for the square loss
+andwhen the DAG is a tree [5], this is not possibleanymorewith groupsof size largerthanone, or
+when the DAG is a not a tree. In Section 3, we propose a novel algorithm to solve the associated
+optimization problem in time polynomial in the number of selected groups/kernels, for all group
+sizes, DAGs and losses. Moreover,in Section 4, we show under which conditionsa solution to the
+problemin Eq.(1)consistentlyestimatesthe hullofthe sparsitypattern.
+Finally, note that in certain settings (ﬁnite dimensional Hilbert spaces and distributions with abso-
+lutely continuousdensities), these normshavethe effectof selecting a givenkernel only afterall of
+its ancestors [5]. This is another explanation why hulls end up being selected, since to include a
+givenvertexinthemodels,theentireset ofancestorsmustalso beselected.
+3 Optimizationproblem
+In this section, we give optimality conditions for the problems in Eq. (1), as well as optimization
+algorithms with polynomial time complexity in the number of selected kernels. In simulations we
+consider total numbers of kernels larger than 1030, and thus such efﬁcient algorithms are essential
+tothe successofhierarchicalmultiplekernellearning(HKL).
+3.1 Reformulationin termsofmultiple kernel learning
+Following[8,9],wecansimplyderiveanequivalentformulationofEq.(1). UsingCauchy-Schwarz
+inequality,we havethat forall η∈RVsuchthat η/greaterorequalslant0and/summationtext
+v∈Vd2
+vηv/lessorequalslant1,
+(/summationtext
+v∈Vdv/bardblβD(v)/bardbl)2/lessorequalslant/summationtext
+v∈V/bardblβD(v)/bardbl2
+ηv=/summationtext
+w∈V(/summationtext
+v∈A (w)η−1
+v)/bardblβw/bardbl2,
+with equality if and only if ηv=d−1
+v/bardblβD(v)/bardbl(/summationtext
+v∈Vdv/bardblβD(v)/bardbl)−1. We associate to the vector
+η∈RV,thevector ζ∈RVsuchthat ∀w∈V,ζ−1
+w=/summationtext
+v∈A(w)η−1
+v. Weusethenaturalconvention
+that if ηvis equal to zero, then ζwis equal to zero for all descendants wofv. We let denote Hthe
+set of allowed ηandZthe set of all associated ζ. The set HandZare in bijection, and we can
+interchangeablyuse η∈Hor the corresponding ζ(η)∈Z. Note that Zis in general not convex2
+(unless the DAG is a tree, see [10]), and if ζ∈Z, then ζw/lessorequalslantζvfor all w∈D(v), i.e., weights of
+descendant kernels are smaller, which is consistent with the known fact that kernels should always
+beselectedafterall theirancestors.
+Theproblemin Eq.(1)isthusequivalentto
+min
+η∈Hmin
+β∈Q
+v∈VFv1
+n/summationtextn
+i= 1ℓ(yi,/summationtext
+v∈V/an}bracketle{tβv,Φv(xi)/an}bracketri}ht) +λ
+2/summationtext
+w∈Vζw(η)−1/bardblβw/bardbl2.(2)
+Using the change of variable ˜βv=βvζ−1/2
+vand˜Φ(x) = (ζ1/2
+vΦv(x))v∈V, this implies that given
+the optimal η(and associated ζ),βcorresponds to the solution of the regular supervised learning
+problem with kernel matrix K=/summationtext
+w∈VζwKw, where Kwisn×nthe kernel matrix associated
+1Weconsider thesquare ofthe norm,whichdoes not change theregularizationproperties, butallow simple
+links withmultiplekernel learning.
+2Although Zis not convex, we can still maximize positive linear combinations over Z, which is the only
+needed operation (see [10]for details).with kernel kw. Moreover, the solution is then βw=ζw/summationtextn
+i=1αiΦw(xi), where α∈Rnare the
+dualparametersassociatedwiththesinglekernellearningproblem.
+Thus, the solution is entirely determined by α∈Rnandη∈RV(and its corresponding ζ∈RV).
+Moreprecisely,we have(seeproofin[10]):
+Proposition1 The pair (α, η)is optimal for Eq. (1), with ∀w, βw=ζw/summationtextn
+i=1αiΦw(xi), if and
+only if (a)given η,αis optimal for the single kernel learning problem with kernel matrix K=/summationtext
+w∈Vζw(η)Kw,and(b)givenα,η∈Hmaximizes/summationtext
+w∈V(/summationtext
+v∈A(w)η−1
+v)−1α⊤Kwα.
+Moreover,thetotaldualitygapcanbeupperboundedasthesumofthetwoseparatedualitygapsfor
+thetwooptimizationproblems,whichwillbeusefulinSection3.2(see[10]formoredetails). Note
+that in the case of “ﬂat” regular multiple kernel learning, where the DAG has no edges, we obtain
+backusualoptimalityconditions[8,9].
+Followingacommonpracticeforconvexsparsityproblems[11],wewilltrytosolveasmallproblem
+where we assume we know the set of vsuch that /bardblβD(v)/bardblis equal to zero (Section 3.3). We then
+“simply” need to check that variables in that set may indeed be left out of the solution. In the next
+section,weshowthatthiscanbedoneinpolynomialtimealthoughthenumberofkernelstoconsider
+leavingoutisexponential(Section3.2).
+3.2 Conditionsforglobaloptimalityofreduced problem
+We let denote Jthe complement of the set of norms which are set to zero. We thus consider the
+optimalsolution βofthereducedproblem(on J), namely,
+minβJ∈Q
+v∈JFv1
+n/summationtextn
+i= 1ℓ(yi,/summationtext
+v∈J/an}bracketle{tβv,Φv(xi)/an}bracketri}ht) +λ
+2/parenleftbig/summationtext
+v∈Vdv/bardblβD (v)∩J/bardbl/parenrightbig2,(3)
+with optimal primal variables βJ, dual variables αand optimal pair (ηJ, ζJ). We now consider
+necessaryconditionsandsufﬁcientconditionsforthissolution(augmentedwithzerosfornonactive
+variables, i.e., variablesin Jc) to be optimal with respect to the full problemin Eq. (1). We denote
+byδ=/summationtext
+v∈Jdv/bardblβD(v)∩J/bardbltheoptimalvalueofthenormforthereducedproblem.
+Proposition2( NJ)IfthereducedsolutionisoptimalforthefullprobleminEq.(1)andallkernels
+inthe extremepointsof Jare active,thenwe have max t∈sources( Jc)α⊤Ktα/d2
+t/lessorequalslantδ2.
+Proposition3( SJ,ε)Ifmax t∈sources( Jc)/summationtext
+w∈D(t)α⊤Kwα/(/summationtext
+v∈A(w)∩D(t)dv)2/lessorequalslantδ2+ε/λ,
+thenthetotaldualitygapislessthan ε.
+The proof is fairly technical and can be found in [10]; this result constitutes the main technical
+contribution of the paper: it essentially allows to solve a very large optimization problem over
+exponentiallymanydimensionsin polynomialtime.
+The necessarycondition (NJ)doesnot cause anycomputationalproblems. However,the sufﬁcient
+condition (SJ,ε)requires to sum over all descendants of the active kernels, which is impossible in
+practice (as shown in Section 5, we consider Vof cardinal often greaterthan 1030). Here, we need
+to bring to bear the speciﬁc structure of the kernel k. In the context of directed grids we consider
+in this paper, if dvcan also be decomposed as a product, then/summationtext
+v∈A(w)∩D(t)dvis also factorized,
+andwecancomputethesumoverall v∈D(t)inlineartimein p. Moreoverwecancachethesums/summationtext
+w∈D(t)Kw/(/summationtext
+v∈A(w)∩D(t)dv)2inordertosave runningtime.
+3.3 Dualoptimizationforreducedorsmall problems
+When kernels kv,v∈Vhave low-dimensional feature spaces, we may use a primal rep-
+resentation and solve the problem in Eq. (1) using generic optimization toolboxes adapted to
+conic constraints (see, e.g., [12]). However, in order to reuse existing optimized supervised
+learning code and use high-dimensional kernels, it is preferable to use a dual optimization.
+Namely, we use the same technique as [8]: we consider for ζ∈Z, the function B(ζ) =
+minβ∈Q
+v∈VFv1
+n/summationtextn
+i= 1ℓ(yi,/summationtext
+v∈V/an}bracketle{tβv,Φv(xi)/an}bracketri}ht)+λ
+2/summationtext
+w∈Vζ−1
+w/bardblβw/bardbl2,whichistheoptimalvalue
+ofthesinglekernellearningproblemwithkernelmatrix/summationtext
+w∈VζwKw. SolvingEq.(2)isequivalent
+tominimizing B(ζ(η))withrespectto η∈H.
+Ifaridge(i.e.,positivediagonal)isaddedtothekernelmatrices,thefunction Bisdifferentiable[8].
+Moreover, the function η/ma√sto→ζ(η)is differentiable on (R∗
++)V. Thus, the function η/ma√sto→B[ζ((1−ε)η+ε
+|V|d−2)], where d−2is thevectorwithelements d−2
+v,isdifferentiableif ε >0. We canthen
+use the same projected gradient descent strategy as [8] to minimize it. The overall complexity of
+the algorithm is then proportionalto O(|V|n2)—to form the kernel matrices—plus the complexity
+of solving a single kernel learning problem—typically between O(n2)andO(n3). Note that this
+algorithmisonlyusedforsmallreducedsubproblemsforwhich Vhassmall cardinality.
+3.4 Kernelsearchalgorithm
+We are now ready to present the detailed algorithm which extends the feature search algorithm
+of [11]. Note that the kernel matrices are never all needed explicitly, i.e., we only need them (a)
+explicitlytosolvethesmallproblems(butweneedonlyafewofthose)and(b)implicitlytocompute
+thesufﬁcientcondition (SJ,ε), whichrequiresto sumoverallkernels,asshownin Section3.2.
+•Input: kernelmatrices Kv∈Rn×n,v∈V, maximalgap ε,maximal #ofkernels Q
+•Algorithm
+1. Initialization: set J= sources( V),
+compute (α, η)solutionsofEq.(3),obtainedusingSection3.3
+2. while (NJ)and(SJ,ε)arenotsatisﬁed and #(V)/lessorequalslantQ
+–If(NJ)isnotsatisﬁed, addviolatingvariablesin sources( Jc)toJ
+else,addviolatingvariablesin sources( Jc)of(SJ,ε)toJ
+–Recompute (α, η)optimalsolutionsofEq.(3)
+•Output:J,α,η
+The previous algorithm will stop either when the duality gap is less than εor when the maximal
+numberof kernels Qhas beenreached. In practice,when the weights dvincrease with the depthof
+vintheDAG(whichweuseinsimulations),thesmalldualitygapgenerallyoccursbeforewereach
+a problemlargerthan Q. Note that some of the iterationsonlyincrease the size of the activesets to
+checkthesufﬁcientconditionforoptimality;forgettingthosedoesnotchangethesolution,onlythe
+factthat wemayactuallyknowthatwe havean ε-optimalsolution.
+In order to obtain a polynomial complexity,the maximal out-degreeof the DAG (i.e., the maximal
+number of children of any given node) should be polynomial as well. Indeed, for the directed p-
+grid (with maximum out-degree equal to p), the total running time complexity is a function of the
+numberofobservations n,andthenumber Rofselectedkernels;withpropercaching,weobtainthe
+followingcomplexity,assuming O(n3)forthesinglekernellearningproblem,whichisconservative:
+O(n3R+n2Rp2+n2R2p),whichdecomposesintosolving O(R)singlekernellearningproblems,
+caching O(Rp)kernels,andcomputing O(R2p)quadraticformsforthesufﬁcientconditions.
+4 Consistency conditions
+As said earlier, the sparsity pattern of the solution of Eq. (1) will be equal to its hull, and thus we
+canonlyhopetoobtainconsistencyofthehullofthepattern,whichweconsiderinthissection. For
+simplicity,weconsiderthecaseofﬁnitedimensionalHilbertspaces(i.e., Fv=Rfv)andthesquare
+loss. Wealsoholdﬁxedthevertexsetof V,i.e.,weassumethatthetotalnumberoffeaturesisﬁxed,
+andwelet ntendto inﬁnityand λ=λndecreasewith n.
+Following [4], we make the following assumptions on the underlying joint distribution of (X, Y):
+(a) the joint covariancematrix Σof(Φ(xv))v∈V(deﬁned with appropriateblocksof size fv×fw)
+is invertible, (b) E(Y|X) =/summationtext
+w∈W/an}bracketle{tβw,Φw(x)/an}bracketri}htwithW⊂Vandvar(Y|X) =σ2>0almost
+surely. Withthese simpleassumptions,we obtain(seeproofin[10]):
+Proposition4(Sufﬁcientcondition) Ifmax
+t∈sources( Wc)/summationtext
+w∈D(t)/bardblΣwWΣ−1
+W WDiag( dv/bardblβD(v)/bardbl−1)v∈WβW/bardbl2
+(P
+v∈A(w)∩D(t)dv)2
+<1,thenβandthehullof Ware consistentlyestimatedwhen λnn1/2→ ∞andλn→0.
+Proposition5(Necessarycondition) If the βand the hull of Ware consistently estimated for
+somesequence λn, thenmax t∈sources( Wc)/bardblΣwWΣ−1
+W WDiag(dv//bardblβD(v)/bardbl)v∈WβW/bardbl2/d2
+t/lessorequalslant1.
+Note that the last two propositions are not consequences of the similar results for ﬂat MKL [4],
+because the groupsthat we consider are overlapping. Moreover,the last propositionsshow that we
+indeed can estimate the correct hull of the sparsity pattern if the sufﬁcient conditionis satisﬁed. In
+particular,ifwecanmakethegroupssuchthatthebetween-groupcorrelationisassmallaspossible,23456700.51
+log2(p)test set error
+  
+HKL
+greedy
+L2
+23456700.51
+log2(p)test set error
+  
+HKL
+greedy
+L2
+Figure2: Comparisononsyntheticexamples: meansquarederr orover40replications(withhalved
+standarddeviations). Left: nonrotateddata,right: rotateddata. Seetextfordetails.
+dataset n p k #(V)L2 greedy lasso- αM KL HKL
+abalone 4177 10 pol4 ≈1 0744.2±1 .3 43.9 ±1.4 47.9 ±0.7 44.5 ±1.143.3±1.0
+abalone 4177 10 rbf ≈1 01043.0±0 .9 45.0±1.7 49.0 ±1.7 43.7 ±1.0 43.0 ±1.1
+bank-32fh 8192 32 pol4 ≈1 02240.1±0 .7 39.2 ±0.8 41.3 ±0.738.7±0.738.9±0.7
+bank-32fh 8192 32 rbf ≈1 03139.0±0 .7 39.7 ±0.7 66.1 ±6.9 38.4 ±0.738.4±0.7
+bank-32fm 8192 32 pol4 ≈1 0226.0±0 .1 5.0±0.27.0±0.2 6.1 ±0.3 5.1 ±0.1
+bank-32fm 8192 32 rbf ≈1 0315.7±0 .2 5.8 ±0.4 36.3 ±4.1 5.9 ±0.24.6±0.2
+bank-32nh 8192 32 pol4 ≈1 02244.3±1 .2 46.3 ±1.4 45.8 ±0.8 46.0 ±1.243.6±1.1
+bank-32nh 8192 32 rbf ≈1 03144.3±1 .2 49.4 ±1.6 93.0 ±2.8 46.1 ±1.143.5±1.0
+bank-32nm 8192 32 pol4 ≈1 02217.2±0 .6 18.2 ±0.8 19.5 ±0.4 21.0 ±0.716.8±0.6
+bank-32nm 8192 32 rbf ≈1 03116.9±0 .6 21.0 ±0.6 62.3 ±2.5 20.9 ±0.716.4±0.6
+boston 506 13 pol4 ≈1 0917.1±3 .6 24.7±10.8 29.3 ±2.3 22.2 ±2.2 18.1 ±3.8
+boston 506 13 rbf ≈1 01216.4±4 .0 32.4±8.2 29.4 ±1.6 20.7 ±2.1 17.1 ±4.7
+pumadyn-32fh 8192 32 pol4 ≈1 02257.3±0 .7 56.4 ±0.8 57.5 ±0.456.4±0.756.4±0.8
+pumadyn-32fh 8192 32 rbf ≈1 03157.7±0 .6 72.2 ±22.5 89.3 ±2.0 56.5 ±0.855.7±0.7
+pumadyn-32fm 8192 32 pol4 ≈1 0226.9±0 .1 6.4 ±1.6 7.5 ±0.2 7.0 ±0.13.1±0.0
+pumadyn-32fm 8192 32 rbf ≈1 0315.0±0 .1 46.2 ±51.6 44.7 ±5.7 7.1 ±0.13.4±0.0
+pumadyn-32nh 8192 32 pol4 ≈1 02284.2±1 .3 73.3 ±25.4 84.8 ±0.5 83.6 ±1.336.7±0.4
+pumadyn-32nh 8192 32 rbf ≈1 03156.5±1 .1 81.3 ±25.0 98.1 ±0.7 83.7 ±1.335.5±0.5
+pumadyn-32nm 8192 32 pol4 ≈1 02260.1±1 .9 69.9 ±32.8 78.5 ±1.1 77.5 ±0.95.5±0.1
+pumadyn-32nm 8192 32 rbf ≈1 03115.7±0 .4 67.3 ±42.4 95.9 ±1.9 77.6 ±0.97.2±0.1
+Table1: Meansquarederrors(multipliedby100)onUCIregres siondatasets,normalizedsothatthe
+totalvarianceto explainis100. Seetextfordetails.
+we can ensure correct hull selection. Finally, it is worth notingthat if the ratios dw/max v∈A(w)dv
+tend to inﬁnity slowly with n, then we always consistently estimate the depth of the hull, i.e., the
+optimal interaction complexity. We are currently investigating extensions to the non parametric
+case [4],intermsofpatternselectionanduniversalconsistency.
+5 Simulations
+Synthetic examples We generatedregression data as follows: n= 1024samples of p∈[22,27]
+variables were generated from a random covariance matrix, and the label y∈Rwas sampled as a
+randomsparsefourthorderpolynomialoftheinputvariables(withconstantnumberofmonomials).
+We then compare the performanceof our hierarchical multiple kernel learning method(HKL) with
+the polynomial kernel decomposition presented in Section 2 to other methods that use the same
+kerneland/ordecomposition: (a)the greedystrategyofselecting basiskernelsoneafter theother,a
+procedure similar to [13], and (b) the regular polynomial kernel regularization with the full kernel
+(i.e.,thesumofallbasiskernels). InFigure2,wecomparethetwoapproacheson40replicationsin
+thefollowingtwosituations: originaldata(left)androtateddata(right),i.e.,aftertheinputvariables
+were transformed by a random rotation (in this situation, the generating polynomial is not sparse
+anymore). We can see that in situations where the underlying predictor function is sparse (left),
+HKL outperforms the two other methods when the total number of variables pincreases, while in
+theothersituationwherethebestpredictorisnotsparse(right),itperformsonlyslightlybetter: i.e.,
+innonsparseproblems, ℓ1-normsdonotreallyhelp,butdohelpalot whensparsityis expected.
+UCIdatasets Forregressiondatasets,wecompareHKLwithpolynomial(degree4)andGaussian-
+RBFkernels(eachdimensiondecomposedinto9kernels)tothefollowingapproacheswiththesamedataset n p k #(V)L2 greedy HKL
+mushrooms 1024 117 pol4 ≈1 0820.4±0 .4 0.1±0.10.1±0.2
+mushrooms 1024 117 rbf ≈1 01120.1±0 .2 0.1±0.2 0.1 ±0.2
+ringnorm 1024 20 pol4 ≈1 0143.8±1 .1 5.9 ±1.32.0±0.3
+ringnorm 1024 20 rbf ≈1 0191.2±0 .4 2.4±0.5 1.6 ±0.4
+spambase 1024 57 pol4 ≈1 0408.3±1 .0 9.7 ±1.88.1±0.7
+spambase 1024 57 rbf ≈1 0549.4±1 .3 10.6 ±1.78.4±1.0
+twonorm 1024 20 pol4 ≈1 0142.9±0 .5 4.7±0.5 3.2 ±0.6
+twonorm 1024 20 rbf ≈1 0192.8±0 .6 5.1±0.7 3.2 ±0.6
+magic04 1024 10 pol4 ≈1 0715.9±1 .0 16.0 ±1.615.6±0.8
+magic04 1024 10 rbf ≈1 01015.7±0 .9 17.7 ±1.315.6±0.9
+Table2: Errorrates(multipliedby100)onUCIbinaryclassiﬁ cation datasets. See textfordetails.
+kernel: regularHilbertianregularization(L2),samegreedyapproachasearlier(greedy),regulariza-
+tion by the ℓ1-norm directly on the vector α, a strategy which is sometimes used in the context of
+sparsekernellearning[14]butdoesnotusetheHilbertianstructureofthekernel(lasso- α),multiple
+kernellearningwiththe pkernelsobtainedbysummingallkernelsassociatedwithasinglevariable
+(MKL). For all methods, the kernels were held ﬁxed, while in Table 1, we report the performance
+forthebestregularizationparametersobtainedby10randomhalfsplits.
+We can see fromTable 1, that HKL outperformsother methods, in particularfor the datasets bank-
+32nm, bank-32nh, pumadyn-32nm, pumadyn-32nh, which are datasets dedicated to non linear re-
+gression. Notealso, thatweefﬁcientlyexploreDAGswithverylargenumbersofvertices #(V).
+Forbinaryclassiﬁcationdatasets,wecompareHKL(withthelogisticloss)totwoothermethods(L2,
+greedy) in Table 2. For some datasets (e.g., spambase), HKL works better, but for some others, in
+particularwhenthegeneratingproblemisknowntobenonsparse(ringnorm,twonorm),itperforms
+slightlyworsethanotherapproaches.
+6 Conclusion
+We have shown how to perform hierarchical multiple kernel learning (HKL) in polynomialtime in
+the number of selected kernels. This framework may be applied to many positive deﬁnite kernels
+and we have focused on polynomial and Gaussian kernels used for nonlinear variable selection.
+In particular, this paper shows that trying to use ℓ1-type penalties may be advantageous inside the
+featurespace. We are currentlyinvestigatingapplicationstostringandgraphkernels[2].
+References
+[1] B.Sch¨ olkopf and A.J. Smola. Learning withKernels . MITPress,2002.
+[2] J.Shawe-Taylor and N.Cristianini. Kernel Methods for PatternAnalysis . Camb. U.P.,2004.
+[3] P.ZhaoandB. Yu. Onmodel selectionconsistency of Lasso. JMLR,7:2541–2563, 2006.
+[4] F.Bach. Consistency of the group Lassoandmultiple kernel learning. JMLR,9:1179–1225, 2008.
+[5] P. Zhao, G. Rocha, and B. Yu. Grouped and hierarchical model selection through composite absolute
+penalties. Ann. Stat. ,Toappear, 2008.
+[6] C. K. I. Williams and M. Seeger. The effect of the input density distribution on kernel-based classiﬁers.
+InProc.ICML ,2000.
+[7] M.Szafranski,Y.Grandvalet, andA.Rakotomamonjy. Composite kernel learning. In Proc.ICML ,2008.
+[8] A.Rakotomamonjy, F.Bach, S.Canu, and Y.Grandvalet. Simplemkl. JMLR,9:2491–2521, 2008.
+[9] M.PontilandC.A.Micchelli. Learningthekernelfunctionviaregularization. JMLR,6:1099–1125, 2005.
+[10] F.Bach. Exploringlargefeaturespaces withhierarchicalMKL. TechnicalReport00319660, HAL,2008.
+[11] H.Lee, A.Battle,R.Raina, andA. Ng. Efﬁcient sparse coding algorithms. In NIPS,2007.
+[12] S.Boyd andL.Vandenberghe. Convex Optimization . Cambridge Univ. Press,2003.
+[13] K.Bennett,M.Momma,andJ.Embrechts. Mark: Aboostingalgorithmforheterogeneous kernelmodels.
+InProc.SIGKDD ,2002.
+[14] V. Roth. Thegeneralized Lasso. IEEETrans.on Neural Networks , 15(1), 2004.

@@ -1,0 +1,456 @@
+The Recurrent Temporal Restricted Boltzmann
+Machine
+Ilya Sutskever, Geoffrey Hinton, and Graham Taylor
+U
+niversity of Toronto
+{ilya, hinton, gwtaylor}@cs.utoronto.ca
+Abstract
+TheTemporalRestrictedBoltzmannMachine(TRBM)isaprobabilisticmodelfor
+sequences that is able to successfully model (i.e., generate nice-looking samples
+of) several very high dimensional sequences, such as motion capture data and the
+pixels of low resolution videos of balls bouncing in a box. The major disadvan-
+tageoftheTRBMisthatexactinferenceisextremelyhard,sinceevencomputing
+a Gibbs update for a single variable of the posterior is exponentially expensive.
+This difﬁculty has necessitated the use of a heuristic inference procedure, that
+nonetheless was accurate enough for successful learning. In this paper we intro-
+duce the Recurrent TRBM, which is a very slight modiﬁcation of the TRBM for
+whichexactinferenceisveryeasyandexact gradientlearningisalmosttractable.
+WedemonstratethattheRTRBMisbetterthanananalogousTRBMatgenerating
+motion capture and videos of bouncing balls.
+1 Introduction
+Modeling sequences is an important problem since there is a vast amount of natural data, such as
+speechandvideos,thatisinherentlysequential. Agoodmodelforthesedatasourcescouldbeuseful
+for ﬁnding an abstract representation that is helpful for solving “natural” discrimination tasks (see
+[4] for an example of this approach for the non-sequential case). In addition, it could be also used
+for predicting the future of a sequence from its past, be used as a prior for denoising tasks, and be
+used for other applications such as tracking objects in video. The Temporal Restricted Boltzmann
+Machine[14,13]isarecentlyintroducedprobabilisticmodelthathastheabilitytoaccuratelymodel
+complex probability distributions over high-dimensional sequences. It was shown to be able to
+generate realistic motion capture data [14], and low resolution videos of 2 balls bouncing in a box
+[13], as well as complete and denoise such sequences.
+As a probabilistic model, the TRBM is a directed graphical model consisting of a sequence of Re-
+strictedBoltzmannMachines(RBMs)[3],wherethestateofoneormorepreviousRBMsdetermines
+the biases of the RBM in next timestep. This probabilistic formulation straightforwardly implies a
+learning procedure where approximate inference is followed by learning. The learning consists of
+learning a conditional RBM at each timestep, which is easily done with Contrastive Divergence
+(CD)[3]. ExactinferenceinTRBMs,ontheotherhand,ishighlynon-trivial,sincecomputingeven
+a single Gibbs update requires computing the ratio of two RBM partition functions. The approx-
+imate inference procedure used in [13] was heuristic and was not even derived from a variational
+principle.
+In this paper we introduce the Recurrent TRBM (RTRBM), which is a model that is very similar
+to the TRBM, and just as expressive. Despite the similarity, exactinference is very easy in the
+RTRBM and computing the gradient of the log likelihood is feasible (up to the error introduced
+by the use of Contrastive Divergence). We demonstrate that the RTRBM is able to generate more
+realistic samples than an equivalent TRBM for the motion capture data and for the pixels of videosof bouncing balls. The RTRBM’s performance is better than the TRBM mainly because it learns to
+convey more information through its hidden-to-hidden connections.
+2 RestrictedBoltzmann Machines
+The building block of the TRBM and the RTRBM is the Restricted Boltzmann Machine [3]. An
+RBM deﬁnes a probability distribution over pairs of vectors, V∈{0,1}NVandH∈{0,1}NH(a
+shorthand for visible and hidden) by the equation
+P(v,h) = P(V=v,H=h) = exp( v⊤bV+h⊤bH+v⊤Wh)/Z (1)
+where bVisavectorofbiasesforthevisiblevectors, bHisavectorofbiasesforthehiddenvectors,
+andWis the matrix of connection weights. The quantity Z=Z(bV,bH,W)is the value of the
+partition function that ensures that Eq. 1 is a valid probability distribution. The RBM’s deﬁnition
+implies that the conditional distributions P(H|v)andP(V|h)are factorial (i.e., all the compo-
+nents of HinP(H|v)are independent) and are given by P(H(j)= 1|v) =s(bH+W⊤v)(j)and
+P(V(i)= 1|h) = s(bV+Wh)(i), where s(x)(j)= (1 + exp(−x(j)))−1is the logistic function
+andx(j)is thejth component of the vector x. In general, we use ito index visible vectors Vandj
+to index hidden vectors H.1The RBM can be slightly modiﬁed to allow the vector Vto take real
+values; one way of achieving this is by the deﬁnition
+P(v,h) = exp(−/ba∇dblv/ba∇dbl2/2 +v⊤bV+h⊤bH+v⊤Wh)/Z. (2)
+Using this equation does not change the form of the gradients and the conditional distribution
+P(H|v). The only change it introduces is in the conditional distribution P(V|h), which is equal
+to a multivariate Gaussian with parameters N(bV+Wh,I). See [18, 14] for more details and
+generalizations.
+The gradient of the average log probability given a dataset S,L= 1/|S|/summationtext
+v∈SlogP(v), has the
+following simple form:
+∂L/∂W =/angbracketleftbig
+V·H⊤/angbracketrightbig
+P(H|V)˜P(V)−/angbracketleftbig
+V·H⊤/angbracketrightbig
+P(H,V)(3)
+where ˜P(V) = 1 /|S|/summationtext
+v∈Sδv(V)(hereδx(X)is a distribution over real-valued vectors that is
+concentratedat x),and/an}b∇acketle{tf(X)/an}b∇acket∇i}htP(X)istheexpectationof f(X)underthedistribution P. Computing
+the exact values of the expectations /an}b∇acketle{t·/an}b∇acket∇i}htP(H,V)is computationally intractable, and much work has
+been done on methods for computing approximate values for the expectations that are good enough
+for practical learning and inference tasks (e.g., [16, 12, 19], including [15], which works well for
+the RBM).
+We will approximate the gradients with respect to the RBM’s parameters using the Contrastive
+Divergence [3] learning procedure, CD n, whose updates are computed by the following algorithm.
+Algorithm 1 (CD n)
+1. Sample (v,h)∼P(H|V)˜P(V)
+2. Set ∆Wtov·h⊤
+3.repeat ntimes: sample v∼P(V|h), then sample h∼P(H|v)
+4. Decrease ∆Wbyv·h⊤
+Models learned by CD 1are often reasonable generative models of the data [3], but if learning is
+continued with CD 25, the resulting generative models are much better [11]. The RBM also plays a
+critical role in deep belief networks [4], [5], but we do not use this connection in this paper.
+3 TheTRBM
+It is easy to construct the TRBM with RBMs. The TRBM, as described in the introduction, is
+a sequence of RBMs arranged in such a way that in any given timestep, the RBM’s biases de-
+pend only on the state of the RBM in the previous timestep. In its simplest form, the TRBM can
+1We use uppercase variables (as in P(H|v)) to denote distributions and lowercase variables (as in P(h|v))
+to denote the (real-valued) probability P(H=h|v).Figure 1: The graphical structure of a TRBM: a directed sequen ce of RBMs.
+be viewed as a Hidden Markov Model (HMM) [9] with an exponentially large state space that
+has an extremely compact parameterization of the transition and the emission probabilities. Let
+XtB
+tA= (XtA,... ,X tB)denote a sequence of variables. The TRBM deﬁnes a probability distribu-
+tionP(VT
+1=vT
+1,HT
+1=hT
+1)by the equation
+P(vT
+1,hT
+1) =T/productdisplay
+t=2P(vt,ht|ht−1)P0(v1,h1) (4)
+whichisidenticaltothedeﬁningequationoftheHMM.Theconditionaldistribution P(Vt,Ht|ht−1)
+is that of an RBM, whose biases for Htare a function of ht−1. Speciﬁcally,
+P(vt,ht|ht−1) = exp/parenleftbig
+v⊤
+tbV+v⊤
+tWht+h⊤
+t(bH+W′ht−1)/parenrightbig
+/Z(ht−1) (5)
+where bV,bHandWare as in Eq. 1, while W′is the weight matrix of the connections from Ht−1
+toHt, making bH+W′ht−1be the bias of RBM at time t. In this equation, V∈{0,1}NVand
+H∈{0,1}NH;itiseasytomodifythisdeﬁnitiontoallow VtotakerealvaluesaswasdoneinEq. 2.
+TheRBM’spartitionfunctiondependson ht−1,becausetheparameters(i.e.,thebiases)oftheRBM
+at time tdepend on the value of the random variable Ht−1. Finally, the distribution P0is deﬁned
+by an equation very similar to Eq. 5, except that the (undeﬁned) term W′h0is replaced by the
+termbinit, so the hidden units receive a special initial bias at P0; we will often write P(V1,H1|h0)
+forP0(V1,H1)andW′h0forbinit. It follows from these equations that the TRBM is a directed
+graphical model that has an (undirected) RBM at each timestep (a related directed sequence of
+Boltzmann Machines has been considered in [7]).
+As in most probabilistic models, the weight update is computed by solving the inference problem
+and computing the weight update as if the inferred variables were observed. fully-visible case. If
+the hidden variables are observed, equation 4 implies that the gradient of the log likelihood with
+respect to the TRBM’s parameters is/summationtextT
+t=1∇logP(vt,ht|ht−1), and each term, being the gradient
+of the log likelihood of an RBM, can be approximated using CD n. Thus the main computational
+difﬁcultyoflearningTRBMsisinobtainingsamplesfromadistributionapproximatingtheposterior
+P(HT
+1|vT
+1).
+Inference in a TRBM
+Unfortunately, the TRBM’s inference problem is harder than that of a typical undirected graphical
+model, because even computing the probability P(H(j)
+t= 1|everything else) involves evaluating
+the exact ratio of two RBM partition functions, which can be seen from Eq. 5. This difﬁculty ne-
+cessitatedtheuseofaheuristicinference procedure [13],which isbased ontheobservation thatthe
+distribution P(Ht|ht−1
+1,vt
+1) =P(Ht|ht−1,vt)is factorial by deﬁnition. This inference procedure
+doesnotdoanykindofsmoothingfromthefutureandonlydoesapproximateﬁlteringfromthepast
+by sampling from the distribution/producttextT
+t=1P(Ht|Ht−1
+1,vt
+1)instead of the true posterior distribution/producttextT
+t=1P(Ht|Ht−1
+1,vT
+1), which is easy because P(Ht|ht−1
+1,vt
+1)is factorial.2
+4 RecurrentTRBMs
+Let us start with notation. Consider an arbitrary factorial distribution P′(H). The statement h∼
+P′(H)means that his sampled from the factorial distribution P′(H), so each h(j)is set to 1with
+2This isa slightlysimpliﬁed description of the inference procedure in [13].Figure 2: The graphical structure of the RTRBM, Q. The variables Htare real valued while the
+variables H′
+tare binary. The conditional distribution Q(Vt,H′
+t|ht−1)is given by the equation
+Q(vt,h′
+t|ht−1) = exp/parenleftbig
+v⊤
+tWh′
+t+v⊤
+tbV+h′
+t(bH+W′ht−1)/parenrightbig
+/Z(ht−1), which is essentially the
+same as the TRBM’s conditional distribution Pfrom equation 5. We will always integrate out H′
+t
+andwillworkdirectlywiththedistribution Q(Vt|ht−1). Noticethatwhen V1isobserved, H′
+1cannot
+affect H1.
+probability P′(H(j)= 1), and 0 otherwise. In contrast, the statement h←P′(H)means that each
+h(j)is set to the real value P′(H(j)= 1), so this is a “mean-ﬁeld” update [8, 17]. The symbol P
+standsforthedistributionofsomeTRBM,whilethesymbol Qstandsforthedistributiondeﬁnedby
+anRTRBM.Notethattheoutcomeoftheoperation ·←P(Ht|vt,ht−1)iss(Wvt+W′ht−1+bH).
+An RTRBM, Q(VT
+1,HT
+1), is deﬁned by the equation
+Q(vT
+1,hT
+1) =T/productdisplay
+t=2Q(vt|ht−1)Q(ht|vt,ht−1)·Q0(v1). Q0(h1|v1) (6)
+The terms appearing in this equation will be deﬁned shortly.
+Let us contrast the generative process of the two models. To sample from a TRBM P, we need
+to perform a directed pass, sampling from each RBM on every timestep. One way of doing this is
+described by the following algorithm.
+Algorithm 2 (for sampling from the TRBM):
+for1≤t≤T:
+1. sample vt∼P(Vt|ht−1)
+2. sample ht∼P(Ht|vt,ht−1)3
+wherestep1requiressamplingfromthemarginalsofaBoltzmannMachine(byintegratingout Ht),
+which involves running a Markov chain.
+By deﬁnition, RTRBMs and TRBMs are parameterized in the same way, so from now on we will
+assume that PandQhave identical parameters, which are W,W′,bV,bH, andbinit. The following
+algorithm samples from the RTRBM Qunder this assumption.
+Algorithm 3 (for sampling from the RTRBM)
+for1≤t≤T:
+1. sample vt∼P(Vt|ht−1)
+2. set ht←P(Ht|vt,ht−1)
+We can infer that Q(Vt|ht−1) =P(Vt|ht−1)because of step 1 in Algorithm 3, which is also con-
+sistent with the equation given in ﬁgure 2 where H′
+tis integrated out. The only difference between
+Algorithm 2 and Algorithm 3 is in step 2. The difference may seem small, since the operations
+ht∼P(Ht|vt,ht−1)andht←P(Ht|vt,ht−1)appear similar. However, this difference signiﬁ-
+cantly alters the inference and learning procedures of the RTRBM; in particular, it can already be
+seen that Htare real-valued for the RTRBM.
+3Whent= 1,P(Ht|vt, ht−1)stands for P0(H1|v1), and similarly for other conditional distributions. The
+same convention is used in all algorithms.4.1 Inference in RTRBMs
+I
+nference in RTRBMs given vT
+1is very easy, which might be surprising in light of its similarity to
+theTRBM.ThereasoninferenceiseasyissimilartothereasoninferenceinsquareICAsiseasy[1]:
+Thereisa uniqueandaneasilycomputable valueofthehiddenvariablesthathasanonzeroposterior
+probability. Suppose, for example, that the value of V1isv1, which means that v1was produced at
+the end of step 1 in Algorithm 3. Since step 2, the deterministic operation h1←P0(H1|v1), has
+beenexecuted,theonlyvalue h1cantakeisthevalueassignedbytheoperation ·←P0(H1|v1). Any
+other value for h1is never produced by a generative process that outputs v1and thus has posterior
+probability 0. In addition, by executing this operation, we can recover h1. Thus, Q0(H1|v1) =
+δs(Wv1+bH+binit)(H1). Note that H1’s value is completely independent of vT
+2.
+Onceh1is known, we can consider the generative process that produced v2. As before, since v2
+was produced at the end of step 1, then the fact that step 2 has been executed implies that h2can be
+computed by h2←P(H2|v2,h1)(recall that at this point h1is known with absolute certainty). If
+thesamereasoningisrepeated ttimes,thenallof ht
+1isuniquelydeterminedandiseasilycomputed
+whenVt
+1is known. There is no need for smoothing because VtandHt−1inﬂuence Htwith such
+strength that the knowledge of VT
+t+1cannot alter the model’s belief about Ht. This is because
+Q(Ht|vt,ht−1) =δs(Wv t+bH+W′ht−1)(Ht).
+The resulting inference algorithm is simple:
+Algorithm 4 (inference in RTRBMs)
+for1≤t≤T:
+1.ht←P(Ht|vt,ht−1)
+Leth(v)T
+1denote the output of the inference algorithm on input vT
+1, in which case the posterior is
+described by
+Q(HT
+1|vT
+1) =δh(v)T
+1(HT
+1). (7)
+4.2 Learning in RTRBMs
+Learning in RTRBMs may seem easy once inference is solved, since the main difﬁculty in learning
+TRBMs is the inference problem. However, the RTRBM does not allow EM-like learning because
+the equation∇logQ(vT
+1) =/angbracketleftbig
+∇logQ(vT
+1,hT
+1)/angbracketrightbig
+hT
+1∼Q(HT
+1|vT
+1)is not meaningful. To be precise,
+the gradient∇logQ(vT
+1,hT
+1)is undeﬁned because δs(W′ht−1+bH+WTvt)(ht)is not, in general, a
+continuous function of W. Thus, the gradient has to be computed differently.
+Notice that the RTRBM’s log probability satisﬁes logQ(vT
+1) =/summationtextT
+t=1logQ(vt|vt−1
+1), so we could
+try computing the sum ∇/summationtextT
+t=1logQ(vt|vt−1
+1). The key observation that makes the computation
+feasible is the equation
+Q(Vt|vt−1
+1) =Q(Vt|h(v)t−1) (8)
+where h(v)t−1isthevaluecomputedbytheRTRBMinferencealgorithmwithinputs vt
+1. Thisequa-
+tion holds because Q(vt|vt−1
+1) =/integraltext
+h′
+t−1Q(vt|h′
+t−1)Q(h′
+t−1|vt−1
+1)dh′
+t−1=Q(vt|h(v)t−1), as the
+posterior distribution Q(Ht−1|vt−1
+1) =δh(v)t−1(Ht−1)is a point-mass at h(v)t−1, which follows
+from Eq. 7.
+The equality Q(Vt|vt−1
+1) =Q(Vt|h(v)t−1)allows us to deﬁne a recurrent neural network (RNN)
+[10]whoseparametersareidenticaltothoseoftheRTRBM,andwhosecostfunctionisequaltothe
+log likelihood of the RTRBM. This is useful because it is easy to compute gradients with respect to
+the RNN’s parameters using the backpropagation through time algorithm [10]. The RNN has a pair
+of variables at each timestep, {(vt,rt)}T
+t=1, where vtare the input variables and rtare the RNN’s
+hidden variables (all of which are deterministic). The hiddens rT
+1are computed by the equation
+rt=s(Wvt+bH+W′rt−1) (9)
+where W′rt−1is replaced with binitwhent= 1. This deﬁnition was chosen so that the equation
+rT
+1=h(v)T
+1would hold. The RNN attempts to probabilistically predict the next timestep from its
+history using the marginal distribution of the RBM Q(Vt+1|rt), so its objective function at time tis
+deﬁnedtobe logQ(vt+1|rt),where QdependsontheRNN’sparametersinthesamewayitdependson the RTRBM’s parameters (the two sets of parameters being id entical). This is a valid deﬁnition
+of an RNN whose cumulative objective for the sequence vT
+1is
+O=T/summationdisplay
+t=1logQ(vt|rt−1) (10)
+where Q(v1|r0) =Q0(v1). Butsince rtascomputedinequation9oninput vT
+1isidenticalto h(v)t,
+the equality logQ(vt|rt−1) = log Q(vt|vt−1
+1)holds. Substituting this identity into Eq. 10 yields
+O=T/summationdisplay
+t=1logQ(vt|rt−1) =T/summationdisplay
+t=1logQ(vt|vt−1
+1) = log Q(vT
+1) (11)
+which is the log probability of the corresponding RTRBM.
+Thismeansthat∇O=∇logQ(vT
+1)canbecomputedwiththebackpropagationthroughtimealgo-
+rithm [10], where the contribution of the gradient from each timestep is computed with Contrastive
+Divergence.
+4.3 Details of the backpropagation through time algorithm
+The backpropagation through time algorithm is identical to the usual backpropagation algorithm
+where the feedforward neural network is turned “on its side”. Speciﬁcally, the algorithm maintains
+a term ∂O/∂r twhich is computed from ∂O/∂r t+1and∂logQ(vt+1|rt)/∂rtusing the chain rule,
+by the equation
+∂O/∂r t=W′⊤(rt+1.(1−rt+1).∂O/∂r t+1) +W′⊤∂logQ(vt|rt−1)/∂bH(12)
+where a.bdenotescomponent-wisemultiplication,theterm rt.(1−rt)arisesfromthederivativeof
+thelogisticfunction s′(x) =s(x).(1−s(x)),and∂logQ(vt+1|rt)/∂bHiscomputedbyCD.Once
+∂O/∂r tis computed for all t, the gradients of the parameters can be computed using the following
+equations
+∂O
+∂W′=T/summationdisplay
+t=2rt−1(rt.(1−rt).∂O/∂r t)⊤(13)
+∂O
+∂W=T−1/summationdisplay
+t=1vt/parenleftBig
+W′⊤(rt+1.(1−rt+1).∂O/∂r t+1)/parenrightBig⊤
++T/summationdisplay
+t=1∂logQ(vt|rt−1)/∂W(14)
+TheﬁrstsummationinEq. 14arisesfromtheuseof Wasweightsforinferenceforcomputing rtand
+the second summation arises from the use of Was RBM parameters for computing logQ(vt|rt−1).
+Eachtermoftheform ∂logQ(vt+1|rt)/∂WisalsocomputedwithCD.Computing ∂O/∂r tisdone
+most conveniently with a single backward pass through the sequence. As always, logQ(v1|r0) =
+Q0(v1). It is also seen that the gradient would be computed exactly if CD were to return the exact
+gradient of the RBM’s log probability.
+5 Experiments
+WereporttheresultsofexperimentscomparinganRTRBMtoaTRBM.Theresultsin[14,13]were
+obtainedusingTRBMsthathadseveraldelay-taps,whichmeansthateachhiddenunitcoulddirectly
+observeseveralprevioustimesteps. TodemonstratethattheRTRBMlearnstousethehiddenunitsto
+storeinformation,wedidnotusedelay-tapsfortheRTRBMnortheTRBM,whichcausestheresults
+to be worse (but not much) than in [14, 13]. If delay-taps are allowed, then the results of [14, 13]
+show that there is little beneﬁt from the hidden-to-hidden connections (which are W′), making the
+comparison between the RTRBM and the TRBM uninteresting.
+In all experiments, the RTRBM and the TRBM had the same number of hidden units, their param-
+eters were initialized in the same manner, and they were trained for the same number of weight
+updates. When sampling from the TRBM, we would use the sampling procedure of the RTRBM
+using the TRBM’s parameters to eliminate the additional noise from its hidden units. If this is not
+done, the samples produced by the TRBM are signiﬁcantly worse. Unfortunately, the evaluation
+metric is entirely qualitative since computing the log probability on a test set is infeasible for both
+the TRBM and the RTRBM. We provide the code for our experiments in [URL].Figure 3: This ﬁgure shows the receptive ﬁelds of the ﬁrst 36 hi dden units of the RTRBM on the
+left,andthecorrespondinghidden-to-hiddenweightsbetweentheseunitsontheright: the ithrowon
+the right corresponds to the ith receptive ﬁeld on the left, when counted left-to-right. Hidden units
+18 and 19 exhibit unusually strong hidden-to-hidden connections; they are also the ones with the
+weakest visible-hidden connections, which effectively makes them belong to another hidden layer.
+5.1 Videos of bouncing balls
+We used a dataset consisting of videos of 3 balls bouncing in a box. The videos are of length 100
+and of resolution 30×30. Each training example is synthetically generated, so no training sequence
+is seen twice by the model which means that overﬁtting is highly unlikely. The task is to learn to
+generate videos at the pixel level. This problem is high-dimensional, having 900 dimensions per
+frame, and the RTRBM and the TRBM are given no prior knowledge about the nature of the task
+(e.g., by convolutional weight matrices).
+BoththeRTRBMandtheTRBMhad400hiddenunits. Samplesfromthesemodelsareprovidedas
+videos 1,2 (RTRBM) and videos 3,4 (TRBM). A sample training sequence is given in video 5. All
+the samples can be found in [URL]. The real-values in the videos are the conditional probabilities
+of the pixels [13]. The RTRBM’s samples are noticeably better than the TRBM’s samples; a key
+differencebetweenthesesamplesisthattheballsproducedbytheTRBMmovedinarandomwalk,
+while those produced by the RTRBM moved in a more persistent direction. An examination of the
+visible to hidden connection weights of the RTRBM reveals a number of hidden units that are not
+connected to visible units. These units have the most active hidden to hidden connections, which
+mustbeusedtopropagateinformationthroughtime. Inparticular,theseunitsaretheonlyunitsthat
+donothaveastrongselfconnection(i.e., W′
+i,iisnotlarge;seeﬁgure3). Nosuchseparationofunits
+is found in the TRBM and all its hidden units have large visible to hidden connections.
+5.2 Motion capture data
+We used a dataset that represents human motion capture data by sequences of joint angle, transla-
+tions, and rotations of the base of the spine [14]. The total number of frames in the dataset set was
+3000, from which the model learned on subsequences of length 50. Each frame has 49 dimensions,
+and both models have 200 hidden units. The data is real-valued, so the TRBM and the RTRBM
+were adapted to have Gaussian visible variables using equation 2. The samples produced by the
+RTRBMexhibitlessstickingandfoot-skatethanthoseproducedbytheTRBM;samplesfromthese
+modelsareprovidedasvideos6,7(RTRBM)andvideos8,9(TRBM);video10isasampletraining
+sequence. Part of the Gaussian noise was removed in a manner described in [14] in both models.
+5.3 Details of the learning procedures
+Each problem was trained for 100,000 weight updates, with a momentum of 0.9, where the gradi-
+ent was normalized by the length of the sequence for each gradient computation. The weights are
+updated after computing the gradient on a single sequence. The learning starts with CD 10for the
+ﬁrst 1000 weight updates, which is then switched to CD 25. The visible to hidden weights, W, were
+initialized with static CD 5(without using the (R)TRBM learning rules) on 30 sequences (which
+resulted in 30 weight updates) with learning rate of 0.01 and momentum 0.9. These weights were
+then given to the (R)TRBM learning procedure, where the learning rate was linearly reduced to-
+wards 0. The weights W′and the biases were initialized with a sample from spherical Gaussian of
+standard-deviation 0.005. For the bouncing balls problem the initial learning rate was 0.01, and for
+the motion capture data it was 0.005.6 Conclusions
+I
+nthispaperweintroducedtheRTRBM,whichisaprobabilisticmodelaspowerfulastheintractable
+TRBM that has an exact inference and an almost exact learning procedure. The common disadvan-
+tageoftheRTRBMisthatitisarecurrentneuralnetwork,atypeofmodelknowntohavedifﬁculties
+learning to use its hidden units to their full potential [2]. However, this disadvantage is common to
+manyotherprobabilisticmodels,anditcanbepartiallyalleviatedusingtechniques suchasthelong
+short termmemory RNN [6].
+Acknowledgments
+ThisresearchwaspartiallysupportedbytheOntarioGraduateScholarshipandbytheNaturalCoun-
+cil of Research and Engineering of Canada. The mocap data used in this project was obtained
+fromhttp://people.csail.mit.edu/ehsu/work/sig05stf/. For Matlab playback
+of motion and generation of videos, we have adapted portions of Neil Lawrence’s motion capture
+toolbox (http://www.dcs.shef.ac.uk/∼neil/mocap/).
+References
+[1] A.J. Bell and T.J. Sejnowski. An Information-Maximization Approach to Blind Separation and Blind
+Deconvolution. Neural Computation, 7(6):1129–1159, 1995.
+[2] Y.Bengio,P.Simard,andP.Frasconi. Learninglong-termdependencieswithgradientdescentisdifﬁcult.
+Neural Networks,IEEETransactions on, 5(2):157–166, 1994.
+[3] G.E.Hinton. TrainingProductsofExpertsby MinimizingContrastiveDivergence. NeuralComputation,
+14(8):1771–1800, 2002.
+[4] G.E. Hinton, S. Osindero, and Y.W. Teh. A Fast Learning Algorithm for Deep Belief Nets. Neural
+Computation, 18(7):1527–1554, 2006.
+[5] G.E. Hinton and R.R. Salakhutdinov. Reducing the Dimensionality of Data with Neural Networks. Sci-
+ence, 313(5786):504–507, 2006.
+[6] S. Hochreiter and J. Schmidhuber. Long Short-Term Memory. Neural Computation, 9(8):1735–1780,
+1997.
+[7] S. Osindero and G. Hinton. Modeling image patches with a directed hierarchy of Markov random ﬁelds.
+Advances Neural Information ProcessingSystems , 2008.
+[8] C. Peterson and J.R. Anderson. A mean ﬁeld theory learning algorithm for neural networks. Complex
+Systems, 1(5):995–1019, 1987.
+[9] L.R. Rabiner. A tutorial on hidden Markov models and selected applications inspeech recognition. Pro-
+ceedings of the IEEE,77(2):257–286, 1989.
+[10] D.E. Rumelhart, G.E. Hinton, and R.J. Williams. Learning representations by back-propagating errors.
+Nature, 323(6088):533–536, 1986.
+[11] R. Salakhutdinov and I. Murray. On the quantitative analysis of deep belief networks. In Proceedings of
+the International Conference on Machine Learning, volume 25, 2008.
+[12] D.SontagandT.Jaakkola. NewOuterBoundsontheMarginalPolytope. AdvancesinNeuralInformation
+Processing Systems , 2008.
+[13] I. Sutskever and G.E. Hinton. Learning multilevel distributed representations for high-dimensional se-
+quences. Proceeding of the Eleventh International Conference on Artiﬁcial Intelligence and Statistics ,
+pages 544–551, 2007.
+[14] G.W. Taylor, G.E. Hinton, and S. Roweis. Modeling human motion using binary latent variables. Ad-
+vances in Neural Information Processing Systems , 19:1345–1352, 2007.
+[15] T. Tieleman. Training restricted boltzmann machines using approximations to the likelihood gradient. In
+Proceedings of the International Conference on Machine Learning, volume 25, 2008.
+[16] M.J. Wainwright, T.S. Jaakkola, and A.S. Willsky. A new class of upper bounds on the log partition
+function. IEEETransactions on Information Theory, 51(7):2313–2335, 2005.
+[17] M.J.WainwrightandM.I.Jordan. Graphicalmodels,exponentialfamilies,andvariationalinference. UC
+Berkeley, Dept. of Statistics,Technical Report, 649, 2003.
+[18] M. Welling, M. Rosen-Zvi, and G. Hinton. Exponential family harmoniums with an application to infor-
+mation retrieval. Advances in Neural Information Processing Systems , 17:1481–1488, 2005.
+[19] J.S. Yedidia, W.T. Freeman, and Y. Weiss. Understanding belief propagation and its generalizations.
+Exploring Artiﬁcial Intelligence in the New Millennium, pages 239–236, 2003.

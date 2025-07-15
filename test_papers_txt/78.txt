@@ -1,0 +1,880 @@
+Convolutional deep belief networks for scalable unsupervised learning of
+hierarchical representations
+Conf erence Paper  · June 2009
+DOI: 10.1145/1553374.1553453  · Sour ce: DBLP
+CITATIONS
+2,486READS
+5,506
+4 author s, including:
+Honglak L ee
+Univ ersity of Michig an
+125 PUBLICA TIONS    39,071  CITATIONS    
+SEE PROFILE
+All c ontent f ollo wing this p age was uplo aded b y Honglak L ee on 28 No vember 2014.
+The user has r equest ed enhanc ement of the do wnlo aded file.Convolutional Deep Belief Networks
+for Scalable Unsupervised Learning of Hierarchical Representations
+Honglak Lee hllee@cs.stanford.edu
+Roger Grosse rgrosse@cs.stanford.edu
+Rajesh Ranganath rajeshr@cs.stanford.edu
+Andrew Y. Ng ang@cs.stanford.edu
+Computer Science Department, Stanford University, Stanford, CA 94305, USA
+Abstract
+There has been much interest in unsuper-
+vised learning of hierarchical generative mod-
+els such as deep belief networks. Scaling
+such models to full-sized, high-dimensional
+images remains a dicult problem. To ad-
+dress this problem, we present the convolu-
+tional deep belief network, a hierarchical gen-
+erative model which scales to realistic image
+sizes. This model is translation-invariant and
+supports ecient bottom-up and top-down
+probabilistic inference. Key to our approach
+isprobabilistic max-pooling , a novel technique
+which shrinks the representations of higher
+layers in a probabilistically sound way. Our
+experiments show that the algorithm learns
+useful high-level visual features, such as ob-
+ject parts, from unlabeled images of objects
+and natural scenes. We demonstrate excel-
+lent performance on several visual recogni-
+tion tasks and show that our model can per-
+form hierarchical (bottom-up and top-down)
+inference over full-sized images.
+1. Introduction
+The visual world can be described at many levels: pixel
+intensities, edges, object parts, objects, and beyond.
+The prospect of learning hierarchical models which
+simultaneously represent multiple levels has recently
+generated much interest. Ideally, such \deep" repre-
+sentations would learn hierarchies of feature detectors,
+and further be able to combine top-down and bottom-
+up processing of an image. For instance, lower layers
+could support object detection by spotting low-level
+features indicative of object parts. Conversely, infor-
+mation about objects in the higher layers could resolve
+Appearing in Proceedings of the 26thInternational Confer-
+ence on Machine Learning, Montreal, Canada, 2009. Copy-
+right 2009 by the author(s)/owner(s).lower-level ambiguities in the image or infer the loca-
+tions of hidden object parts.
+Deep architectures consist of feature detector units ar-
+ranged in layers. Lower layers detect simple features
+and feed into higher layers, which in turn detect more
+complex features. There have been several approaches
+to learning deep networks (LeCun et al., 1989; Bengio
+et al., 2006; Ranzato et al., 2006; Hinton et al., 2006).
+In particular, the deep belief network (DBN) (Hinton
+et al., 2006) is a multilayer generative model where
+each layer encodes statistical dependencies among the
+units in the layer below it; it is trained to (approxi-
+mately) maximize the likelihood of its training data.
+DBNs have been successfully used to learn high-level
+structure in a wide variety of domains, including hand-
+written digits (Hinton et al., 2006) and human motion
+capture data (Taylor et al., 2007). We build upon the
+DBN in this paper because we are interested in learn-
+ing a generative model of images which can be trained
+in a purely unsupervised manner.
+While DBNs have been successful in controlled do-
+mains, scaling them to realistic-sized (e.g., 200x200
+pixel) images remains challenging for two reasons.
+First, images are high-dimensional, so the algorithms
+must scale gracefully and be computationally tractable
+even when applied to large images. Second, objects
+can appear at arbitrary locations in images; thus it
+is desirable that representations be invariant at least
+to local translations of the input. We address these
+issues by incorporating translation invariance. Like
+LeCun et al. (1989) and Grosse et al. (2007), we
+learn feature detectors which are shared among all lo-
+cations in an image, because features which capture
+useful information in one part of an image can pick up
+the same information elsewhere. Thus, our model can
+represent large images using only a small number of
+feature detectors.
+This paper presents the convolutional deep belief net-
+work, a hierarchical generative model that scales to
+full-sized images. Another key to our approach is
+609Convolutional Deep Belief Networks for Scalable Unsupervised Learning of Hierarchical Representations
+probabilistic max-pooling , a novel technique that allows
+higher-layer units to cover larger areas of the input in a
+probabilistically sound way. To the best of our knowl-
+edge, ours is the rst translation invariant hierarchical
+generative model which supports both top-down and
+bottom-up probabilistic inference and scales to real-
+istic image sizes. The rst, second, and third layers
+of our network learn edge detectors, object parts, and
+objects respectively. We show that these representa-
+tions achieve excellent performance on several visual
+recognition tasks and allow \hidden" object parts to
+be inferred from high-level object information.
+2. Preliminaries
+2.1. Restricted Boltzmann machines
+The restricted Boltzmann machine (RBM) is a two-
+layer, bipartite, undirected graphical model with a set
+of binary hidden units h, a set of (binary or real-
+valued) visible units v, and symmetric connections be-
+tween these two layers represented by a weight matrix
+W. The probabilistic semantics for an RBM is dened
+by its energy function as follows:
+P(v;h) =1
+Zexp( E (v;h));
+whereZis the partition function. If the visible units
+are binary-valued, we dene the energy function as:
+E(v;h) = X
+i;jviWijhj X
+jbjhj X
+icivi;
+wherebjare hidden unit biases and ciare visible unit
+biases. If the visible units are real-valued, we can de-
+ne the energy function as:
+E(v;h) =1
+2X
+iv2
+i X
+i;jviWijhj X
+jbjhj X
+icivi:
+From the energy function, it is clear that the hid-
+den units are conditionally independent of one another
+given the visible layer, and vice versa. In particular,
+the units of a binary layer (conditioned on the other
+layer) are independent Bernoulli random variables. If
+the visible layer is real-valued, the visible units (condi-
+tioned on the hidden layer) are Gaussian with diagonal
+covariance. Therefore, we can perform ecient block
+Gibbs sampling by alternately sampling each layer's
+units (in parallel) given the other layer. We will often
+refer to a unit's expected value as its activation.
+In principle, the RBM parameters can be optimized
+by performing stochastic gradient ascent on the log-
+likelihood of training data. Unfortunately, computing
+the exact gradient of the log-likelihood is intractable.
+Instead, one typically uses the contrastive divergence
+approximation (Hinton, 2002), which has been shown
+to work well in practice.2.2. Deep belief networks
+The RBM by itself is limited in what it can represent.
+Its real power emerges when RBMs are stacked to form
+a deep belief network, a generative model consisting of
+many layers. In a DBN, each layer comprises a set of
+binary or real-valued units. Two adjacent layers have a
+full set of connections between them, but no two units
+in the same layer are connected. Hinton et al. (2006)
+proposed an ecient algorithm for training deep belief
+networks, by greedily training each layer (from low-
+est to highest) as an RBM using the previous layer's
+activations as inputs. This procedure works well in
+practice.
+3. Algorithms
+RBMs and DBNs both ignore the 2-D structure of im-
+ages, so weights that detect a given feature must be
+learned separately for every location. This redundancy
+makes it dicult to scale these models to full images.
+(However, see also (Raina et al., 2009).) In this sec-
+tion, we introduce our model, the convolutional DBN,
+whose weights are shared among all locations in an im-
+age. This model scales well because inference can be
+done eciently using convolution.
+3.1. Notation
+For notational convenience, we will make several sim-
+plifying assumptions. First, we assume that all inputs
+to the algorithm are NVNVimages, even though
+there is no requirement that the inputs be square,
+equally sized, or even two-dimensional. We also as-
+sume that all units are binary-valued, while noting
+that it is straightforward to extend the formulation to
+the real-valued visible units (see Section 2.1). We use
+to denote convolution1, andto denote element-wise
+product followed by summation, i.e., AB= trATB.
+We place a tilde above an array ( ~A) to denote 
+ipping
+the array horizontally and vertically.
+3.2. Convolutional RBM
+First, we introduce the convolutional RBM (CRBM).
+Intuitively, the CRBM is similar to the RBM, but
+the weights between the hidden and visible layers are
+shared among all locations in an image. The basic
+CRBM consists of two layers: an input layer Vand a
+hidden layer H(corresponding to the lower two layers
+in Figure 1). The input layer consists of an NVNV
+array of binary units. The hidden layer consists of K
+\groups", where each group is an NHNHarray of
+binary units, resulting in NH2Khidden units. Each
+of theKgroups is associated with a NWNWlter
+1The convolution of an mmarray with an nnarray
+may result in an (m +n 1)(m+n 1) array or an
+(m n+ 1)(m n+ 1) array. Rather than invent a
+cumbersome notation to distinguish these cases, we let it
+be determined by context.
+610Convolutional Deep Belief Networks for Scalable Unsupervised Learning of Hierarchical Representations
+(NW,NV NH+ 1); the lter weights are shared
+across all the hidden units within the group. In addi-
+tion, each hidden group has a bias bkand all visible
+units share a single bias c.
+We dene the energy function E(v;h) as:
+P(v;h) =1
+Zexp( E (v;h))
+E(v;h) = KX
+k=1NHX
+i;j=1NWX
+r;s=1hk
+ijWk
+rsvi+r 1;j+s 1
+ KX
+k=1bkNHX
+i;j=1hk
+ij cNVX
+i;j=1vij: (1)
+Using the operators dened previously,
+E(v;h) = KX
+k=1hk(~Wkv) KX
+k=1bkX
+i;jhk
+i;j cX
+i;jvij:
+As with standard RBMs (Section 2.1), we can perform
+block Gibbs sampling using the following conditional
+distributions:
+P(hk
+ij= 1jv ) =((~Wkv)ij+bk)
+P(vij= 1jh) = ((X
+kWkhk)ij+c);
+whereis the sigmoid function. Gibbs sampling forms
+the basis of our inference and learning algorithms.
+3.3. Probabilistic max-pooling
+In order to learn high-level representations, we stack
+CRBMs into a multilayer architecture analogous to
+DBNs. This architecture is based on a novel opera-
+tion that we call probabilistic max-pooling .
+In general, higher-level feature detectors need informa-
+tion from progressively larger input regions. Existing
+translation-invariant representations, such as convolu-
+tional networks, often involve two kinds of layers in
+alternation: \detection" layers, whose responses are
+computed by convolving a feature detector with the
+previous layer, and \pooling" layers, which shrink the
+representation of the detection layers by a constant
+factor. More specically, each unit in a pooling layer
+computes the maximum activation of the units in a
+small region of the detection layer. Shrinking the rep-
+resentation with max-pooling allows higher-layer rep-
+resentations to be invariant to small translations of the
+input and reduces the computational burden.
+Max-pooling was intended only for feed-forward archi-
+tectures. In contrast, we are interested in a generative
+model of images which supports both top-down and
+bottom-up inference. Therefore, we designed our gen-
+erative model so that inference involves max-pooling-
+like behavior.
+vWkhk
+i,jpk
+α
+V  (visible layer)Hk(detection layer)Pk(pooling layer)
+NH
+NVC
+NWNPFigure 1. Convolutional RBM with probabilistic max-
+pooling. For simplicity, only group kof the detection layer
+and the pooing layer are shown. The basic CRBM corre-
+sponds to a simplied structure with only visible layer and
+detection (hidden) layer. See text for details.
+To simplify the notation, we consider a model with a
+visible layer V, a detection layer H, and a pooling layer
+P, as shown in Figure 1. The detection and pooling
+layers both have Kgroups of units, and each group
+of the pooling layer has NPNPbinary units. For
+eachk2f1;:::;Kg, the pooling layer Pkshrinks the
+representation of the detection layer Hkby a factor
+ofCalong each dimension, where Cis a small in-
+teger such as 2 or 3. I.e., the detection layer Hkis
+partitioned into blocks of size CC, and each block
+
+is connected to exactly one binary unit pk
+
+in the
+pooling layer (i.e., NP=NH=C). Formally, we dene
+B
+,f(i;j ) :hijbelongs to the block 
+:g.
+The detection units in the block B
+and the pooling
+unitp
+are connected in a single potential which en-
+forces the following constraints: at most one of the
+detection units may be on, and the pooling unit is on
+if and only if a detection unit is on. Equivalently, we
+can consider these C2+1 units as a single random vari-
+able which may take on one of C2+ 1 possible values:
+one value for each of the detection units being on, and
+one value indicating that all units are o
+.
+We formally dene the energy function of this simpli-
+ed probabilistic max-pooling-CRBM as follows:
+E(v;h) = X
+kX
+i;j
+hk
+i;j(~Wkv)i;j+bkhk
+i;j
+ cX
+i;jvi;j
+subj:toX
+(i;j)2B
+hk
+i;j1;8k;
+:
+We now discuss sampling the detection layer Hand
+the pooling layer Pgiven the visible layer V. Groupk
+receives the following bottom-up signal from layer V:
+I(hk
+ij),bk+ (~Wkv)ij: (2)
+Now, we sample each block independently as a multi-
+nomial function of its inputs. Suppose hk
+i;jis a hid-
+den unit contained in block 
+(i.e., (i;j)2B
+), the
+611Convolutional Deep Belief Networks for Scalable Unsupervised Learning of Hierarchical Representations
+increase in energy caused by turning on unit hk
+i;jis
+ I(hk
+i;j), and the conditional probability is given by:
+P(hk
+i;j= 1jv ) =exp(I (hk
+i;j))
+1 +P
+(i0;j0)2B
+exp(I (hk
+i0;j0))
+P(pk
+
+= 0jv ) =1
+1 +P
+(i0;j0)2B
+exp(I (hk
+i0;j0)):
+Sampling the visible layer Vgiven the hidden layer
+Hcan be performed in the same way as described in
+Section 3.2.
+3.4. Training via sparsity regularization
+Our model is overcomplete in that the size of the rep-
+resentation is much larger than the size of the inputs.
+In fact, since the rst hidden layer of the network con-
+tainsKgroups of units, each roughly the size of the
+image, it is overcomplete roughly by a factor of K. In
+general, overcomplete models run the risk of learning
+trivial solutions, such as feature detectors represent-
+ing single pixels. One common solution is to force the
+representation to be \sparse," in that only a tiny frac-
+tion of the units should be active in relation to a given
+stimulus (Olshausen & Field, 1996; Lee et al., 2008).
+In our approach, like Lee et al. (2008), we regularize
+the objective function (data log-likelihood) to encour-
+age each of the hidden units to have a mean activation
+close to some small constant . For computing the
+gradient of sparsity regularization term, we followed
+Lee et al. (2008)'s method.
+3.5. Convolutional deep belief network
+Finally, we are ready to dene the convolutional deep
+belief network (CDBN), our hierarchical generative
+model for full-sized images. Analogously to DBNs, this
+architecture consists of several max-pooling-CRBMs
+stacked on top of one another. The network denes an
+energy function by summing together the energy func-
+tions for all of the individual pairs of layers. Training
+is accomplished with the same greedy, layer-wise pro-
+cedure described in Section 2.2: once a given layer is
+trained, its weights are frozen, and its activations are
+used as input to the next layer.
+3.6. Hierarchical probabilistic inference
+Once the parameters have all been learned, we com-
+pute the network's representation of an image by sam-
+pling from the joint distribution over all of the hidden
+layers conditioned on the input image. To sample from
+this distribution, we use block Gibbs sampling, where
+the units of each layer are sampled in parallel (see Sec-
+tions 2.1 & 3.3).
+To illustrate the algorithm, we describe a case with one
+visible layer V, a detection layer H, a pooling layer P,
+and another, subsequently-higher detection layer H0.
+SupposeH0hasK0groups of nodes, and there is aset of shared weights   = f 1;1;:::;  K;K0g, where
+ k;`is a weight matrix connecting pooling unit Pkto
+detection unit H0`. The denition can be extended to
+deeper networks in a straightforward way.
+Note that an energy function for this sub-network con-
+sists of two kinds of potentials: unary terms for each
+of the groups in the detection layers, and interaction
+terms between VandHand between PandH0:
+E(v;h;p;h0) = X
+kv(Wkhk) X
+kbkX
+ijhk
+ij
+ X
+k;`pk( k`h0`) X
+`b0
+`X
+ijh0`
+ij
+To sample the detection layer Hand pooling layer P,
+note that the detection layer Hkreceives the following
+bottom-up signal from layer V:
+I(hk
+ij),bk+ (~Wkv)ij; (3)
+and the pooling layer Pkreceives the following top-
+down signal from layer H0:
+I(pk
+
+),X
+`( k`h0`)
+: (4)
+Now, we sample each of the blocks independently as a
+multinomial function of their inputs, as in Section 3.3.
+If (i;j )2B
+, the conditional probability is given by:
+P(hk
+i;j= 1jv;h0) =exp(I (hk
+i;j) +I(pk
+
+))
+1 +P
+(i0;j0)2B
+exp(I (hk
+i0;j0) +I(pk
+))
+P(pk
+
+= 0jv;h0) =1
+1 +P
+(i0;j0)2B
+exp(I (hk
+i0;j0) +I(pk
+)):
+As an alternative to block Gibbs sampling, mean-eld
+can be used to approximate the posterior distribution.2
+3.7. Discussion
+Our model used undirected connections between lay-
+ers. This contrasts with Hinton et al. (2006), which
+used undirected connections between the top two lay-
+ers, and top-down directed connections for the layers
+below. Hinton et al. (2006) proposed approximat-
+ing the posterior distribution using a single bottom-up
+pass. This feed-forward approach often can e
+ectively
+estimate the posterior when the image contains no oc-
+clusions or ambiguities, but the higher layers cannot
+help resolve ambiguities in the lower layers. Although
+Gibbs sampling may more accurately estimate the pos-
+terior in this network, applying block Gibbs sampling
+would be dicult because the nodes in a given layer
+2In all our experiments except for Section 4.5, we used
+the mean-eld approximation to estimate the hidden layer
+activations given the input images. We found that ve
+mean-eld iterations suced.
+612Convolutional Deep Belief Networks for Scalable Unsupervised Learning of Hierarchical Representations
+are not conditionally independent of one another given
+the layers above and below. In contrast, our treatment
+using undirected edges enables combining bottom-up
+and top-down information more eciently, as shown
+in Section 4.5.
+In our approach, probabilistic max-pooling helps to
+address scalability by shrinking the higher layers;
+weight-sharing (convolutions) further speeds up the
+algorithm. For example, inference in a three-layer
+network (with 200x200 input images) using weight-
+sharing but without max-pooling was about 10 times
+slower. Without weight-sharing, it was more than 100
+times slower.
+In work that was contemporary to and done indepen-
+dently of ours, Desjardins and Bengio (2008) also ap-
+plied convolutional weight-sharing to RBMs and ex-
+perimented on small image patches. Our work, how-
+ever, develops more sophisticated elements such as
+probabilistic max-pooling to make the algorithm more
+scalable.
+4. Experimental results
+4.1. Learning hierarchical representations
+from natural images
+We rst tested our model's ability to learn hierarchi-
+cal representations of natural images. Specically, we
+trained a CDBN with two hidden layers from the Ky-
+oto natural image dataset.3The rst layer consisted
+of 24 groups (or \bases")4of 10x10 pixel lters, while
+the second layer consisted of 100 bases, each one 10x10
+as well.5As shown in Figure 2 (top), the learned rst
+layer bases are oriented, localized edge lters; this re-
+sult is consistent with much prior work (Olshausen &
+Field, 1996; Bell & Sejnowski, 1997; Ranzato et al.,
+2006). We note that the sparsity regularization dur-
+ing training was necessary for learning these oriented
+edge lters; when this term was removed, the algo-
+rithm failed to learn oriented edges.
+The learned second layer bases are shown in Fig-
+ure 2 (bottom), and many of them empirically re-
+sponded selectively to contours, corners, angles, and
+surface boundaries in the images. This result is qual-
+itatively consistent with previous work (Ito & Ko-
+matsu, 2004; Lee et al., 2008).
+4.2. Self-taught learning for object recognition
+Raina et al. (2007) showed that large unlabeled data
+can help in supervised learning tasks, even when the
+3http://www.cnbc.cmu.edu/cplab/data_kyoto.html
+4We will call one hidden group's weights a \basis."
+5Since the images were real-valued, we used Gaussian
+visible units for the rst-layer CRBM. The pooling ratio C
+for each layer was 2, so the second-layer bases cover roughly
+twice as large an area as the rst-layer ones.
+Figure 2. The rst layer bases (top) and the second layer
+bases (bottom) learned from natural images. Each second
+layer basis (lter) was visualized as a weighted linear com-
+bination of the rst layer bases.
+unlabeled data do notshare the same class labels, or
+the same generative distribution, as the labeled data.
+This framework, where generic unlabeled data improve
+performance on a supervised learning task, is known
+asself-taught learning. In their experiments, they used
+sparse coding to train a single-layer representation,
+and then used the learned representation to construct
+features for supervised learning tasks.
+We used a similar procedure to evaluate our two-layer
+CDBN, described in Section 4.1, on the Caltech-101
+object classication task.6The results are shown in
+Table 1. First, we observe that combining the rst
+and second layers signicantly improves the classica-
+tion accuracy relative to the rst layer alone. Overall,
+we achieve 57.7% test accuracy using 15 training im-
+ages per class, and 65.4% test accuracy using 30 train-
+ing images per class. Our result is competitive with
+state-of-the-art results using highly-specialized single
+features , such as SIFT, geometric blur, and shape-
+context (Lazebnik et al., 2006; Berg et al., 2005; Zhang
+et al., 2006).7Recall that the CDBN was trained en-
+6Details: Given an image from the Caltech-101
+dataset (Fei-Fei et al., 2004), we scaled the image so that
+its longer side was 150 pixels, and computed the activations
+of the rst and second (pooling) layers of our CDBN. We
+repeated this procedure after reducing the input image by
+half and concatenated all the activations to construct fea-
+tures. We used an SVM with a spatial pyramid matching
+kernel for classication, and the parameters of the SVM
+were cross-validated. We randomly selected 15/30 training
+set and 15/30 test set images respectively, and normal-
+ized the result such that classication accuracy for each
+class was equally weighted (following the standard proto-
+col). We report results averaged over 10 random trials.
+7Varma and Ray (2007) reported better performance
+than ours (87.82% for 15 training images/class), but they
+combined many state-of-the-art features (or kernels) to im-
+prove the performance. In another approach, Yu et al.
+(2009) used kernel regularization using a (previously pub-
+lished) state-of-the-art kernel matrix to improve the per-
+613Convolutional Deep Belief Networks for Scalable Unsupervised Learning of Hierarchical Representations
+Table 1. Classication accuracy for the Caltech-101 data
+Training Size 15 30
+CDBN (rst layer) 53.21.2% 60.51.1%
+CDBN (rst+second layers) 57.71.5% 65.40.5%
+Raina et al. (2007) 46.6% -
+Ranzato et al. (2007) - 54.0%
+Mutch and Lowe (2006) 51.0% 56.0%
+Lazebnik et al. (2006) 54.0% 64.6%
+Zhang et al. (2006) 59.00.56% 66.20.5%
+tirely from natural scenes, which are completely un-
+related to the classication task. Hence, the strong
+performance of these features implies that our CDBN
+learned a highly general representation of images.
+4.3. Handwritten digit classication
+We further evaluated the performance of our model
+on the MNIST handwritten digit classication task,
+a widely-used benchmark for testing hierarchical rep-
+resentations. We trained 40 rst layer bases from
+MNIST digits, each 12x12 pixels, and 40 second layer
+bases, each 6x6. The pooling ratio Cwas 2 for both
+layers. The rst layer bases learned \strokes" that
+comprise the digits, and the second layer bases learned
+bigger digit-parts that combine the strokes. We con-
+structed feature vectors by concatenating the rst and
+second (pooling) layer activations, and used an SVM
+for classication using these features. For each labeled
+training set size, we report the test error averaged over
+10 randomly chosen training sets, as shown in Table 2.
+For the full training set, we obtained 0.8% test error.
+Our result is comparable to the state-of-the-art (Ran-
+zato et al., 2007; Weston et al., 2008).8
+4.4. Unsupervised learning of object parts
+We now show that our algorithm can learn hierarchi-
+cal object-part representations in an unsupervised set-
+ting. Building on the rst layer representation learned
+from natural images, we trained two additional CDBN
+layers using unlabeled images from single Caltech-101
+categories.9As shown in Figure 3, the second layer
+learned features corresponding to object parts, even
+though the algorithm was not given any labels speci-
+fying the locations of either the objects or their parts.
+The third layer learned to combine the second layer's
+part representations into more complex, higher-level
+features. Our model successfully learned hierarchi-
+cal object-part representations of most of the other
+Caltech-101 categories as well. We note that some of
+formance of their convolutional neural network model.
+8We note that Hinton and Salakhutdinov (2006)'s
+method is non-convolutional.
+9The images were unlabeled in that the position of the
+object is unspecied. Training was on up to 100 images,
+and testing was on di
+erent images than the training set.
+The pooling ratio for the rst layer was set as 3. The
+second layer contained 40 bases, each 10x10, and the third
+layer contained 24 bases, each 14x14. The pooling ratio in
+both cases was 2.these categories (such as elephants and chairs) have
+fairly high intra-class appearance variation, due to de-
+formable shapes or di
+erent viewpoints. Despite this,
+our model still learns hierarchical, part-based repre-
+sentations fairly robustly.
+Higher layers in the CDBN learn features which are
+not only higher level, but also more specic to particu-
+lar object categories. We now quantitatively measure
+the specicity of each layer by determining how in-
+dicative each individual feature is of object categories.
+(This contrasts with most work in object classica-
+tion, which focuses on the informativeness of the en-
+tire feature set, rather than individual features.) More
+specically, we consider three CDBNs trained on faces,
+motorbikes, and cars, respectively. For each CDBN,
+we test the informativeness of individual features from
+each layer for distinguishing among these three cate-
+gories. For each feature,10we computed area under the
+precision-recall curve (larger means more specic).11
+As shown in Figure 4, the higher-level representations
+are more selective for the specic object class.
+We further tested if the CDBN can learn hierarchi-
+cal object-part representations when trained on im-
+ages from several object categories (rather than just
+one). We trained the second and third layer represen-
+tations using unlabeled images randomly selected from
+four object categories (cars, faces, motorbikes, and air-
+planes). As shown in Figure 3 (far right), the second
+layer learns class-specic as well as shared parts, and
+the third layer learns more object-specic representa-
+tions. (The training examples were unlabeled, so in a
+sense, this means the third layer implicitly clusters the
+images by object category.) As before, we quantita-
+tively measured the specicity of each layer's individ-
+ual features to object categories. Because the train-
+ing was completely unsupervised, whereas the AUC-
+PR statistic requires knowing which specic object or
+object parts the learned bases should represent, we
+instead computed conditional entropy.12Informally
+speaking, conditional entropy measures the entropy of
+10For a given image, we computed the layerwise activa-
+tions using our algorithm, partitioned the activation into
+LxL regions for each group, and computed the q% highest
+quantile activation for each region and each group. If the
+q% highest quantile activation in region iis
+, we then de-
+ne a Bernoulli random variable Xi;L;q with probability 
+of being 1. To measure the informativeness between a fea-
+ture and the class label, we computed the mutual informa-
+tion between Xi;L;q and the class label. Results reported
+are using (L;q ) values that maximized the average mutual
+information (averaging over i).
+11For each feature, by comparing its values over pos-
+itive examples and negative examples, we obtained the
+precision-recall curve for each classication problem.
+12We computed the quantile features 
+for each layer
+as previously described, and measured conditional entropy
+H(classj
+ >0:95).
+614Convolutional Deep Belief Networks for Scalable Unsupervised Learning of Hierarchical Representations
+Table 2. Test error for MNIST dataset
+Labeled training samples 1,000 2,000 3,000 5,000 60,000
+CDBN 2.620.12% 2.130.10% 1.910.09% 1.590.11% 0.82%
+Ranzato et al. (2007) 3.21% 2.53% - 1.52% 0.64%
+Hinton and Salakhutdinov (2006) - - - - 1.20%
+Weston et al. (2008) 2.73% - 1.83% - 1.50%
+faces
+cars
+elephants
+chairs
+faces, cars, airplanes, motorbikes
+Figure 3. Columns 1-4: the second layer bases (top) and the third layer bases (bottom) learned from specic object
+categories. Column 5: the second layer bases (top) and the third layer bases (bottom) learned from a mixture of four
+object categories (faces, cars, airplanes, motorbikes).
+0.20.40.60.8100.20.40.6
+Area under the PR curve (AUC)Faces
+  
+first layer
+second layer
+third layer
+0.20.40.60.8100.20.40.6
+Area under the PR curve (AUC)Motorbikes
+  
+first layer
+second layer
+third layer
+0.20.40.60.8100.20.40.6
+Area under the PR curve (AUC)Cars
+  
+first layer
+second layer
+third layer
+Features Faces Motorbikes Cars
+First layer 0.390.17 0.440.21 0.430.19
+Second layer 0.860.13 0.690.22 0.720.23
+Third layer 0.950.03 0.810.13 0.870.15
+Figure 4. (top) Histogram of the area under the precision-
+recall curve (AUC-PR) for three classication problems
+using class-specic object-part representations. (bottom)
+Average AUC-PR for each classication problem.
+00.511.5200.20.40.60.81
+Conditional entropy  
+first layer
+second layer
+third layer
+Figure 5. Histogram of conditional entropy for the repre-
+sentation learned from the mixture of four object classes.
+the posterior over class labels when a feature is ac-
+tive. Since lower conditional entropy corresponds to a
+more peaked posterior, it indicates greater specicity.
+As shown in Figure 5, the higher-layer features have
+progressively less conditional entropy, suggesting that
+they activate more selectively to specic object classes.
+4.5. Hierarchical probabilistic inference
+Lee and Mumford (2003) proposed that the human vi-
+sual cortex can conceptually be modeled as performing
+\hierarchical Bayesian inference." For example, if you
+observe a face image with its left half in dark illumina-
+Figure 6. Hierarchical probabilistic inference. For each col-
+umn: (top) input image. (middle) reconstruction from the
+second layer units after single bottom-up pass, by project-
+ing the second layer activations into the image space. (bot-
+tom) reconstruction from the second layer units after 20
+iterations of block Gibbs sampling.
+tion, you can still recognize the face and further infer
+the darkened parts by combining the image with your
+prior knowledge of faces. In this experiment, we show
+that our model can tractably perform such (approxi-
+mate) hierarchical probabilistic inference in full-sized
+images. More specically, we tested the network's abil-
+ity to infer the locations of hidden object parts.
+To generate the examples for evaluation, we used
+Caltech-101 face images (distinct from the ones the
+network was trained on). For each image, we simu-
+lated an occlusion by zeroing out the left half of the
+image. We then sampled from the joint posterior over
+all of the hidden layers by performing Gibbs sampling.
+Figure 6 shows a visualization of these samples. To en-
+sure that the lling-in required top-down information,
+we compare with a \control" condition where only a
+single upward pass was performed.
+In the control (upward-pass only) condition, since
+there is no evidence from the rst layer, the second
+layer does not respond much to the left side. How-
+615Convolutional Deep Belief Networks for Scalable Unsupervised Learning of Hierarchical Representations
+ever, with full Gibbs sampling, the bottom-up inputs
+combine with the context provided by the third layer
+which has detected the object. This combined evi-
+dence signicantly improves the second layer represen-
+tation. Selected examples are shown in Figure 6.
+5. Conclusion
+We presented the convolutional deep belief network, a
+scalable generative model for learning hierarchical rep-
+resentations from unlabeled images, and showed that
+our model performs well in a variety of visual recog-
+nition tasks. We believe our approach holds promise
+as a scalable algorithm for learning hierarchical repre-
+sentations from high-dimensional, complex data.
+Acknowledgment
+We give warm thanks to Daniel Oblinger and Rajat
+Raina for helpful discussions. This work was sup-
+ported by the DARPA transfer learning program under
+contract number FA8750-05-2-0249.
+References
+Bell, A. J., & Sejnowski, T. J. (1997). The `indepen-
+dent components' of natural scenes are edge lters.
+Vision Research, 37, 3327{3338.
+Bengio, Y., Lamblin, P., Popovici, D., & Larochelle, H.
+(2006). Greedy layer-wise training of deep networks.
+Adv. in Neural Information Processing Systems .
+Berg, A. C., Berg, T. L., & Malik, J. (2005). Shape
+matching and object recognition using low distor-
+tion correspondence. IEEE Conference on Com-
+puter Vision and Pattern Recognition (pp. 26{33).
+Desjardins, G., & Bengio, Y. (2008). Empirical eval-
+uation of convolutional RBMs for vision (Technical
+Report).
+Fei-Fei, L., Fergus, R., & Perona, P. (2004). Learning
+generative visual models from few training exam-
+ples: an incremental Bayesian approach tested on
+101 object categories. CVPR Workshop on Gen.-
+Model Based Vision.
+Grosse, R., Raina, R., Kwong, H., & Ng, A. (2007).
+Shift-invariant sparse coding for audio classication.
+Proceedings of the Conference on Uncertainty in AI.
+Hinton, G. E. (2002). Training products of experts by
+minimizing contrastive divergence. Neural Compu-
+tation, 14, 1771{1800.
+Hinton, G. E., Osindero, S., & Teh, Y.-W. (2006). A
+fast learning algorithm for deep belief nets. Neural
+Computation, 18, 1527{1554.
+Hinton, G. E., & Salakhutdinov, R. (2006). Reduc-
+ing the dimensionality of data with neural networks.
+Science, 313, 504{507.
+Ito, M., & Komatsu, H. (2004). Representation of
+angles embedded within contour stimuli in area V2
+of macaque monkeys. J. Neurosci. ,24, 3313{3324.Lazebnik, S., Schmid, C., & Ponce, J. (2006). Beyond
+bags of features: Spatial pyramid matching for rec-
+ognizing natural scene categories. IEEE Conference
+on Computer Vision and Pattern Recognition .
+LeCun, Y., Boser, B., Denker, J. S., Henderson, D.,
+Howard, R. E., Hubbard, W., & Jackel, L. D. (1989).
+Backpropagation applied to handwritten zip code
+recognition. Neural Computation, 1, 541{551.
+Lee, H., Ekanadham, C., & Ng, A. Y. (2008). Sparse
+deep belief network model for visual area V2. Ad-
+vances in Neural Information Processing Systems .
+Lee, T. S., & Mumford, D. (2003). Hierarchical
+bayesian inference in the visual cortex. Journal of
+the Optical Society of America A, 20, 1434{1448.
+Mutch, J., & Lowe, D. G. (2006). Multiclass object
+recognition with sparse, localized features. IEEE
+Conf. on Computer Vision and Pattern Recognition.
+Olshausen, B. A., & Field, D. J. (1996). Emergence
+of simple-cell receptive eld properties by learning
+a sparse code for natural images. Nature, 381, 607{
+609.
+Raina, R., Battle, A., Lee, H., Packer, B., & Ng, A. Y.
+(2007). Self-taught learning: Transfer learning from
+unlabeled data. International Conference on Ma-
+chine Learning (pp. 759{766).
+Raina, R., Madhavan, A., & Ng, A. Y. (2009). Large-
+scale deep unsupervised learning using graphics pro-
+cessors. International Conf. on Machine Learning.
+Ranzato, M., Huang, F.-J., Boureau, Y.-L., & LeCun,
+Y. (2007). Unsupervised learning of invariant fea-
+ture hierarchies with applications to object recog-
+nition. IEEE Conference on Computer Vision and
+Pattern Recognition.
+Ranzato, M., Poultney, C., Chopra, S., & LeCun, Y.
+(2006). Ecient learning of sparse representations
+with an energy-based model. Advances in Neural
+Information Processing Systems (pp. 1137{1144).
+Taylor, G., Hinton, G. E., & Roweis, S. (2007). Mod-
+eling human motion using binary latent variables.
+Adv. in Neural Information Processing Systems .
+Varma, M., & Ray, D. (2007). Learning the discrimina-
+tive power-invariance trade-o
+. International Con-
+ference on Computer Vision.
+Weston, J., Ratle, F., & Collobert, R. (2008). Deep
+learning via semi-supervised embedding. Interna-
+tional Conference on Machine Learning.
+Yu, K., Xu, W., & Gong, Y. (2009). Deep learn-
+ing with kernel regularization for visual recognition.
+Adv. Neural Information Processing Systems.
+Zhang, H., Berg, A. C., Maire, M., & Malik, J. (2006).
+SVM-KNN: Discriminative nearest neighbor classi-
+cation for visual category recognition. IEEE Confer-
+ence on Computer Vision and Pattern Recognition .
+616
+View publication stats

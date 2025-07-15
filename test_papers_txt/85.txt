@@ -1,0 +1,963 @@
+Evaluation Methods for Topic Models
+
+Hanna M. Wallach wallach@cs.umass.edu
+Department of Computer Science, University of Massachusetts, Amherst, MA 01003 USA
+Iain Murray murray@cs.toronto.edu
+Ruslan Salakhutdinov rsalakhu@cs.toronto.edu
+Department of Computer Science, University of Toronto, Toronto, Ontario M5S 3G4 CANADA
+David Mimno mimno@cs.umass.edu
+Department of Computer Science, University of Massachusetts, Amherst, MA 01003 USA
+Abstract
+A natural evaluation metric for statistical
+topic models is the probability of held-out
+documents given a trained model. While
+exact computation of this probability is in-
+tractable, several estimators for this prob-
+ability have been used in the topic model-
+ing literature, including the harmonic mean
+method and empirical likelihood method. In
+this paper, we demonstrate experimentally
+that commonly-used methods are unlikely to
+accurately estimate the probability of held-
+out documents, and propose two alternative
+methods that are both accurate and ecient.
+1. Introduction
+Statistical topic modeling is an increasingly useful
+tool for analyzing large unstructured text collections.
+There is a signicant body of work introducing and
+developing sophisticated topic models and their appli-
+cations. To date, however, there have not been any
+papers specically addressing the issue of evaluating
+topic models. Evaluation is an important issue: the
+unsupervised nature of topic models makes model se-
+lection dicult. For some applications there may be
+extrinsic tasks, such as information retrieval or docu-
+ment classication, for which performance can be eval-
+uated. However, there is a need for a universal method
+that measures the generalization capability of a topic
+model in a way that is accurate, computationally e-
+cient, and independent of any specic application.
+Appearing in Proceedings of the 26thInternational Confer-
+ence on Machine Learning , Montreal, Canada, 2009. Copy-
+right 2009 by the author(s)/owner(s).In this paper we consider only the simplest topic
+model, latent Dirichlet allocation (LDA), and compare
+a number of methods for estimating the probability
+of held-out documents given a trained model. Most
+of the methods presented, however, are applicable to
+more complicated topic models. In addition to com-
+paring evaluation methods that are currently used in
+the topic modeling literature, we propose several al-
+ternative methods. We present empirical results on
+synthetic and real-world data sets showing that the
+currently-used estimators are less accurate and have
+higher variance than the proposed new estimators.
+2. Latent Dirichlet allocation
+Latent Dirichlet allocation (LDA), originally intro-
+duced by Blei et al. (2003), is a generative model for
+text. In this model, a \topic" tis a discrete distribu-
+tion over words with probability vector t. Dirichlet
+priors, with concentration parameter and base mea-
+suren, are placed over the topics = f1;:::Tg:
+P() =Q
+tDir (t;n): (1)
+Each document, indexed by d, is assumed to have its
+own distribution over topics given by probabilities d.
+The priors over  = f1;:::Dgare also Dirichlet,
+with concentration parameter 
+and base measure m:
+P() =Q
+dDir (d;
+m): (2)
+The tokens in a document w(d)=fw(d)
+ngNd
+n=1are asso-
+ciated with topic assignments z(d)=fz(d)
+ngNd
+n=1, drawn
+i.i.d. from the document-specic topic distribution:
+P(z(d)jd) =Q
+nz(d)
+njd: (3)
+The tokens are drawn from the topics' distributions:
+P(w(d)jz(d);) =Q
+nw(d)
+njz(d)
+n: (4)Evaluation Methods for Topic Models
+A data set of documents W=fw(1);w(2);:::;w(D)g
+is observed, while the underlying corresponding topic
+assignmentsZ=fz(1);z(2);:::;z(D)gare unobserved.
+Conjugacy of Dirichlets with multinomials allows the
+parameters to be marginalized out. For example,
+P(z(d)j
+m) =Z
+ddP(z(d)jd)P(dj
+m)
+= (
+)
+ (Nd+
+)Y
+t (Ntjd+
+mt)
+ (
+mt);(5)
+where topic toccursNtjdtimes inz(d)of lengthNd.
+3. Evaluating LDA
+LDA is typically evaluated by either measuring perfor-
+mance on some secondary task, such as document clas-
+sication or information retrieval, or by estimating the
+probability of unseen held-out documents given some
+training documents. A better model will give rise to a
+higher probability of held-out documents, on average.
+The probability of a set of held-out documents Wgiven
+a set of training documents W0, can be written as
+P(WjW0)=Z
+d d
+dmP(Wj;
+m)P(;
+mjW0):
+This integral can be approximated by averaging
+P(Wj;
+m) under samples from P(;
+mjW0), or
+evaluating at a point estimate. We take the latter ap-
+proach. Variational methods (Blei et al., 2003) and
+MCMC methods (Griths & Steyvers, 2004) are ef-
+fective at marginalizing out the topic assignments Z
+associated with the training data to infer  and 
+m.
+In this paper, we focus on evaluating
+P(Wj;
+m) =Q
+dP(w(d)j;
+m): (6)
+Since the topic assignments for one document are in-
+dependent of the topic assignments for all other docu-
+ments, each held-out document can be evaluated sep-
+arately. For the rest of this paper, we refer to the
+current document as w, its latent topic assignments
+asz, and its document-specic topic distribution as .
+Many of the evaluation methods in this paper require
+the ability to obtain a set of topic assignments zfor
+documentwusing Gibbs sampling. Gibbs sampling
+involves sequentially resampling each znfrom its con-
+ditional posterior given w, ,
+mandznn(the current
+latent topic assignments for all other tokens):
+P(zn=tjw;znn;;
+m)
+/P(wnjzn=t;)P(zn=tjznn;
+m)
+/wnjtfNtgnn+
+mt
+N 1 +
+; (7)wherefNtgnnis the number of times topic toccurs in
+the document in question, excluding position n, and
+Nis the total number of tokens in the document.
+4. Estimating P(wj;
+m)
+The evaluation probability P(wj;
+m) for held-out
+documentwcan be thought of as the normalizing con-
+stant that relates the posterior distribution over zto
+the joint distribution over wandzin Bayes' rule:
+P(zjw;;
+m) =P(z;wj;
+m)
+P(wj;
+m): (8)
+There are many existing methods for estimating nor-
+malizing constants. In this section, we review some of
+these methods, as previously applied to topic models,
+and also outline two alternative methods: a Chib-style
+estimator and a \left-to-right" evaluation algorithm.
+4.1. Importance sampling methods
+In general, given a model with observed variables
+wand unknown variables h, importance sampling
+can be used to approximate the probability of the
+observed variables, either P(w) =P
+hP(w;h) orR
+dhP(w;h). IfQ(h) is some simple, tractable distri-
+bution overh|the \proposal distribution"|then
+P(w)'1
+SX
+sP(w;h(s))
+Q(h(s));h(s)Q(h);(9)
+is an unbiased estimator. To ensure low variance, Q(h)
+must be similar to the \target distribution" P(hjw)
+and must be non-zero wherever P(w;h) is non-zero.
+In this section, we explain how P(wj;
+m) can be
+estimated using importance sampling by either (a) in-
+tegrating out and using the prior over h=zas the
+proposal distribution, or (b) using the prior over h=
+as the proposal distribution, thereby allowing the topic
+assignmentszto be marginalized out directly.
+If the proposal distribution is the prior over z,
+P(wj;
+m) =X
+zP(wjz;)P(zj
+m)
+'1
+SX
+sP(wjz(s);); (10)
+wherez(s)P(zj
+m). Unfortunately, topic assign-
+ments drawn from the prior, without consideration of
+the corresponding tokens, are unlikely to provide a
+good explanation of w. The prior is not usually close
+to the target distribution unless wis very short.
+Better proposal distributions for z(s)can be con-
+structed by taking winto account. The simplest wayEvaluation Methods for Topic Models
+is to form a distribution over topics for each token
+wn, ignoring dependencies between tokens: Q(zn)/
+
+mznwnjzn. A more sophisticated method, which we
+call \iterated pseudo-counts," involves iteratively up-
+datingQ(zn) every sampling iteration. After initializ-
+ingQ(zn)(0)/
+mznwnjzn, the update rule is
+Q(zn)(s)/(
+mzn+X
+n06=nQ(zn0)(s 1))wnjzn:(11)
+Alternatively, P(wj;
+m) can be written as an inte-
+gral over the document-specic topic distribution :
+P(wj;
+m) =Z
+dP(wj;)P(j
+m)
+'1
+SX
+sP(wj(s);); (12)
+where(s)is drawn from P(j
+m) = Dir (;
+m).
+The estimator in (12) is easily computed because the
+topic assignments are independent given :
+P(wj(s);) =Y
+nP(wnj(s);)
+=Y
+nX
+znP(wn;znj(s);):(13)
+If the probabilities P(wj(s);) are estimated from
+a synthetic document, randomly-generated using (s),
+the resultant estimator corresponds to the empiri-
+cal likelihood method described by Li and McCal-
+lum (2006). Used directly, however, (13) will give
+the same result as using innitely long synthetic doc-
+uments and is how the empirical likelihood method is
+implemented in MALLET (McCallum, 2002).
+Importance sampling does not work well when sam-
+pling from high-dimensional distributions. Unless the
+proposal distribution is a near-perfect approximation
+to the target distribution, the variance of the estimator
+will be very large. When sampling continuous values,
+such as, the estimator may have innite variance.
+4.2. Harmonic mean method
+The harmonic mean method (Newton & Raftery, 1994)
+is based on the following unbiased estimator:
+1
+P(w)=X
+zP(zjw)
+P(wjz)'1
+SX
+s1
+P(wjz(s));(14)
+wherez(s)is drawn from P(zjw). Conditioning on 
+and
+mgives an estimator for P(wj;
+m):
+P(wj;
+m)'1
+1
+SP
+s1
+P(wjz(s);)
+= HM (fP(wjz(s);)gS
+s=1);(15)wherez(s)P(zjw;;
+m) and HM () denotes the
+harmonic mean. In practice, fz(s)gS
+s=1areSsamples
+taken from a Gibbs sampler after a burn-in period of
+Biterations. Since the samples are used to approx-
+imate an expectation, they need not be independent
+and thinning is unnecessary. Consequently, the cost of
+the estimator is that of S+BGibbs iterations.
+Newton and Raftery (1994) expressed reservations
+about the harmonic mean method when introducing it,
+and Neal added further criticism in the discussion. De-
+spite these criticisms, it has been used in several topic
+modeling papers (Griths & Steyvers, 2004; Griths
+et al., 2005; Wallach, 2006), due to its ease of imple-
+mentation and relative computational eciency.
+4.3. Annealed importance sampling
+Annealed importance sampling (AIS) can be viewed
+as a variant of simple importance sampling dened on
+a higher-dimensional state space (Neal, 2001). Many
+auxiliary variables are introduced in order to make the
+proposal distribution closer to the target distribution.
+When used to approximate P(wj;
+m), AIS uses the
+following sequence of probability distributions:
+Ps(z)/P(wjz;)sP(zj
+m);
+dened by a set of \inverse temperatures," 0 = 0<
+1<:::< S= 1. When s= 0,s= 0 and so P0(z) is
+the prior distribution P(zj
+m). Similarly, when s=
+S,PS(z) is the posterior distribution P(zjw;;
+m).
+Intermediate values of sinterpolate between the prior
+and posterior distributions. For each s= 1;:::;S 1,
+a Markov chain transition operator Ts(z0 z) that
+leavesPs(z) invariant must also be dened. When
+approximating P(wj;
+m),Ts(z0 z) is the Gibbs
+sampling operator that samples sequentially from
+Ps(znjznn)/P(wnjzn;)sP(znjznn;
+m):(16)
+Sampling from (16) is as easy as sampling from (7).
+AIS builds a proposal distribution Q(Z) over the ex-
+tended state space Z=fz(1);:::;z(S)gby rst sam-
+pling from the tractable prior P0(z) and then applying
+a series of transition operators T1;T2;:::;TS 1that
+\move" the sample through the intermediate distribu-
+tionsPs(z) towards the posterior PS(z). The proba-
+bility of the resultant state sequence Zis given by
+Q(Z) =P0(z(1))S 1Y
+s=1Ts(z(s+1) z(s)): (17)
+The target distribution for the proposal Q(Z) is
+P(Z) =PS(z(S))S 1Y
+s=1eTs(z(s) z(s+1)); (18)Evaluation Methods for Topic Models
+1: initialize 0 = 0< 1<:::< S= 1
+2: samplez(1)from the prior P0(z) =P(zj
+m).
+3:fors= 2 :Sdo
+4: samplez(s)Ts 1(z(s) z(s 1))
+5:end for
+6:P(wj;
+m)'QS
+s=1P(wjz(s);)s s 1
+Algorithm 1: Annealed importance sampling.
+whereeTsis the reverse transition operator, given by
+eTs(z0 z) =Ts(z z0)Ps(z0)
+Ps(z): (19)
+Having sampled a sequence of topic assignments from
+Q(Z), a scalar importance weight is constructed:
+wAIS=P(wj;
+m)P(Z)
+Q(Z)
+=P(w;z(S)j;
+m)QS 1
+s=1eTs(z(s) z(s+1))
+P0(z(1))QS 1
+s=1Ts(z(s+1) z(s))
+=SY
+s=1P(wjz(s);)s s 1:
+Given a set of samples from Q(Z), the correspond-
+ing importance weights can be used to approximate
+P(wj;
+m) because of the following equality:
+P(wj;
+m) =P(wj;
+m)X
+ZP(Z)
+=EQ(Z)[wAIS]: (20)
+The transition operators do not necessarily need to
+be ergodic. The simple importance sampling approx-
+imation in (10), in which the proposal distribution is
+P(zj
+m), is recovered by using transition operators
+that do nothing: Ts(z0 z) =(z0 z) for alls.
+The AIS algorithm is summarized in algorithm 1.
+4.4. Chib-style estimation
+For any \special" set of latent topic assignments z?,
+Bayes' rule gives rise to the following identity:
+P(wj;
+m) =P(z?;wj;
+m)
+P(z?jw;;
+m): (21)
+Chib (1995) introduced a family of estimators that
+rst pick az?and then estimate the denominator,
+P(z?jw;;
+m). The numerator P(z?;wj;
+m) =
+P(wjz?;)P(z?j
+m) is known from (4) and (5).
+Any Markov chain operator Tfor sampling from the
+posterior, including the Gibbs sampler, satises
+P(z?jw;;
+m)
+=X
+zT(z? z)P(zjw;;
+m): (22)1: initializezto a high posterior probability state
+2: samplesuniformly fromf1;:::;Sg
+3: samplez(s)eT(z(s) z?)
+4:fors0= (s+ 1) :Sdo
+5: samplez(s0)T(z(s0) z(s0 1))
+6:end for
+7:fors0= (s 1) : 1 : 1do
+8: samplez(s0)eT(z(s0) z(s0+1))
+9:end for
+10:P(wj;
+m)'
+P(w;z?j;
+m).
+1
+SP
+s0T(z? z(s0))
+Algorithm 2: A Chib-style estimator.
+(22) can be substituted into (21) to give
+P(wj;
+m) =P(z?;wj;
+m)P
+zT(z? z)P(zjw;;
+m)
+'P(z?;wj;
+m)
+1
+SPS
+s=1T(z? z(s));
+whereZ=fz(1);:::;z(S)gcan be obtained by Gibbs
+sampling from P(zjw;;
+m). Murray and Salakhut-
+dinov (2009) showed that this estimator can overesti-
+mate the desired probability in expectation. Instead,
+they constructed the following proposal distribution:
+Q(Z) =1
+SSX
+s=1eT(z(s) z?)SY
+s0=s+1T(z(s0) z(s0 1))
+s 1Y
+s0=1eT(z(s0) z(s0+1)):
+Since the forward operator transition Tconsists of se-
+quentially applying (7) for positions 1 to N(in that
+order), the reverse transition operator eTcan be con-
+structed by simply applying (7) in the reverse order.
+Using the denition of eTin (19) it can be shown that
+P(wj;
+m)'P(z?;wj;
+m)
+1
+SPS
+s=1T(z? z(s)); (23)
+under samples from Q(Z). In this application, with
+forwards and reverse Gibbs samplers, the estimator is
+formally unbiased, even for nite runs of the chain.
+The probability of moving to z?is given by
+T(z? z) =Y
+nP(z?
+njz?
+<n;z>n;w;;
+m):(24)
+This Chib-style estimator is valid for any choice of
+\special state" z?. We setz?by iteratively maximiz-
+ing (7) for positions 1 ;:::;N , after a few iterations of
+regular Gibbs sampling. In all our experiments, less
+than 1% of computer time was spent setting z?.
+The Chib-style method is summarized in algorithm 2.Evaluation Methods for Topic Models
+1: initialize l:= 0
+2:foreach position ninwdo
+3: initialize pn:= 0
+4:foreach particle r= 1 toRdo
+5: forn0<ndo
+6: sample z(r)
+n0P(z(r)
+n0jwn0;fz(r)
+<ngnn0;;
+m)
+7: end for
+8:pn:=pn+P
+tP(wn;z(r)
+n=tjz(r)
+<n;;
+m)
+9: sample z(r)
+nP(z(r)
+njwn;z(r)
+<n;;
+m)
+10: end for
+11:pn:=pn=R
+12:l:=l+ logpn
+13:end for
+14: logP(wj;
+m)'l
+Algorithm 3: A \left-to-right" evaluation algorithm.
+4.5. \Left-to-right" evaluation algorithm
+Another approach for approximating P(wj;
+m)
+was recently proposed by Wallach (2008). This
+method, which operates in an incremental, \left-to-
+right" fashion, decomposes P(wj;
+m) as
+P(wj;
+m) =Q
+nP(wnj;
+m)
+=Q
+nP
+znP(wn;znj;
+m):(25)
+Each sum over zncan then be approximated us-
+ing an approach inspired by sequential Monte Carlo
+methods (Del Moral et al., 2006), as in algo-
+rithm 3. This method is appropriate for a wider range
+of applications|including predictive text entry and
+speech recognition systems|than the other methods
+in this section, because of its \left-to-right" operation.
+4.6. Relative costs of the methods
+The majority of the methods described above are
+based on Gibbs sampling, which dominates their costs:
+computing P(znjwn;znn;;
+m) is signicantly more
+costly than computing P(wnjzn;)|the quantity
+used to construct the estimators given the samples.
+The Chib-style method is an exception: constructing
+the estimator itself has a cost roughly equal to that of
+Gibbs sampling. None-the-less, the approximate cost
+of each method can be reported in terms of the num-
+ber of Gibbs sampling site updates required (i.e., the
+number ofznvariables updated) as shown in table 1.
+Importance sampling using the prior over as the sam-
+pling distribution does not involve Gibbs sampling.
+However,P
+znP(zn;wnj(s);) must be computed
+for each held-out token wn, which has a similar cost
+to a Gibbs sampling site update. The cost of sim-
+ple importance sampling using a distribution over zis
+harder to express, and will be implementation depen-
+dent. Slightly unfairly to these methods, we assume
+that the cost of generating samples is directly compa-1: initialize 0 = 0< 1<:::< S= 1
+2: samplez(1)fromP0(z) =P(zjw(1);;
+m).
+3:fors= 2 :Sdo
+4: samplez(s)Ts 1(z(s) z(s 1))
+5:end for
+6:P(w(2)jw(1);;
+m)'SY
+s=1P(w(2)jz(s);w(1);)s s 1
+Algorithm 4: AIS for document completion.
+rable to Gibbs sampling. The cost could be examined
+more closely were such a method to yield good results.
+5. Document completion
+Another way of evaluating topic models is to com-
+pare predictive performance by estimating the prob-
+ability of the second half of a document, given the
+rst (Rosen-Zvi et al., 2004). This is typically accom-
+plished by adding the rst half of each held-out docu-
+ment to the training data, while retaining the second
+half for evaluation. Letting w(1)be the rst half of w
+andw(2)be the second half, the goal is to compute
+P(w(2)jw(1);;
+m) =P(w(2);w(1)j;
+m)
+P(w(1)j;
+m);(26)
+which is a ratio of normalizing constants. Any
+of the methods for estimating P(wj;
+m)
+P(w(2);w(1)j;
+m) described in the previous sec-
+tion can be re-run on only w(1)to estimate
+P(w(1)j;
+m), thereby allowing evaluation of (26).
+However, specialized techniques may be more ecient.
+5.1. Estimated 
+The estimated method involves drawing samples
+z(1;s)P(z(1)jw(1);;
+m) and then forming
+^(s)
+t=P(tjz(1);
+m) =N(1;s)
+t+
+mt
+N(1)+
+; (27)
+whereN(1)is the number of tokens in w(1). If the
+predictive probability of tis clamped to ^(s)
+tfor the
+remainder of the document, i.e., for w(2), then
+P(w(2)jw(1);;
+m)'1
+SX
+sY
+nX
+tw(2)
+njt^(s)
+t:
+5.2. Importance sampling and AIS
+The importance sampling algorithms described in sec-
+tions 4.1 and 4.3 can all be adapted to estimate (26)
+directly by using samples conditioned on w(1). For
+AIS, we use the following sequence of distributions:
+Ps(z)/P(w(1);w(2)jz;)sP(zjw(1);;
+m):
+(26) can then be approximated as in algorithm 4.Evaluation Methods for Topic Models
+Table 1. Summary of methods for estimating P(wj;
+m) with approximate costs for a document of length N. CS
+(S= 1000) and LR ( R= 20) on a 200 word synthetic document each run in 3.2 seconds on a 1000MHz Opteron 175.
+Method Parameters Description Cost (# Gibbs site updates)
+AIS # temperatures S Annealed importance sampling SN
+HM burn-in B, # samples S Harmonic mean method N(B+S)
+LR # particles R \Left-to-right" evaluation algorithm RN(N 1)=2
+CS chain length S Chib-style estimator 2 SN
+IS-PT # samples S Importance sampling from P(j
+m)SN
+IS-IP # iterations I, # samples SImportance sampling, Q(z) from (11) ( I+S)N
+IS-PZW # samples S Importance sampling, Q(zn)/
+mznwnjznSN
+−−
+− − − − −−−184000 −174000
+AIS
+HM
+LR
+CS
+IS−PT 2IS−PT 1
+IS−IP
+IS−PZW−−
+− −−−−
+−−75000 −63000
+AIS
+HM
+LR
+CS
+IS−PT 2IS−PT 1
+IS−IP
+IS−PZW−−
+−−
+−−−
+−−61000 −50000
+AIS
+HM
+LR
+CS
+IS−PT 2IS−PT 1
+IS−IP
+IS−PZW−−
+−−
+−−−
+−−47000 −38000
+AIS
+HM
+LR
+CS
+IS−PT 2IS−PT 1
+IS−IP
+IS−PZW−−
+−−
+−−−
+−−97000 −81000
+AIS
+HM
+LR
+CS
+IS−PT 2IS−PT 1
+IS−IP
+IS−PZW
+−−−− − −−183584 −183579
+3−synthAIS
+LR 2 LR 1
+CS 2 CS 1
+IS−IP−−
+−−−
+−−70970 −70940
+50−synthAIS
+LR 2 LR 1
+CS 2 CS 1
+IS−IP−
+−−−
+−−
+−−51640 −51470
+20 NewsAIS 2AIS 1
+LR 2LR 1
+CS 2CS 1
+IS−IP− − −
+− −
+−−41007 −40810
+PMCAIS
+LR 2 LR 1
+CS 2 CS 1
+IS−IP− −−
+− −
+−−87380 −86970
+NYTAIS
+LR 2 LR 1
+CS 2 CS 1
+IS−IP
+Figure 1.P
+dlogP(w(d)j;
+m) for all ve data sets. The top gures show results for all methods, while the bottom
+gures focus on the most competitive methods. To demonstrate convergence, in some cases, we report results for the same
+method twice, the second time with double the computation: e.g., \CS 1" uses S= 1000 while \CS 2" uses S= 2000.
+5.3. \Left-to-right" evaluation algorithm
+The \left-to-right" algorithm described in section 4.5
+can estimate P(w(2)jw(1);;
+m) directly. If the
+words inware ordered such that w(1)is fully ob-
+served before any words from w(2)are observed, then
+a second estimator can be accumulated as in line 12 of
+algorithm 3, for the positions involving tokens in w(2).
+6. Results
+In this section, we present experimental results com-
+paring the evaluation methods described in the pre-
+vious two sections on both real and synthetic data.
+Our MATLAB and Java implementations are available
+from http://www.cs.umass.edu/ ~wallach/code/etm/ .
+6.1. Description of data
+Two synthetic data sets and three real-world corpora
+were used to compare the methods. The synthetic data
+sets were generated using two LDA models. In order
+to make the statistics of the synthetic documents as
+close as possible to real documents, the values of ,
+
+andmwere inferred from a collection of computer
+science abstracts using an MCMC implementation in
+the MALLET software package (McCallum, 2002).Table 2. Data sets used in the experiments. Vis the vo-
+cabulary size, Nis the mean document length, \St. Dev."
+is the estimated standard deviation in document length.
+Data set V N St. Dev.
+Synthetic, 3 topics 9242 500 0
+Synthetic, 50 topics 9242 200 0
+20 Newsgroups 22695 120.4 296.2
+PubMed Central abstracts 30262 101.8 49.2
+New York Times articles 50412 230.6 250.5
+Each of the three real-world data sets was divided into
+training and held-out documents. For each data set,
+,
+andmvalues were inferred using the training
+documents. Given these values, the evaluation meth-
+ods were compared using the held-out documents. For
+all three data sets the number of topics was set to 200.
+Descriptions of all ve data sets are given in table 2.
+6.2. Estimating P(wj;
+m)
+For each of the ve data sets, P(wj;
+m) was es-
+timated for fty held-out documents. The evaluation
+methods are summarized in table 1. Like Murray and
+Salakhutdinov (2009), AIS with 10,000 temperatures
+was intended as a gold standard. This method is com-
+putationally expensive, but is often accurate. For theEvaluation Methods for Topic Models
+harmonic mean method, B= 50;000 burn-in itera-
+tions were used, followed by S= 50;000 Gibbs sam-
+pling iterations (without any thinning). The compu-
+tation time for this parameterization roughly matches
+the computation time for AIS with 10,000 tempera-
+tures. For each of the data sets, the Chib-style esti-
+mator was run with two di
+erent parameterizations:
+S= 1;000 andS= 2;000. The remaining meth-
+ods were also run with two parameterizations, chosen
+to result in computation times equivalent to those of
+the Chib-style estimator (which are much smaller than
+those of either AIS or the harmonic mean method).
+For each method and data set, the estimates of
+P(w(d)j;
+m) for each held-out document w(d)were
+averaged over 10 runs, to give P(w(d)j;
+m). The
+log probability of the held-out documents was then
+estimated asP
+dlogP(w(d)j;
+m). Standard devi-
+ations were obtained using a bootstrap method, in
+which 10,000 log probabilities for each data set were
+obtained by sampling with replacement from the 10
+runs for each held-out document. Figure 1 showsP
+dlogP(w(d)j;
+m) for each method and data set.
+The harmonic mean method wildly overestimatedP
+dlogP(w(d)j;
+m) for all of the data sets. Es-
+timates were e
+ectively from one or very few samples,
+making the harmonic mean method very unstable.
+The main failure mode for the simple importance sam-
+pling methods, AIS and the Chib-style estimator is in-
+adequately sampling the upper tail of the distribution
+over importance weights. This causes underestimation
+of bothP(wj;
+m) and the variance of the estima-
+tor. Consequently, the largest estimate is likely to be
+the best. Formal statements could be made using the
+bounds discussed by Gogate et al. (2007). AIS exhib-
+ited this failure mode on the 20 Newsgroups data set,
+yielding a lower probability than the \left-to-right" al-
+gorithm due to poor performance on some long docu-
+ments. Increasing the accuracy by using 20,000 tem-
+peratures gave larger probabilities in agreement with
+the \left-to-right" algorithm. Long documents in the
+synthetic data set with only 3 topics also caused AIS
+to exhibit higher variance than other methods.
+The Chib-style estimator and the \left-to-right" algo-
+rithm both performed well, with the latter consistently
+performing better on the real-world data sets. Results
+on the synthetic data sets show that the \left-to-right"
+algorithm does not universally dominate the Chib-
+style method, however. While more accurate than har-
+monic mean, none of the simpler importance sampling
+methods were competitive and generally performed ex-
+ceedingly poorly, usually giving large underestimates.
+The \iterated pseudo-counts" method was the best of
+−
+−
+−−26330 −26150
+20 NewsAIS
+LRET−
+−
+−−20310 −20230
+PMCAIS
+LRET−
+−
+−−43960 −43810
+NYTAIS
+LRETFigure 2.P
+dlogP(w(2;d)jw(1;d);;
+m) for document
+completion methods. \ET" is the estimated method.
+the simple importance sampling methods, but was still
+signicantly worse than the Chib-style estimator.
+6.3. Document completion
+Another way of evaluating topic models is to esti-
+mateP(w(2)jw(1);;
+m). As explained in section 5,
+this probability can be directly approximated using
+either the estimated method, the \left-to-right" al-
+gorithm or AIS. These methods were compared us-
+ingB= 5;000 burn-in iterations and S= 20;000
+samples for the estimated method,B= 500 burn-
+in iterations and 1 ;500 temperatures for AIS, and
+R= 42000=Nparticles for the \left-to-right" algo-
+rithm. Despite being allowed signicantly more com-
+putation time than the other methods, the estimated 
+method exhibited relatively poor performance and did
+not achieve results close to those of AIS. The \left-to-
+right" algorithm did approach the estimates obtained
+using AIS, with substantially less computation time.
+6.4. Sensitivity to perturbations in andm
+In this section, we investigate how the evaluation
+methods described in sections 4 and 5 are a
+ected by
+perturbations in  and m. The methods were com-
+pared using the synthetic data set with 50 topics, for
+which the true , 
+andmvalues are known.
+Sensitivity to perturbations in  was investigated by
+interpolating between  and a randomly-generated
+set of topic-specic distribution over words 0. For
+each method, either P(wj(1 )  +0;
+m) or
+P(w(2)jw(1);(1 )  +0;
+m) were calculated for
+2f0;:25;:5;:75g. Figure 3 shows the log ratios be-
+tween the values computed using interpolated parame-
+ters and the values computed using  only ( = 0) for
+the estimated method, importance sampling from
+P(j
+m) and the \left-to-right" algorithm. Results
+for the Chib-style estimator closely track those of the
+\left-to-right" algorithm, so we report only the latter.
+Compared to the \left-to-right" algorithm, importanceEvaluation Methods for Topic Models
+0.00 0.50 1.00−20000 −10000 0
+ET
+LR
+ISP
+0.00 0.50 1.00−2000 −1000 0
+Figure 3. The e
+ects of perturbing  (left) and m(right).
+The x-axis shows the degree of perturbation . The y-axis
+shows the log ratio between the probabilities reported by
+each estimator with the given and with= 0.
+sampling and the estimated method understate the
+di
+erence between the values computed using the true
+ and the values computed using a perturbed .
+Sensitivity to perturbations in the base measure m
+was investigated similarly. A random m0was gen-
+erated and either P(wj;
+((1 )m+m0)) or
+P(w(2)jw(1);;
+((1 )m+m0)) were calculated
+for2f0;:25;:5;:75g. Log ratios between the val-
+ues computed using interpolated base measures and
+the values computed using mare shown in gure 3.
+Importance sampling is strongly a
+ected by perturba-
+tions inm; the estimated method is less sensitive.
+7. Discussion
+The evaluation methods currently used in the topic
+modeling community, including the harmonic mean
+method, importance sampling from P(j
+m), and
+document completion methods, are generally inaccu-
+rate. Even if these methods do result in a correct rank-
+ing of di
+erent models, the relative advantage of one
+model over another may be incorrectly represented.
+Most of the evaluation methods described in this pa-
+per extend readily to more complicated topic models|
+including non-parametric versions based on hierarchi-
+cal Dirichlet processes (Teh et al., 2006)|since they
+only require a MCMC algorithm for sampling the la-
+tent topic assignments zfor each document and a way
+of evaluating probability P(wjz;;
+m). Importance
+sampling from P(j
+m) is not obviously directly ap-
+plicable to non-parametric topic models, however.
+Estimating the probability of held-out documents pro-
+vides a clear, interpretable metric for evaluating the
+performance of topic models relative to other topic-
+based models as well as to other non-topic-based gen-
+erative models. We provide empirical evidence that
+several recently-used methods for estimating the prob-
+ability of held-out documents are inaccurate and canchange the results of model comparison. In contrast,
+the Chib-style estimator and \left-to-right" algorithm
+presented in this paper provide a clear methodology
+for accurately assessing and selecting topic models.
+Acknowledgments
+This work was supported by the Center for Intelligent
+Information Retrieval and CIA, NSA & NSF under
+NSF grant #IIS-0326249. Any opinions, ndings and
+conclusions or recommendations are the authors' and
+do not necessarily re
+ect those of the sponsor.
+References
+Blei, D., Ng, A., & Jordan, M. (2003). Latent Dirichlet
+allocation. JMLR ,3, 993{1022.
+Chib, S. (1995). Marginal likelihood from the Gibbs
+output. JASA ,90, 1313{1321.
+Del Moral, P., Doucet, A., & Jasra, A. (2006). Sequen-
+tial Monte Carlo samplers. JRSS B ,68, 1{26.
+Gogate, V., Bidyuk, B., & Dechter, R. (2007). Studies
+in lower bounding probability of evidence using the
+Markov inequality. UAI.
+Griths, T., & Steyvers, M. (2004). Finding scientic
+topics. PNAS ,101, 5228{5235.
+Griths, T. L., Steyvers, M., Blei, D. M., & Tenen-
+baum, J. B. (2005). Integrating topics and syntax.
+NIPS (pp. 537{544).
+Li, W., & McCallum, A. (2006). Pachinko alloca-
+tion: DAG-structured mixture models of topic cor-
+relations. ICML (pp. 577{584).
+McCallum, A. (2002). MALLET: A machine learning
+for language toolkit. http://mallet.cs.umass.edu .
+Murray, I., & Salakhutdinov, R. (2009). Evaluating
+probabilities under high-dimensional latent variable
+models. NIPS (pp. 1137{1144).
+Neal, R. M. (2001). Annealed importance sampling.
+Statistics and Computing ,11, 125{139.
+Newton, M. A., & Raftery, A. E. (1994). Approx-
+imate Bayesian inference with the weighted likeli-
+hood bootstrap. JRSS B ,56, 3{48.
+Rosen-Zvi, M., Griths, T., Steyvers, M., & Smyth,
+P. (2004). The author-topic model for authors and
+documents. UAI (pp. 487{494).
+Teh, Y., Jordan, M., Beal, M., & Blei, D. (2006). Hier-
+archical Dirichlet processes. JASA ,101, 1566{1581.
+Wallach, H. M. (2006). Topic modeling: beyond bag-
+of-words. ICML (pp. 977{984).
+Wallach, H. M. (2008). Structured topic models for
+language . PhD thesis, University of Cambridge.

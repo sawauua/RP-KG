@@ -1,0 +1,944 @@
+Feature Hashing for Large Scale Multitask Learning
+
+Kilian Weinberger KILIAN@YAHOO-INC.COM
+Anirban Dasgupta ANIRBAN @YAHOO-INC.COM
+Josh Attenberg JOSH@CIS.POLY.EDU
+John Langford JL@HUNCH.NET
+Alex Smola ALEX@SMOLA.ORG
+Yahoo! Research,2821MissionCollegeBlvd.,SantaClara,C A 95051USA
+Keywords : kernels,concentrationinequalities,documentclassiﬁc ation,classiﬁer personalization,multitasklearning
+Abstract
+Empirical evidence suggests that hashing is an
+effective strategy for dimensionality reduction
+and practical nonparametric estimation. In this
+paperweprovideexponentialtailboundsforfea-
+ture hashing and show that the interaction be-
+tween random subspaces is negligible with high
+probability. We demonstrate the feasibility of
+thisapproachwithexperimentalresultsforanew
+use case — multitask learning with hundreds of
+thousandsoftasks.
+1. Introduction
+Kernel methods use inner products as the basic tool for
+comparisons between objects. That is, given objects
+x1,...,x n∈Xforsomedomain X,theyrelyon
+k(xi,xj) :=/a\}bracketle{tφ(xi),φ(xj)/a\}bracketri}ht (1)
+tocomparethefeatures φ(xi)ofxiandφ(xj)ofxjrespec-
+tively.
+Eq. (1) is often famously referred to as the kernel-trick . It
+allowsthe use ofinnerproductsbetweenveryhighdimen-
+sional feature vectors φ(xi)andφ(xj)implicitly through
+the deﬁnition of a positive semi-deﬁnite kernel matrix k
+without ever having to compute a vector φ(xi)directly.
+This can be particularly powerful in classiﬁcation setting s
+wheretheoriginalinputrepresentationhasanon-linearde -
+cisionboundary. Often,linearseparabilitycanbeachieve d
+ina highdimensionalfeaturespace φ(xi).
+In practice, for example in text classiﬁcation, researcher s
+Preliminary work. Under review by the International Confer ence
+onMachine Learning(ICML).Donot distribute.frequentlyencountertheoppositeproblem: theoriginalin -
+putspaceisalmostlinearlyseparable(oftenbecauseofthe
+existenceofhandcraftednon-linearfeatures),yet,thetr ain-
+ing set may be prohibitivelylargein size and veryhigh di-
+mensional. Insuchacase,thereisnoneedtomaptheinput
+vectors into a higher dimensional feature space. Instead,
+limitedmemorymakesstoringa kernelmatrixinfeasible.
+For this common scenario several authors have recently
+proposed an alternative, but highly complimentary vari-
+ation of the kernel-trick, which we refer to as the
+hashing-trick : one hashesthe high dimensional input vec-
+torsxinto a lowerdimensional feature space Rmwith
+φ:X→Rm(Langfordet al., 2007; Shi et al., 2009). The
+parameter vector of a classiﬁer can therefore live in Rm
+instead of in Rnwith kernel matrices or Rdin the origi-
+nal input space, where m≪nandm≪d. Different
+fromrandomprojections,the hashing-trickpreservesspar -
+sity and introduces no additional overheadto store projec-
+tionmatrices.
+To our knowledge, we are the ﬁrst to provide exponential
+tailboundsonthecanonicaldistortionofthesehashedinne r
+products. Wealsoshowthatthehashing-trickcanbepartic-
+ularly powerful in multi-task learning scenarios where the
+originalfeaturespacesarethecross-productofthedata, X,
+andtheset oftasks, U. We showthatonecan usedifferent
+hash functions for each task φ1,...,φ |U|to map the data
+intoonejointspacewithlittle interference.
+While many potential applications exist for the hashing-
+trick, as a particular case study we focus on collaborative
+email spam ﬁltering. In this scenario, hundreds of thou-
+sands of users collectively label emails as spamornot-
+spam, and each user expects a personalized classiﬁer that
+reﬂects their particular preferences. Here, the set of task s,
+U, is the number of email users (this can be very large for
+open systems such as Yahoo MailTMorGmailTM), and the
+featurespacespanstheunionofvocabulariesinmultitudesFeature Hashing for Large Scale Multitask Learning
+oflanguages.
+This paper makes four main contributions: 1. In sec-
+tion 2 we introduce specialized hash functions with unbi-
+ased inner-products that are directly applicable to a large
+variety of kernel-methods. 2. In section 3 we provide ex-
+ponential tail bounds that help explain why hashed fea-
+ture vectors have repeatedly lead to, at times surprisingly ,
+strong empirical results. 3. Also in section 3 we show that
+the interference between independently hashed subspaces
+isnegligiblewithhighprobability,whichallowslarge-sc ale
+multi-task learning in a very compressed space. 4. In sec-
+tion 5 we introducecollaborativeemail-spam ﬁltering as a
+novel application for hash representations and provide ex-
+perimentalresultsonlarge-scalereal-worldspamdataset s.
+2. Hash Functions
+Weintroduceavariantonthehashkernelproposedby(Shi
+etal.,2009). Thisschemeismodiﬁedthroughtheintroduc-
+tionofa signedsumofhashedfeatureswhereastheoriginal
+hashkernelsusean unsigned sum. Thismodiﬁcationleads
+toanunbiasedestimate,whichwe demonstrateandfurther
+utilizein thefollowingsection.
+Deﬁnition 1 Denote by ha hash function h:N→
+{1,...,m}. Moreover, denote by ξa hash function ξ:
+N→ {±1}. Then for vectors x,x′∈ℓ2we deﬁne the
+hashed feature map φand the corresponding inner product
+as
+φ(h,ξ)
+i(x) =/summationdisplay
+j:h(j)=iξ(i)xi (2)
+and/a\}bracketle{tx,x′/a\}bracketri}htφ:=/angbracketleftBig
+φ(h,ξ)(x),φ(h,ξ)(x′)/angbracketrightBig
+.(3)
+Althoughthehashfunctionsindeﬁnition1aredeﬁnedover
+the natural numbers N, in practice we often consider hash
+functionsoverarbitrarystrings. Theseareequivalent,si nce
+eachﬁnite-lengthstringcanberepresentedbyauniquenat-
+uralnumber.
+Usually, we abbreviate the notation φ(h,ξ)(·)by justφ(·).
+Twohashfunctions φandφ′aredifferentwhen φ=φ(h,ξ)
+andφ′=φ(h′,ξ′)such that either h′/\e}atio\slash=horξ/\e}atio\slash=ξ′. The
+purposeofthe binaryhash ξis to removethe biasinherent
+inthe hashkernelof(Shiet al.,2009).
+In a multi-task setting, we obtain instancesin combination
+with tasks, (x,u)∈X×U. We can naturally extend our
+deﬁnition1to hashpairs,andwill write φu(x) =φ(x,u).
+3. Analysis
+The following section is dedicated to theoretical analysis
+of hash kernels and their applications. In this sense, thepresentpapercontinueswhere(Shietal.,2009)fallsshort :
+we prove exponential tail bounds. These bounds hold for
+general hash kernels, which we later apply to show how
+hashing enables us to do large-scale multitask learning ef-
+ﬁciently. We start with a simple lemma about the bias and
+variance of the hash kernel. The proof of this lemma ap-
+pearsinappendixA.
+Lemma 2 The hash kernel is unbiased, that is
+Eφ[/a\}bracketle{tx,x′/a\}bracketri}htφ] =/a\}bracketle{tx,x′/a\}bracketri}ht. Moreover, the variance is
+σ2
+x,x′=1
+m/parenleftBig/summationtext
+i/ne}ationslash=jx2
+ix′
+j2+xix′
+ixjx′
+j/parenrightBig
+, and thus, for
+/bardblx/bardbl2=/bardblx′/bardbl2= 1,σ2
+x,x′=O/parenleftbig1
+m/parenrightbig
+.
+This suggests that typical values of the hash kernel should
+beconcentratedwithin O(1√m)ofthe targetvalue. We use
+Chebyshev’sinequalitytoshowthathalfofallobservation s
+are within a range of√
+2σ. This, together with an indirect
+application of Talagrand’s convex distance inequality via
+the result of (Liberty et al., 2008), enables us to construct
+exponentialtail bounds.
+3.1. Concentration of Measure Bounds
+Inthissubsectionweshowthatunderahashedfeature-map
+thelengthofeachvectorispreservedwithhighprobability .
+Talagrand’sinequality (Ledoux,2001)is a key tool for the
+proofofthefollowingtheorem(detailedintheappendixB).
+Theorem 3 Letǫ <1be a ﬁxed constant and xbe a given
+instance such that /bardblx/bardbl2= 1. Ifm≥72log(1/δ)/ǫ2and
+/bardblx/bardbl∞≤ǫ
+18√
+log(1/δ)log(m/δ), we have that
+Pr[|/bardblx/bardbl2
+φ−1| ≥ǫ]≤2δ. (4)
+Note that an analogousresult wouldalso holdforthe orig-
+inal hash kernel of (Shi et al., 2009), the only modiﬁca-
+tion being the associated bias terms. The above result can
+alsobeutilizedtoshowaconcentrationboundontheinner
+productbetweentwogeneralvectors xandx′.
+Corollary 4 For two vectors xandx′, let us deﬁne
+σ:= max(σx,x,σx′,x′,σx−x′,x−x′)
+η:= max/parenleftbigg/bardblx/bardbl∞
+/bardblx/bardbl2,/bardblx′/bardbl∞
+/bardblx′/bardbl2,/bardblx−x′/bardbl∞
+/bardblx−x′/bardbl2/parenrightbigg
+.
+Also let ∆ =/bardblx/bardbl2+/bardblx′/bardbl2+/bardblx−x′/bardbl2. Ifm≥
+Ω(1
+ǫ2log(1/δ))andη=O(ǫ
+log(m/δ)), then we have that
+Pr/bracketleftBig
+|/a\}bracketle{tx,x′/a\}bracketri}htφ−/a\}bracketle{tx,x′/a\}bracketri}ht|>ǫ∆/2/bracketrightBig
+<δ.
+TheproofforthiscorollarycanbefoundinappendixC. We
+can also extend the bound in Theorem 3 for the maximalFeature Hashing for Large Scale Multitask Learning
+canonical distortion over large sets of distances between
+vectorsasfollows:
+Corollary 5 Ifm≥Ω(1
+ǫ2log(n/δ))andη=
+O(ǫ
+log(m/δ)). Denote by X={x1,...,x n}a set of vectors
+which satisfy /bardblxi−xj/bardbl∞≤η/bardblxi−xj/bardbl2for all pairs i,j.
+In this case with probability 1−δwe have for all i,j
+|/bardblxi−xj/bardbl2
+φ−/bardblxi−xj/bardbl2
+2|
+/bardblxi−xj/bardbl2
+2≤ǫ.
+This means that the number of observations n(or corre-
+spondingly the size of the un-hashed kernel matrix) only
+enters logarithmically intheanalysis.
+ProofWe apply the boundof Theorem 3 to each distance
+individually. Note that each vector xi−xjsatisﬁes the
+conditionsof the theorem, and hence for each vector xi−
+xj, we preserve the distance upto a factor of (1±ǫ)with
+probability 1−δ
+n2. Taking the union bound over all pairs
+givesustheresult.
+3.2. Multiple Hashing
+Note that the tightness of the union bound in Corollary 5
+depends crucially on the magnitude of η. In other words,
+for large values of η, that is, whenever some terms in x
+are very large, even a single collision can already lead to
+signiﬁcant distortions of the embedding. This issue can
+be amended by trading off sparsity with variance. A vec-
+tor of unit length may be written as (1,0,0,0,...), or
+as/parenleftBig
+1√
+2,1√
+2,0,.../parenrightBig
+, or more generally as a vector with c
+nonzero terms of magnitude c−1
+2. This is relevant, for in-
+stance whenever the magnitudes of xfollow a known pat-
+tern, e.g. when representing documents as bags of words
+since we may simply hash frequent words several times.
+The following corollary gives an intuition as to how the
+conﬁdenceboundsscale intermsofthereplications:
+Lemma 6 If we letx′=1√c(x,...,x)then:
+1. It is norm preserving: /bardblx/bardbl2=/bardblx′/bardbl2.
+2. It reduces component magnitude by1√c=/bardblx′/bardbl∞
+/bardblx/bardbl∞.
+3. Variance increases to σ2
+x′,x′=1
+cσ2
+x,x+c−1
+c2/bardblx/bardbl4
+2.
+Applying Lemma 6 to Theorem 3, a large magnitude can
+bedecreasedat thecost ofan increasedvariance.
+3.3. Approximate Orthogonality
+Formultitasklearning,wemustlearnadifferentparameter
+vector for each related task. When mapped into the samehash-featurespace we want to ensure that there is little in-
+teractionbetweenthedifferentparametervectors. Let Ube
+asetofdifferenttasks, u∈Ubeingaspeciﬁcone. Let wbe
+acombinationoftheparametervectorsoftasksin U\{u}.
+We show that for any observation xfor tasku, the inter-
+action of wwithxin the hashed feature space is minimal.
+For each x, let the image of xunder the hash feature-map
+fortaskubedenotedas φu(x) =φ(ξ,h)((x,u)).
+Theorem 7 Letw∈Rmbe a parameter vector for tasks
+inU\ {u}. In this case the value of the inner product
+/a\}bracketle{tw,φu(x)/a\}bracketri}htis bounded by
+Pr{|/a\}bracketle{tw,φu(x)/a\}bracketri}ht|> ǫ} ≤2e−ǫ2/2
+m−1/bardblw/bardbl2
+2/bardblx/bardbl2
+2+ǫ/bardblw/bardbl∞/bardblx/bardbl∞/3
+ProofWe use Bernstein’s inequality (Bernstein, 1946),
+which states that for independent random variables Xj,
+withE[Xj] = 0,ifC >0issuchthat |Xj| ≤C, then
+Pr
+n/summationdisplay
+j=1Xj>t
+≤exp/parenleftBigg
+−t2/2/summationtextn
+j=1E/bracketleftbig
+X2
+j/bracketrightbig
++Ct/3/parenrightBigg
+.(5)
+We havetocomputetheconcentrationpropertyof
+/a\}bracketle{tw,φu(x)/a\}bracketri}ht=/summationtext
+jxjξ(j)wh(j). LetXj=xjξ(j)wh(j).
+By the deﬁnition of handξ,Xjare independent. Also,
+for eachj, sincewdependsonlyon the hash-functionsfor
+U\ {u},wh(j)is independent of ξ(j). Thus,E[Xj] =
+E(ξ,h)/bracketleftbig
+xjξ(j)wh(j)/bracketrightbig
+= 0. Foreach j,wealsohave |Xj|<
+/bardblx/bardbl∞/bardblw/bardbl∞=:C. Finally,/summationtext
+jE[X2
+j]isgivenby
+E
+/summationdisplay
+j(xjξ(j)wh(j))2
+=1
+m/summationdisplay
+j,ℓx2
+jw2
+ℓ=1
+m/bardblx/bardbl2
+2/bardblw/bardbl2
+2
+The claim follows by plugging both terms and Cinto the
+Bernsteininequality(5).
+Theorem7boundstheinﬂuenceofunrelatedtaskswithany
+particular instance. In section 5 we demonstrate the real-
+world applicability with empirical results on a large-scal e
+multi-tasklearningproblem.
+4. Applications
+The advantage of feature hashing is that it allows for sig-
+niﬁcantstoragecompressionforparametervectors: storin g
+win the raw featurespace naivelyrequires O(d)numbers,
+whenw∈Rd. By hashing, we are able to reduce this to
+O(m)numberswhile avoiding costly matrix-vectormulti-
+plications common in Locally Sensitive Hashing. In addi-
+tion,thesparsityoftheresultingvectorispreserved.Feature Hashing for Large Scale Multitask Learning
+The beneﬁts of the hashing-trick leads to applications in
+almost all areas of machine learning and beyond. In par-
+ticular, feature hashing is extremelyuseful wheneverlarg e
+numbersofparameterswithredundanciesneedtobestored
+withinboundedmemorycapacity.
+Personalization One powerful application of feature
+hashing is found in multitask learning. Theorem 7 allows
+us to hash multiple classiﬁers for different tasks into one
+feature space with little interaction. To illustrate, we ex -
+plorethissettinginthecontextofspam-classiﬁerpersona l-
+ization.
+Suppose we have thousands of users Uand want to per-
+form related but not identical classiﬁcation tasks for each
+ofthe them. Usersprovidelabeleddatabymarkingemails
+asspamornot-spam. Ideally, for each user u∈U, we
+want to learn a predictor wubased on the data of that user
+solely. However, webmail users are notoriously lazy in la-
+beling emails and even those that do not contribute to the
+training data expect a working spam ﬁlter. Therefore, we
+alsoneedtolearnanadditionalglobalpredictor w0toallow
+datasharingamongstall users.
+Storing all predictors wirequiresO(d×(|U|+1))mem-
+ory. In a task like collaborative spam-ﬁltering, |U|, the
+number of users can be in the hundreds of thousands and
+the size of the vocabulary is usually in the order of mil-
+lions. The naive way of dealing with this is to elimi-
+nate all infrequent tokens. However, spammers target this
+memory-vulnerability by maliciously misspelling words
+and thereby creating highly infrequent but spam-typical
+tokens that “fall under the radar” of conventional classi-
+ﬁers. Instead, if all words are hashed into a ﬁnite-sized
+feature vector, infrequent but class-indicative tokens ge t a
+chanceto contributetothe classiﬁcationoutcome. Further ,
+large scale spam-ﬁlters (e.g. Yahoo MailTMorGMailTM)
+typically have severe memory and time constraints, since
+they have to handle billions of emails per day. To guaran-
+tee a ﬁnite-size memory footprint we hash all weight vec-
+torsw0,...,w |U|into a joint,signiﬁcantlysmaller, feature
+spaceRmwith different hash functions φ0,...,φ |U|. The
+resultinghashed-weightvector wh∈Rmcanthenbewrit-
+tenas:
+wh=φ0(w0)+/summationdisplay
+u∈Uφu(wu). (6)
+Note that in practice the weight vector whcan be learned
+directly in the hashed space. All un-hashedweightvectors
+never need to be computed. Given a new document/email
+xofuseru∈U, thepredictiontask nowconsistsofcalcu-
+lating/a\}bracketle{tφ0(x)+φu(x),wh/a\}bracketri}ht. Due to hashing we have two
+sources of error – distortion ǫdof the hashed inner prod-
+ucts and the interferencewith other hashed weight vectorsǫi. Moreprecisely:
+/a\}bracketle{tφ0(x)+φu(x),wh/a\}bracketri}ht=/a\}bracketle{tx,w0+wu/a\}bracketri}ht+ǫd+ǫi.(7)
+The interference error consists of all collisions between
+φ0(x)orφu(x)withhashfunctionsofotherusers,
+ǫi=/summationdisplay
+v∈U,v/ne}ationslash=0/a\}bracketle{tφ0(x),φv(wv)/a\}bracketri}ht+/summationdisplay
+v∈U,v/ne}ationslash=u/a\}bracketle{tφu(x),φv(wv)/a\}bracketri}ht.(8)
+To show that ǫiis small with high probability we can
+apply Theorem 7 twice, once for each term of (8).
+We consider each user’s classiﬁcation to be a separate
+task, and since/summationtext
+v∈U,v/ne}ationslash=0wvis independent of the hash-
+functionφ0, the conditions of Theorem 7 apply with w=/summationtext
+v/ne}ationslash=0wvand we can employit to boundthe second term,/summationtext
+v∈U,v/ne}ationslash=0/a\}bracketle{tφu(x),φu(wv)/a\}bracketri}ht. The second application is
+identical except that all subscripts “0” are substituted wi th
+“u”. Forlackofspacewedonotderivetheexactbounds.
+Thedistortionerroroccursbecauseeachhashfunctionthat
+isutilizedbyuser ucanself-collide:
+ǫd=/summationdisplay
+v∈{u,0}|/a\}bracketle{tφv(x),φv(wv)/a\}bracketri}ht−/a\}bracketle{tx,wv/a\}bracketri}ht|.(9)
+To show that ǫdis small with high probability, we apply
+Corollary4onceforeachpossiblevaluesof v.
+In section 5 we show experimental results for this set-
+ting. Theempiricalresultsarestrongerthanthe theoretic al
+bounds derived in this subsection—our technique outper-
+forms a single global classiﬁer on hundreds thousands of
+users. We discussanintuitiveexplanationin section5.
+Massively Multiclass Estimation We can also regard
+massivelymulti-classclassiﬁcationasamultitaskproble m,
+and apply feature hashing in a way similar to the person-
+alization setting. Instead of using a different hash func-
+tionforeachuser,weuseadifferenthashfunctionforeach
+class.
+(Shi et al., 2009) apply feature hashing to problems with
+a high number of categories. They show empirically that
+jointhashingofthefeaturevector φ(x,y)canbeefﬁciently
+achieved for problems with millions of features and thou-
+sandsofclasses.
+Collaborative Filtering Assumethatwearegivenavery
+large sparse matrix Mwhere the entry Mijindicates what
+action user itook on instance j. A common example for
+actions and instances is user-ratings of movies (Bennett &
+Lanning, ). A successful method for ﬁnding common fac-
+torsamongstusersandinstancesforpredictingunobserved
+actions is to factorize MintoM=U⊤W. If we have
+millionsofusersperformingmillionsof actions,storing UFeature Hashing for Large Scale Multitask Learning
+Figure 1. The hashed personalization summarized in a schematic
+layout. Each token is duplicated and one copy is individuali zed
+(e.g. by concatenating each word with a unique user identiﬁe r).
+Then, the global hash function maps all tokens into a low dime n-
+sional feature space where the document is classiﬁed.
+andWinmemoryquicklybecomesinfeasible. Instead,we
+maychoosetocompressthematrices UandWusinghash-
+ing. ForU,W∈Rn×ddenoteby u,w∈Rmvectorswith
+ui=/summationdisplay
+j,k:h(j,k)=iξ(j,k)Ujkandwi=/summationdisplay
+j,k:h′(j,k)=iξ′(j,k)Wjk.
+where(h,ξ)and(h′,ξ′)are independently chosen hash
+functions. This allows us to approximate matrix elements
+Mij= [U⊤W]ijvia
+Mφ
+ij:=/summationdisplay
+kξ(k,i)ξ′(k,j)uh(k,i)wh′(k,j).
+This gives a compressed vector representation of Mthat
+canbeefﬁcientlystored.
+5. Results
+We evaluated our algorithm in the setting of personaliza-
+tion. As data set, we used a proprietary email spam-
+classiﬁcation task of n= 3.2million emails, properly
+anonymized, collected from |U|= 433167 users. Each
+emailislabeledas spamornot-spam byoneuserin U. Af-
+ter tokenization, the data set consists of 40million unique
+words.
+Forallexperimentsinthispaper,weusedtheVowpalWab-
+bit implementation1of stochastic gradient descent on a
+square-loss. In the mail-spam literature the misclassiﬁca -
+tion of not-spam is considered to be much more harmful
+than misclassiﬁcation of spam. We therefore follow the
+convention to set the classiﬁcation threshold during test
+time such that exactly 1%of thenot−spamtest data is
+classiﬁedas spamOurimplementationofthepersonalized
+hashfunctionsisillustratedinFigure1. Toobtainaperson -
+alizedhashfunction φuforuseru,weconcatenateaunique
+user-id to each word in the email and then hash the newly
+generatedtokenswith thesameglobalhashfunction.
+1http://hunch.net/ ∼vw/Figure 2. The decrease of uncaught spam over the baseline clas-
+siﬁer averaged over all users. The classiﬁcation threshold was
+chosen to keep the not-spam misclassiﬁcation ﬁxed at 1%.
+The hashed global classiﬁer ( global-hashed ) converges relatively
+soon, showing thatthedistortionerror ǫdvanishes. Thepersonal-
+izedclassiﬁerresults inanaverage improvement ofup to 30%.
+The data set was collected over a span of 14 days. We
+usedtheﬁrst10daysfortrainingandtheremaining4days
+fortesting. As baseline,we chose the purelyglobalclassi-
+ﬁer trained over all users and hashed into 226dimensional
+space. As 226farexceedsthetotalnumberofuniquewords
+wecanregardthebaselinetoberepresentativefortheclas-
+siﬁcation without hashing. All results are reported as the
+amount of spam that passed the ﬁlter undetected, relative
+to thisbaseline(eg. a valueof 0.80indicatesa 20%reduc-
+tioninspamfortheuser)2.
+Figure2 displaysthe averageamountofspam in users’ in-
+boxesas a functionof the numberof hash keys m, relative
+to the baseline above. In addition to the baseline, we eval-
+uatetwo differentsettings.
+The global-hashed curve represents the relative
+spam catch-rate of the global classiﬁer after hashing
+/a\}bracketle{tφ0(w0),φ0(x)/a\}bracketri}ht. Atm= 226this is identical to the
+baseline. Early convergence at m= 222suggests that at
+this point hash collisions have no impact on the classiﬁ-
+cation error and the baselineis indeed equivalent to that
+obtainablewithouthashing.
+In the personalized setting each user u∈Ugets her own
+classiﬁer φu(wu)as well as the global classiﬁer φ0(w0).
+Without hashing the feature space explodes, as the cross
+product of u= 400Kusers and n= 40Mtokens results
+in16trillion possible unique personalized features. Fig-
+ure 2 shows that despite aggressive hashing, personaliza-
+tionresults ina 30%spam reductiononcethehash table is
+indexedby 22bits.
+2As part of our data sharing agreement, we agreed not to in-
+clude absolute classiﬁcationerror-rates.Feature Hashing for Large Scale Multitask Learning
+Figure 3. Results for users clustered by training emails. For ex-
+ample, the bucket [8,15]consists of all users witheight toﬁfteen
+training emails. Although users in buckets withlarge amoun ts of
+trainingdatadobeneﬁtmorefromthepersonalizedclassiﬁe r(up-
+to65%reduction in spam), even users that did not contribute to
+the trainingcorpus at allobtain almost 20%spam-reduction.
+User clustering One hypothesis for the strong results in
+Figure2mightoriginatefromthenon-uniformdistribution
+ofuservotes—itispossiblethatusingpersonalizationand
+feature hashing we beneﬁt a small number of users who
+have labeled many emails, degrading the performance of
+mostusers(whohavelabeledfewornoemails) inthe pro-
+cess. In fact, in real life, a large fraction of email users do
+notcontributeatall tothetrainingcorpusandonlyinterac t
+with the classiﬁer during test time. The personalized ver-
+sion of the test email Φu(xu)is then hashed into buckets
+of other tokens and only adds interference noise ǫito the
+classiﬁcation.
+In orderto show that we improvethe performanceof most
+users, it is therefore important that we not only report av-
+eraged results over all emails, but explicitly examine the
+effects of the personalized classiﬁer for users depending
+on their contribution to the training set. To this end, we
+place users into exponentially growing buckets based on
+their number of training emails and compute the relative
+reduction of uncaught spam for each bucket individually.
+Figure3showstheresultsonaper-bucketbasis. Wedonot
+compare against a purelylocal approach, with no global
+component,sinceforalargefractionofusers—thosewith-
+out training data—this approach cannot outperform ran-
+domguessing.
+It might appear rather surprising that users in the bucket
+with none or very little training emails (the line of bucket
+[0]is identical to bucket [1]) also beneﬁt from personal-
+ization. After all, their personalized classiﬁer was never
+trained and can only add noise at test-time. The classiﬁer
+improvement of this bucket can be explained by the sub-
+jective deﬁnition of spamandnot-spam. In the personal-
+ized setting the individual component of user labeling is
+absorbed by the local classiﬁers and the global classiﬁerrepresents the common deﬁnition of spam and not-spam.
+In other words, the global part of the personalized classi-
+ﬁer obtains better generalization properties, beneﬁting a ll
+users.
+6. Related Work
+Anumberofresearchershavetackledrelated,albeitdiffer -
+entproblems.
+(Rahimi & Recht, 2008) useBochner’stheoremandsam-
+pling to obtain approximate inner products for Radial Ba-
+sis Function kernels. (Rahimi & Recht, 2009) extend this
+to sparse approximation of weighted combinations of ba-
+sis functions. This is computationally efﬁcient for many
+functionspaces. Notethattherepresentationis dense.
+(Li et al., 2007) takeacomplementaryapproach: forsparse
+featurevectors, φ(x), theydeviseaschemeofreducingthe
+numberofnonzerotermsevenfurther. Whilethisisinprin-
+cipledesirable,it doesnot resolvethe problemof φ(x)be-
+ing high dimensional. More succinctly, it is necessary to
+express the function in the dual representation rather than
+expressing fasalinearfunction,where wisunlikelytobe
+compactlyrepresented: f(x) =/a\}bracketle{tφ(x),w/a\}bracketri}ht.
+(Achlioptas, 2003) providescomputationallyefﬁcientran-
+domization schemes for dimensionality reduction. Instead
+ofperformingadense d·mdimensionalmatrixvectormul-
+tiplication to reduce the dimensionality for a vector of di-
+mensionality dto one of dimensionality m, as is required
+bythealgorithmof(Gionisetal.,1999),heonlyrequires1
+3
+of that computation by designing a matrix consisting only
+of entries {−1,0,1}. Pioneered by (Ailon & Chazelle,
+2006), there has been a line of work (Ailon & Liberty,
+2008; Matousek, 2008) on improving the complexity of
+random projection by using various code-matrices in or-
+dertopreprocesstheinputvectors. Someofourtheoretical
+boundsarederivablefromthat of (Liberty et al., 2008) .
+A related construction is the CountMin sketch of (Cor-
+mode & Muthukrishnan, 2004) which stores counts in
+a number of replicates of a hash table. This leads to good
+concentrationinequalitiesforrangeandpointqueries.
+(Shi et al., 2009) proposea hashkerneltodealwith theis-
+sueofcomputationalefﬁciencybyaverysimplealgorithm:
+high-dimensionalvectors are compressed by adding up all
+coordinates which have the same hash value — one only
+needstoperformasmanycalculationsastherearenonzero
+termsinthevector. Thisisasigniﬁcantcomputationalsav-
+ing overlocality sensitive hashing (Achlioptas,2003; Gio -
+nisetal., 1999).
+Severaladditionalworksprovidemotivationfortheinvest i-
+gationof hashingrepresentations. For example, (Ganchev
+& Dredze, 2008) provideempiricalevidencethatthehash-Feature Hashing for Large Scale Multitask Learning
+ing trick can be used to effectively reduce the memory
+footprinton manysparse learningproblemsby an orderof
+magnitude via removal of the dictionary. Our experimen-
+tal results validate this, and show that much more radical
+compressionlevels are achievable. In addition, (Langford
+et al., 2007) released the Vowpal Wabbit fast online learn-
+ing software which uses a hash representation similar to
+thatdiscussedhere.
+7. Conclusion
+Inthispaperweanalyzethehashing-trickfordimensional-
+ity reduction theoretically and empirically. As part of our
+theoretical analysis we introduce unbiased hash functions
+andprovideexponentialtailboundsforhashkernels. These
+givefurtherinside intohash-spacesandexplainpreviousl y
+made empirical observations. We also derive that random
+subspaces of the hashed space are likely to not interact,
+whichmakesmultitasklearningwith manytaskspossible.
+Our empirical results validate this on a real-world applica -
+tion within the context of spam ﬁltering. Here we demon-
+strate that even with a very large number of tasks and
+features, all mapped into a joint lower dimensional hash-
+space,onecan obtainimpressiveclassiﬁcation resultswit h
+ﬁnitememoryguarantee.
+References
+Achlioptas, D. (2003). Database-friendly random projec-
+tions: Johnson-lindenstrausswith binary coins. Journal
+of Computer and System Sciences ,66,671–687.
+Ailon, N., & Chazelle, B. (2006). Approximate nearest
+neighborsandthefastJohnson-Lindenstrausstransform.
+Proc. 38th Annual ACM Symposium on Theory of Com-
+puting(pp.557–563).
+Ailon, N., & Liberty, E. (2008). Fast dimension reduction
+usingRademacherseriesondualBCHcodes. Proc. 19th
+Annual ACM-SIAM Symposium on Discrete algorithms
+(pp.1–9).
+Alon, N. (2003). Problems and results in extremal combi-
+natorics,Part I. Discrete Math ,273,31–53.
+Bennett, J., & Lanning, S. The Netﬂix Prize. Proceedings
+of KDD Cup and Workshop 2007 .
+Bernstein,S.(1946). The theory of probabilities . Moscow:
+GastehizdatPublishingHouse.
+Cormode, G., & Muthukrishnan,M. (2004). An improved
+data stream summary: The count-minsketch and its ap-
+plications. LATIN: Latin American Symposium on The-
+oretical Informatics .Dasgupta, A., Sarlos, T., & Kumar, R. (2010). A Sparse
+JohnsonLindenstraussTransform. Submitted .
+Ganchev,K., & Dredze, M. (2008). Small statistical mod-
+elsbyrandomfeaturemixing. Workshop on Mobile Lan-
+guage Processing, Annual Meeting of the Association for
+Computational Linguistics .
+Gionis, A., Indyk, P., & Motwani, R. (1999). Similarity
+search in high dimensions via hashing. Proceedings of
+the 25th VLDB Conference (pp. 518–529). Edinburgh,
+Scotland: MorganKaufmann.
+Langford, J., Li, L., & Strehl, A. (2007). Vow-
+pal wabbit online learning project (Technical Report).
+http://hunch.net/?p=309 .
+Ledoux, M. (2001). The concentration of measure phe-
+nomenon. Providence,RI: AMS.
+Li,P.,Church,K.,&Hastie,T.(2007).Conditionalrandom
+sampling: Asketch-basedsamplingtechniqueforsparse
+data. In B. Sch¨ olkopf, J. Platt and T. Hoffman (Eds.),
+Advances in neural information processing systems 19 ,
+873–880.Cambridge,MA:MITPress.
+Liberty,E.,Ailon,N.,&Singer,A.(2008). Densefastran-
+dom projectionsand lean Walsh transforms. Proc. 12th
+International Workshop on Randomization and Approxi-
+mation Techniques in Computer Science (pp.512–522).
+Matousek, J. (2008). On variants of the Johnson–
+Lindenstrauss lemma. Random Structures and Algo-
+rithms,33,142–156.
+Rahimi,A.,&Recht,B.(2008).Randomfeaturesforlarge-
+scale kernel machines. In J. Platt, D. Koller, Y. Singer
+and S. Roweis (Eds.), Advances in neural information
+processing systems 20 .Cambridge,MA: MITPress.
+Rahimi, A., & Recht, B. (2009). Randomized kitchen
+sinks. In L. Bottou, Y. Bengio, D. Schuurmans and
+D. Koller (Eds.), Advances in neural information pro-
+cessing systems 21 .Cambridge,MA:MITPress.
+Shi, Q., Petterson, J., Dror, G., Langford, J., Smola, A.,
+Strehl, A., & Vishwanathan, V. (2009). Hash kernels.
+AISTATS 12 .
+Weinberger, K., Dasgupta, A., Attenberg, J., Langford, J.,
+&Smola,A.(2009).Featurehashingforlargescalemul-
+titask learning. 26th International Conference on Ma-
+chine Learning (p.140).Feature Hashing for Large Scale Multitask Learning
+A. Mean and Variance
+Proof[Lemma2]To computetheexpectationweexpand
+/a\}bracketle{tx,x′/a\}bracketri}htφ=/summationdisplay
+i,jξ(i)ξ(j)xix′
+jδh(i),h(j).(10)
+SinceEφ[/a\}bracketle{tx,x′/a\}bracketri}htφ] =Eh[Eξ[/a\}bracketle{tx,x′/a\}bracketri}htφ]], taking expecta-
+tionsover ξwe see that onlythe terms i=jhave nonzero
+value, which shows the ﬁrst claim. For the variance we
+computeEφ[/a\}bracketle{tx,x′/a\}bracketri}ht2
+φ]. Expandingthis, weget:
+/a\}bracketle{tx,x′/a\}bracketri}ht2
+φ=/summationdisplay
+i,j,k,lξ(i)ξ(j)ξ(k)ξ(l)xix′
+jxkx′
+lδh(i),h(j)δh(k),h(l).
+Thisexpressioncanbesimpliﬁedbynotingthat:
+Eξ[ξ(i)ξ(j)ξ(k)ξ(l)] =δijδkl+[1−δijkl](δikδjl+δilδjk).
+Passingtheexpectationover ξthroughthesum,thisallows
+us to break down the expansion of the variance into two
+terms.
+Eφ[/a\}bracketle{tx,x′/a\}bracketri}ht2
+φ] =/summationdisplay
+i,kxix′
+ixkx′
+k+/summationdisplay
+i/ne}ationslash=jx2
+ix′
+j2Eh/bracketleftbig
+δh(i),h(j)/bracketrightbig
++/summationdisplay
+i/ne}ationslash=jxix′
+ixjx′
+jEh/bracketleftbig
+δh(i),h(j)/bracketrightbig
+=/a\}bracketle{tx,x′/a\}bracketri}ht2+1
+m
+/summationdisplay
+i/ne}ationslash=jx2
+ix′
+j2+/summationdisplay
+i/ne}ationslash=jxix′
+ixjx′
+j
+
+bynotingthat Eh/bracketleftbig
+δh(i),h(j)/bracketrightbig
+=1
+mfori/\e}atio\slash=j. Usingthefact
+thatσ2=Eφ[/a\}bracketle{tx,x′/a\}bracketri}ht2
+φ]−Eφ[/a\}bracketle{tx,x′/a\}bracketri}htφ]2provestheclaim.
+B. Concentration of Measure
+We use the concentration result derived by Liberty, Ailon
+and Singer in (Liberty et al., 2008). Liberty et al. cre-
+ate a Johnson-Lindenstrauss random projection matrix by
+combining a carefully constructed deterministic matrix A
+with random diagonal matrices. For completeness we
+restate the relevant lemma. Let irange over the hash-
+buckets. Let m=clog(1/δ)/ǫ2for a large enough con-
+stantc. For a given vector x, deﬁne the diagonal matrix
+Dxas(Dx)jj=xj. For any matrix A∈ ℜm×d, deﬁne
+/bardblx/bardblA≡maxy:/bardbly/bardbl2=1/bardblADxy/bardbl2.
+Lemma 2 (Liberty et al., 2008). For any column-
+normalized matrix A, vectorxwith/bardblx/bardbl2= 1 and an
+i.i.d. random ±1diagonal matrix Ds, the following holds:
+∀x,if/bardblx/bardblA≤ǫ
+6√
+log(1/δ)then,Pr[|/bardblADsx/bardbl2−1|> ǫ]≤
+δ.
+We also need the following form of a weighted balls and
+bins inequality – the statement of the Lemma, as well asthe prooffollowsthat of Lemma6 (Dasguptaet al., 2010).
+Westilloutlinetheproofbecauseofsomeparametervalues
+beingdifferent.
+Lemma 8 Letmbe the size of the hash function range and
+letη=1
+2√
+mlog(m/δ). Ifxis such that /bardblx/bardbl2= 1 and
+/bardblx/bardbl∞≤η, then deﬁne σ2
+∗= max i/summationtextd
+j=1x2
+jδih(j)wherei
+ranges over all hash-buckets. We have that with probability
+1−δ,
+σ2
+∗≤2
+m
+ProofWe outline the proof-steps. Since the buck-
+ets have identical distribution, we look only at the 1st
+bucket, i.e. at i= 1and bound/summationtext
+j:h(j)=1x2
+j. De-
+ﬁneXj=x2
+j/parenleftbig
+δ1h(j)−1
+m/parenrightbig
+. Then Eh[Xj] = 0and
+Eh[X2
+j] =x4
+j/parenleftbig1
+m−1
+m2/parenrightbig
+≤x4
+j
+m≤x2
+jη2
+musing/bardblx/bardbl∞≤
+η. Thus,/summationtext
+jEh[X2
+j]≤η2
+m. Also note that/summationtext
+jXj=/summationtext
+j:h(j)=1x2
+j−1
+m. Plugging this into the Bernstein’s in-
+equality,equation5,we havethat
+Pr[/summationdisplay
+jXj>1
+m]≤exp/parenleftbigg
+−1/2m2
+η2/m+η2/3m/parenrightbigg
+= exp(−3
+8mη2)≤exp(−log(m/δ))≤δ/m
+By taking union bound over all the mbuckets, we get the
+aboveresult.
+Proof[Theorem 3] Given the function φ= (h,r), deﬁne
+the matrix AasAij=δih(j)andDsas(Ds)jj=rj. Let
+xbe as speciﬁed, i.e. /bardblx/bardbl2= 1and/bardblx/bardbl∞≤η. Note that
+/bardblx/bardblφ=/bardblADsx/bardbl2. Lety∈ ℜdbe such that /bardbly/bardbl2= 1.
+Thus
+/bardblADxy/bardbl2
+2=m/summationdisplay
+i=1
+d/summationdisplay
+j=1yjδih(j)xj
+2
+≤m/summationdisplay
+i=1(d/summationdisplay
+j=1y2
+jδih(j))(d/summationdisplay
+j=1x2
+jδih(j))
+≤m/summationdisplay
+i=1(d/summationdisplay
+j=1y2
+jδih(j))σ2
+∗≤σ2
+∗.
+byapplyingtheCauchy-Schwartzinequality,andusingthe
+deﬁnitionof σ∗. Thus,/bardblx/bardblA= max y:/bardbly/bardbl2=1/bardblADxy/bardbl2≤
+σ∗≤√
+2m−1/2. Ifm≥72
+ǫ2log(1/δ), we have that
+/bardblx/bardblA≤ǫ
+6√
+log(1/δ), which satisﬁes the conditions of
+Lemma 2 from (Liberty et al., 2008). Thus applying the
+aboveresult fromLemma2 (Libertyet al., 2008)to x, andFeature Hashing for Large Scale Multitask Learning
+usingLemma8,we havethat Pr[|/bardblADsx/bardbl2−1| ≥ǫ]≤δ
+andhence
+Pr[|/bardblx/bardbl2
+φ−1| ≥ǫ]≤δ
+by taking union overthe two errorprobabilitiesof Lemma
+2andLemma8,we havethe result.
+C. Inner Product
+Proof[Corollary 4] We have that 2/a\}bracketle{tx,x′/a\}bracketri}htφ=/bardblx/bardbl2
+φ+
+/bardblx′/bardbl2
+φ−/bardblx−x′/bardbl2
+φ. Takingexpectations,wehavethestan-
+dardinnerproductinequality. Thus,
+|2/a\}bracketle{tx,x′/a\}bracketri}htφ−2/a\}bracketle{tx,x′/a\}bracketri}ht| ≤ |/bardblx/bardbl2
+φ−/bardblx/bardbl2|
++|/bardblx′/bardbl2
+φ−/bardblx′/bardbl2|+|/bardblx−x′/bardbl2
+φ−/bardblx−x′/bardbl2|
+Using union bound, with probability 1−3δ, each of the
+terms above is bounded using Theorem 3. Thus, putting
+theboundstogether,we havethat,with probability 1−3δ,
+|2/a\}bracketle{tφu(x),φu(x)/a\}bracketri}ht−2/a\}bracketle{tx,x/a\}bracketri}ht| ≤ǫ(/bardblx/bardbl2+/bardblx′/bardbl2+/bardblx−x′/bardbl2)
+D. Refutation of the Previous Incorrect Proof
+There were a few bugs in the previous version of the pa-
+per (Weinbergeret al., 2009). We now detail each of them
+andillustratewhyit wasanerror. Thecurrentresult shows
+that the using hashing we can create a projection matrix
+thatcanpreservedistancestoafactorof (1±ǫ)forvectors
+with a bounded /bardblx/bardbl∞//bardblx/bardbl2ratio. The constraint on input
+vectors can be circumvented by multiple hashing, as out-
+lined in Section 3.2, but that would require hashing O(1
+ǫ2)
+times. Recent work (Dasgupta et al., 2010) suggests that
+better theoretical bounds can be shown for this construc-
+tion. We thank Tamas Sarlos and Ravi Kumar for the fol-
+lowing writeup on the errors and for suggestion the new
+proofinAppendixB.
+1. The statement of the main theorem in Weinberger et
+al. (Weinberger et al., 2009, Theorem 3) is false as
+it contradicts the lower bound of Alon (Alon, 2003).
+Theﬂawliesintheprobabilityoferrorin(Weinberger
+et al., 2009, Theorem 3), which was claimed to be
+exp(−√ǫ
+4η). This error can be made arbitrarily small
+without increasing the embedding dimensionality m
+but by decreasing η=||x||∞
+||x||2, which in turn can be
+achieved by preprocessing the input vectors x. How-
+ever, this contradicts Alon’s lower bound on the em-bedding dimensionality. The details of this contra-
+diction are best presented through (Weinberger et al.,
+2009,Corollary5)asfollows.
+Setm= 128andδ= 1/2and consider the ver-
+ticesofthe n-simplexin ℜn+1,i.e.,x1= (1,0,...,0),
+x2= (0,1,0,...,0), .... Let P∈ ℜ(n+1)c×(n+1)
+be the naive, replication based preconditioner, with
+replication parameter c= 512log2nas deﬁned in
+Section 2 of our submission or (Weinberger et al.,
+2009, Section 3.2). Therefore for all pairs i/\e}atio\slash=j
+we have that ||Pxi−Pxj||∞= 1/√cand that
+||Pxi−Pxj||2=√
+2. Hence we can apply (Wein-
+berger et al., 2009, Corollary 5) to the set of vec-
+torsPxiwithη= 1/√
+2c= 1/(32logn); then the
+claimedapproximationerroris/radicalBig
+2
+m+64η2log2n
+2δ=
+1
+8+1
+16≤1
+4. IfCorollary5weretrue,thenitwouldfol-
+lowthat withprobabilityatleast 1/2,thelineartrans-
+formation A=φ·P:ℜn+1→ ℜmdistortsthe pair-
+wise distances of the above n+ 1vectors by at most
+a1±1/4multiplicative factor. On the other hand,
+thelowerboundofAlonshowsthatanysuchtransfor-
+mationAmust map to Ω(logn)dimensions; see the
+remarks following Theorem 9.3 in (Alon, 2003) and
+setǫ= 1/4there. This clearly contradicts m= 128
+above.
+2. The proof of the Theorem 3 contained a fatal, un-
+ﬁxable error. Recall that δijdenotes the usual Kro-
+neckersymbol,and handh′arehashfunctions. Wein-
+berger et al. make the following observation after
+equation (13) of their proof on page 8 in Appendix
+B.
+“First note that/summationtext
+i/summationtext
+jδh(j)i+δh′(j)iis at
+most2t,wheret=|{j:h(j)/\e}atio\slash=h′(j)}|.”
+The quoted observation is false. Let ddenote the di-
+mensionoftheinput. Then,/summationtext
+i/summationtext
+jδh(j)i+δh′(j)i=/summationtext
+j(/summationtext
+iδh(j)i+δh′(j)i) =/summationtext
+j2 = 2d, independent
+of the choice of the hash function. Note that tplayed
+a crucialrolein theproofof(Weinbergeret al.,2009)
+relating the Euclidean approximation error of the di-
+mensionalityreductiontoTalagrand’sconvexdistance
+deﬁnedoverthesetofhashfunctions. Albeittheerror
+is elementary, we do not see how to rectify its conse-
+quencesin (Weinbergeret al., 2009)evenif the claim
+wereoftherightform.
+3. The proof of Theorem 3 in (Weinberger et al., 2009)
+also contains a minor and ﬁxable error. To see this,
+consider the sentence towards the end of the proof
+Theorem 3 in (Weinberger et al., 2009) where 0<
+ǫ <1andβ=β(x)≥1.
+“Noting that s2= (/radicalbig
+β2+ǫ−
+β)/4||x||∞≥√ǫ/4||x||∞, ...”Feature Hashing for Large Scale Multitask Learning
+Heretheauthorswronglyassumethat/radicalbig
+β2+ǫ−β≥√ǫholds, whereas the truth is/radicalbig
+β2+ǫ−β≤√ǫ
+always.
+Observethat this glitch is easy to ﬁx locally, however
+this change is minor and the modiﬁed claim would
+still be false. Since for all 0≤y≤1we have
+that√1+y≥1 +y/3, fromβ≥1it follows
+that/radicalbig
+β2+ǫ−β≥ǫ/3. Plugging the latter esti-
+mate into the “proof” of Theorem 3 would result in a
+modiﬁedclaimwheretheoriginalprobabilityoferror,
+exp(−√ǫ
+4η), is replaced with exp(−ǫ
+12η). Updating
+the numeric constants in the ﬁrst section of this note
+wouldshowthatthenewclaimstillcontradictsAlon’s
+lower bound. To justify observethat counterexample
+isbasedonaconstant ǫandthemodiﬁedclaimwould
+stilllackthenecessary Ω(logn)dependencyinitstar-
+getdimensionality.

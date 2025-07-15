@@ -1,0 +1,483 @@
+Domain Adaptation with Multiple Sources
+
+YishayMansour
+G
+oogleResearchand
+Tel AvivUniv.
+mansour@tau.ac.ilMehryarMohri
+CourantInstituteand
+GoogleResearch
+mohri@cims.nyu.eduAfshin Rostamizadeh
+CourantInstitute
+NewYorkUniversity
+rostami@cs.nyu.edu
+Abstract
+This paper presents a theoretical analysis of the problem of domain adaptation
+with multiple sources. For each source domain, the distribution over the input
+points as well as a hypothesis with error at most ǫare given. The problem con-
+sists of combining these hypotheses to derive a hypothesis with small error with
+respect to the target domain. We present several theoretical results relating to
+this problem. In particular, we prove that standard convex combinations of the
+sourcehypothesesmayinfactperformverypoorlyandthat,instead,combinations
+weightedbythesourcedistributionsbeneﬁtfromfavorabletheoreticalguarantees.
+Our mainresult showsthat, remarkably,for anyﬁxedtargetfunction,thereexists
+a distributionweightedcombiningrulethat hasa lossof at most ǫwith respect to
+anytarget mixture of the source distributions. We further generalize the setting
+from a single target function to multiple consistent target functionsand show the
+existence of a combining rule with error at most 3ǫ. Finally, we report empirical
+resultsfora multiplesourceadaptationproblemwitha real-worlddataset.
+1 Introduction
+A common assumption in theoretical models of learning such as the standard PAC model [16], as
+well as in the design of learning algorithms, is that training instances are drawn according to the
+samedistributionastheunseentestexamples. Inpractice,however,therearemanycaseswherethis
+assumptiondoesnothold. Therecanbenohopeforgeneralization,ofcourse,whenthetrainingand
+test distributionsvastlydiffer,butwhentheyareless dissimilar,learningcanbemoresuccessful.
+A typical situation is that of domain adaptation where little or no labeled data is at one’s disposal
+forthetarget domain ,but largeamountsoflabeled datafroma source domain somewhatsimilar to
+the target, or hypotheses derived from that source, are available instead. This problem arises in a
+varietyof applicationsin natural languageprocessing[4,7,10],speech processing[8,9,11,13–15],
+computervision[12],andmanyotherareas.
+Thispaperstudiestheproblemofdomainadaptationwithmultiplesources,whichhasalsoreceived
+considerable attention in many areas such as natural language processing and speech processing.
+An example is the problem of sentiment analysis which consists of classifying a text sample such
+as a movie review, restaurantrating, or discussion boards, or other web pages. Informationabout a
+relativelysmallnumberofdomainssuchas moviesorbooksmaybeavailable,butlittle ornonecan
+befoundformoredifﬁcultdomainssuchas travel.
+We will consider the following problem of multiple source adaptation. For each source i∈[1, k],
+the learner receives the distribution Diof the input points corresponding to that source as well
+as a hypothesis hiwith loss at most ǫon that source. The learner’s task consists of combining
+thekhypotheses hi,i∈[1, k], to derive a hypothesis hwith small loss with respect to the target
+distribution. The target distribution is assumed to be a mixture of the distributions Di. We will
+discuss both the case where the mixture is known to the learner and the case where it is unknown.
+1Note that the distribution Dii s deﬁned over the input points and bears no information about the
+labels. In practice, Diis estimated from largeamountsof unlabeledpointstypically available from
+source i.
+An alternative set-up for domain adaptation with multiple sources is one where the learner is not
+supplied with a good hypothesis hifor each source but where instead he has access to the labeled
+trainingdataforeachsourcedomain. A naturalsolutionconsiststhenofcombiningtherawlabeled
+data from each source domain to form a new sample more representative of the target distribution
+and use that to train a learning algorithm. This set-up and the type of solutions just described
+have been in fact exploredextensivelyin applications[8,9,11,13–15]. However, several empirical
+observationsmotivatedourstudyofhypothesiscombination,inadditiontothetheoreticalsimplicity
+andclarityofthisframework.
+First, in some applicationssuch as verylarge-vocabularyspeech recognition,often the originalraw
+data used to derive each domain-dependentmodel is no more available [2,9]. This is because such
+models are typically obtained as a result of training based on many hours of speech with ﬁles oc-
+cupyinghundredsof gigabytesof diskspace, whilethe modelsderivedrequireordersofmagnitude
+less space. Thus, combining raw labeled data sets is not possible in such cases. Secondly, a com-
+bineddatasetcanbesubstantiallylargerthaneachdomain-speciﬁcdataset,whichcansigniﬁcantly
+increase the computational cost of training and make it prohibitive for some algorithms. Thirdly,
+combininglabeled data sets requires the mixture parametersof the target distribution to be known,
+but it is not clear how to produce a hypothesis with a low error rate with respect to anymixture
+distribution.
+Few theoreticalstudieshavebeendevotedtotheproblemofadaptationwith multiplesources. Ben-
+David et al. [1] gave bounds for single source adaptation, then Blitzer et al. [3] extended the work
+togivea boundontheerrorrateofahypothesisderivedfromaweightedcombinationofthesource
+data sets for the speciﬁc case of empirical risk minimization. Crammer et al. [5,6] also addressed
+a problemwhere multiple sources are present but the natureof the problemdiffersfrom adaptation
+since the distribution of the input points is the same for all these sources, only the labels change
+due to varying amounts of noise. We are not aware of a prior theoretical study of the problem of
+adaptationwithmultiplesourcesanalyzedhere.
+We presentseveraltheoreticalresultsrelatingto this problem. We examinetwo typesofhypothesis
+combination. The ﬁrst type is simply based on convex combinations of the khypotheses hi. We
+show that this natural and widely used hypothesis combination may in fact perform very poorly in
+our setting. Namely, we give a simple example of two distributions and two matching hypotheses,
+each with zero error for their respective distribution, but such that any convex combination has
+expectedabsolutelossof 1/2fortheequalmixtureofthedistributions. Thispointsoutapotentially
+signiﬁcantweaknessofaconvexcombination.
+The second type of hypothesis combination, which is the main one we will study in this work,
+takesintoaccounttheprobabilitiesderivedfromthedistributions. Namely,theweightofhypothesis
+hion an input xis proportional to λiDi(x), were λis the set of mixture weights. We will refer
+to this method as the distribution weighted hypothesis combination . Our main result shows that,
+remarkably, for any ﬁxed target function, there exists a distribution weighted combining rule that
+has a loss of at most ǫwith respect to anymixture of the kdistributions. We also show that there
+exists a distributionweightedcombiningrulethat hasloss at most 3ǫwith respectto anyconsistent
+target function (one for which each hihas loss ǫonDi) and any mixture of the kdistributions. In
+somesense,ourresultsestablishthatthedistributionweightedhypothesiscombinationisthe“right”
+combinationrule,andthatit also beneﬁtsfroma well-foundedtheoreticalguarantee.
+The remainderof this paperis organizedas follows. Section 2 introducesour theoreticalmodel for
+multiplesourceadaptation. InSection3,weanalyzetheabstractcasewherethemixtureparameters
+ofthetargetdistributionareknownandshowthatthedistributionweightedhypothesiscombination
+that uses as weights these mixture coefﬁcients achieves a loss of at most ǫ. In Section 4, we give
+a simple method to produce an error of Θ(kǫ)that does not require the prior knowledge of the
+mixtureparametersofthetargetdistribution. Ourmainresultsshowingtheexistenceofacombined
+hypothesisperformingwell regardlessof the target mixture are given in Section 5 for the case of a
+ﬁxed target function, and in Section 6 for the case of multiple target functions. Section 7 reports
+empiricalresultsfora multiplesourceadaptationproblemwitha real-worlddataset.
+22 Problem Set-Up
+L
+etXbetheinputspace, f:X → Rthetargetfunctiontolearn,and L:R×R→Ralossfunction
+penalizing errorswith respect to f. The loss of a hypothesis hwith respect to a distribution Dand
+loss function Lis denoted by L(D, h, f )and deﬁned as L(D, h, f ) = E x∼D[L(h(x), f(x))] =/summationtext
+x∈XL(h(x), f(x))D(x). We will denoteby ∆thesimplex ∆ ={λ:λi≥0∧/summationtextk
+i=1λi= 1}of
+Rk.
+We consider an adaptation problem with ksource domains and a single target domain. The input
+to the problem is the set of ksource distributions D1, . . . , D kandkcorresponding hypotheses
+h1, . . . , h ksuch that for all i∈[1, k],L(Di, hi, f)≤ǫ, for a ﬁxed ǫ≥0. The distribution
+of the target domain, DT, is assumed to be a mixture of the ksource distributions Dis, that is
+DT(x) =/summationtextk
+i=1λiDi(x),forsomeunknownmixtureweightvector λ∈∆. Theadaptationproblem
+consistsof combingthehypotheses histo derivea hypothesiswith small losson thetargetdomain.
+Since the target distribution DTis assumed to be a mixture, we will refer to this problem as the
+mixtureadaptationproblem .
+Acombining rule for the hypotheses takes as an input the his and outputs a single hypothe-
+sish:X → R. We deﬁne two combining rules of particular interest for our purpose: the lin-
+ear combining rule which is based on a parameter z∈∆and which sets the hypothesis to
+h(x) =/summationtextk
+i=1zihi(x); and the distribution weighted combining rule also based on a parameter
+z∈∆which sets the hypothesis to h(x) =/summationtextk
+i=1ziDi(x)Pk
+j=
+1zjDj(x)hi(x)when/summationtextk
+j=1zjDj(x)>0.
+This last condition always holds if Di(x)>0for all x∈ Xand some i∈[1, k]. We deﬁne Hto
+be the set of all distribution weighted combining rules. Given the input to the adaptation problem
+we have implicit information about the target function f. We deﬁne the set of consistent target
+functions,F,asfollows,
+F={g:∀i∈[1, k],L(Di, hi, g)≤ǫ}.
+By deﬁnition,the targetfunction fisanelementof F.
+We will assume that the following properties hold for the loss function L: (i)Lis non-negative:
+L(x, y)≥0forall x, y∈R; (ii)Lisconvexwithrespecttotheﬁrst argument: L(/summationtextk
+i=1λixi, y)≤/summationtextk
+i=1λiL(xi, y)for all x1, . . ., x k, y∈Randλ∈∆; (iii) Lis bounded: there exists M≥0
+such that L(x, y)≤Mfor all x, y∈R; (iv)L(x, y)is continuous in both xandy; and (v) Lis
+symmetric L(x, y) =L(y, x). The absolute loss deﬁned by L(x, y) =|x−y|will serve as our
+primarymotivatingexample.
+3 KnownTarget Mixture Distribution
+Inthissectionweassumethattheparametersofthetargetmixturedistributionareknown. Thus,the
+learningalgorithmisgiven λ∈∆suchthat DT(x)=/summationtextk
+i=1λiDi(x). Agoodstartingpointwouldbe
+to study the performanceof a linear combining rule. Namely the classiﬁer h(x) =/summationtextk
+i=1λihi(x).
+While this seems like a very natural classiﬁer, the following example highlights the problematic
+aspectsofthisapproach.
+Consider a discrete domain X={a, b}and two distributions, DaandDb, such that Da(a) = 1
+andDb(b) = 1. Namely, each distribution puts all the weight on a single element in X. Consider
+the target function f, where f(a) = 1andf(b) = 0, and let the loss be the absolute loss. Let
+h0= 0be the function that outputs 0for all x∈ Xand similarly h1= 1. The hypotheses h1
+andh0havezeroexpected absolute loss on the distributions DaandDb, respectively, i.e., ǫ= 0.
+Now consider the target distribution DTwithλa=λb= 1/2, thusDT(a) =DT(b) = 1/2. The
+hypothesis h(x) = (1 /2)h1(x) + (1 /2)h0(x)always outputs 1/2, and has an absolute loss of 1/2.
+Furthermore, for any other parameter zof the linear combining rule, the expected absolute loss of
+h(x) =zh1(x)+(1−z)h0(x)withrespectto DTisexactly 1/2. Wehaveestablishedthefollowing
+theorem.
+Theorem 1. There is a mixture adaptation problem with ǫ= 0for which any linear combination
+rule hasexpectedabsolutelossof 1/2.
+3Next we show that the distribution weighted combining rule pr oduces a hypothesis with a low ex-
+pectedloss. Givena mixture DT(x) =/summationtextk
+i=1λiDi(x), we considerthedistributionweightedcom-
+biningrulewithparameter λ, whichwe denoteby hλ. Recall that,
+hλ(x) =k/summationdisplay
+i=1λiDi(x)
+/summationtextk
+j=
+1λjDj(x)hi(x) =k/summationdisplay
+i=1λiDi(x)
+DT(x)hi(x).
+U
+sing theconvexityof Lwithrespect to theﬁrst argument,the lossof hλwith respect to DTanda
+target f∈ Fcanbeboundedasfollows,
+L(DT, hλ, f) =/summationdisplay
+x∈XL(hλ(x), f(x))DT(x)≤/summationdisplay
+x∈Xk/summationdisplay
+i=1λiDi(x)L(hi(x), f(x)) =k/summationdisplay
+i=1λiǫi≤ǫ,
+where ǫi:=L(Di, hi, f)≤ǫ. Thus,we havederivedthefollowingtheorem.
+Theorem2. Foranymixtureadaptationproblemwithtargetdistribution Dλ(x) =/summationtextk
+i=1λiDi(x),
+the expected loss of the hypothesis hλis at most ǫwith respect to any target function f∈ F:
+L(Dλ, hλ, f)≤ǫ.
+4 Simple AdaptationAlgorithms
+In this section we show how to construct a simple distribution weighted hypothesis that has an
+expected loss guarantee with respect to any mixture. Our hypothesis huis simply based on equal
+weights,i.e., ui= 1/k,forall i∈[1, k]. Thus,
+hu(x) =k/summationdisplay
+i=1(1/k)Di(x)
+/summationtextk
+j=
+1(1/k)Dj(x)hi(x) =k/summationdisplay
+i=1Di(x)
+/summationtextk
+j=
+1Dj(x)hi(x).
+Weshowfor huanexpectedlossboundof kǫ,withrespecttoanymixturedistribution DTandtarget
+function f∈ F. (Proofomitted.)
+Theorem 3. For any mixture adaptation problem the expected loss of huis at most kǫ, for any
+mixturedistribution DTandtargetfunction f∈ F, i.e.,L(DT, hu, f)≤kǫ.
+Unfortunately, the hypothesis hucan have an expected absolute loss as large as Ω(kǫ). (Proof
+omitted.)
+Theorem 4. There is a mixture adaptation problem for which the expected absolute loss of huis
+Ω(kǫ). Also, for k= 2there is an input to the mixture adaptationproblem for which the expected
+absolutelossof huis2ǫ−ǫ2.
+5 Existence ofa GoodHypothesis
+In this section, we will show that for any target function f∈ Fthere is a distribution weighted
+combining rule hzthat has a loss of at most ǫwith respect to any mixture DT. We will construct
+the proofin two parts. In the ﬁrst part, we will show, using a simple reductionto a zero-sumgame,
+that one can obtaina mixture of hzs that guaranteesa loss boundedby ǫ. In the second part, which
+is the more interesting scenario, we will show that for any target function f∈ Fthere is a single
+distribution weighted combiningrule hzthat has loss of at most ǫwith respect to anymixture DT.
+Thislater partwill requiretheuse ofBrouwerﬁxedpointtheoremto showthe existenceof such an
+hz.
+5.1 Zero-sumgame
+The adaptation problem can be viewed as a zero-sum game between two players, NATURE and
+LEARNER . Let the input to the mixture adaptation problem be D1, . . . , D k,h1, . . . , h kandǫ, and
+ﬁxatargetfunction f∈ F. Theplayer NATURE picksadistribution Diwhiletheplayer LEARNER
+selects a distribution weighted combining rule hz∈ H. The loss when NATURE playsDiand
+LEARNER playshzisL(Di, hz, f). Let us emphasize that the target function f∈ Fis ﬁxed
+beforehand. The objective of NATURE is to maximize the loss and the objective of LEARNER is to
+minimizethe loss. We startwith thefollowinglemma,
+4Lemma1. G ivenanymixedstrategyof NATURE,i.e.,adistribution µoverDi’s,thenthefollowing
+actionof LEARNER hµ∈ Hhasexpectedlossatmost ǫ,i.e.,L(Dµ, hµ, f)≤ǫ.
+The proof is identical to that of Theorem2. This almost establishes that the value of the gameis at
+mostǫ. Thetechnicalpartthatwe needto takecare ofisthe fact thatthe actionspaceof LEARNER
+isinﬁnite. However,byanappropriatediscretizationof Hwe canderivethefollowingtheorem.
+Theorem 5. For any target function f∈ Fand any δ >0, there exists a function h(x) =/summationtextm
+j=1αjhzj(x), where hzi∈ H, such that L(DT, h, f)≤ǫ+δfor any mixture distribution
+DT(x) =/summationtextk
+i=1λiDi(x).
+Since we can ﬁx δ >0to be arbitrarily small, this implies that a linear mixture of distribution
+weightedcombiningrulescanguaranteealossofalmost ǫwithrespecttoanyproductdistribution.
+5.2 Singledistribution weightedcombining rule
+In the previoussubsection, we showedthat a mixtureof hypothesesin Hwouldguaranteea loss of
+atmost ǫ. Here,wewillconsiderablystrengthentheresultandshowthatthereisa singlehypothesis
+inHforwhichthisguaranteeholds. Unfortunatelyourlossisnotconvexwithrespectto h∈ H,so
+we needtoresortto amorepowerfultechnique,namelythe Brouwerﬁxedpointtheorem.
+For the proof we will need that the distribution weighted combining rule hzbe continuous in
+the parameter z. In general, this does hold due to the existence of points x∈Xfor which/summationtextk
+j=1zjDj(x) = 0. To avoid this discontinuity, we will modify the deﬁnition of hztohη
+z, as
+follows.
+Claim 1. LetUdenote the uniform distribution over X, then for any η >0andz∈∆, let
+hη
+z:X → Rbe thefunctiondeﬁnedby
+hη
+z(x) =k/summationdisplay
+i=1ziDi(x) +ηU(x)/k/summationtextk
+j=
+1zjDj(x) +ηU(x)hi(x).
+Then,foranydistribution D,L(D, hη
+z, f)iscontinuousin z.1
+Letusﬁrst state Brouwer’sﬁxedpointtheorem.
+Theorem 6 (Brouwer Fixed Point Theorem) .For any compactand convex non-emptyset A⊂Rn
+andanycontinuousfunction f:A→A, thereisapoint x∈Asuchthat f(x) =x.
+We ﬁrst show that there exists a distribution weighted combining rule hη
+zfor which the losses
+L(Di, hη
+z, f)areall nearlythesame.
+Lemma 2. Forany targetfunction f∈ Fandany η, η′>0,there exists z∈∆, withzi/ne}ationslash= 0forall
+i∈[1, k],suchthatthefollowingholdsforthedistributionweightedcombiningrule hη
+z∈ H:
+L(Di, hη
+z, f) =γ+η′−η′
+zik≤γ+η′
+f
+orany 1≤i≤k, where γ=/summationtextk
+j=1zjL(Dj, hη
+z, f).
+Proof.Fixη′>0and let Lz
+i=L(Di, hη
+z, f)for all z∈∆andi∈[1, m]. Consider the
+mapping φ: ∆→∆deﬁned for all z∈∆by[φ(z)]i= (ziLz
+i+η′/k)/(/summationtextk
+j=1zjLz
+j+η′),
+where [φ(z)]i, is the ith coordinate of φ(x),i∈[1, m]. By Claim 1, φis continuous. Thus,
+by Brouwer’s Fixed Point Theorem, there exists z∈∆such that φ(z) =z. This implies that
+zi= (ziLz
+i+η′/k)/(/summationtextk
+j=1zjLz
+j+η′). Since η′>0,wemusthave zi/ne}ationslash= 0forany i∈[1, m]. Thus,
+wecandivideby ziandwrite Lz
+i+η′/(zik) = (/summationtextk
+j=1zjLz
+j)+η′. Therefore, Lz
+i=γ+η′−η′/(zik)
+withγ=/summationtextk
+j=1zjLz
+j.
+1In addition to continuity, the perturbation to hz,hη
+z, also helps us ensure that none of the mixture weights
+ziiszero inthe proof of the Lemma 2.
+5Notethatthelemmajustpresenteddoesnotusethestructureo fthedistributionweightedcombining
+rule,butonlythefactthatthelossiscontinuousintheparameter z∈∆. Thelemmaappliesaswell
+tothelinearcombinationruleandprovidesthesameguarantee. Therealcruxoftheargumentis, as
+showninthenextlemma,that γissmall foradistributionweightedcombiningrule(whileit canbe
+verylargeforalinearcombinationrule).
+Lemma 3. For any target function f∈ Fand any η, η′>0, there exists z∈∆such that
+L(Dλ, hη
+z, f)≤ǫ+ηM+η′forany λ∈∆.
+Proof.Letzbe the parameterguaranteedin Lemma 2. Then L(Di, hη
+z, f) =γ+η′−η′/(zik)≤
+γ+η′,for1≤i≤k. Considerthemixture Dz,i.e.,setthemixtureparametertobe z. Considerthe
+quantity L(Dz, hη
+z, f). On the one hand, by deﬁnition, L(Dz, hη
+z, f) =/summationtextk
+i=1ziL(Di, hη
+z, f)and
+thusL(Dz, hη
+z, f) =γ. On theotherhand,
+L(Dz,hη
+z, f)
+=X
+x∈XDz(x)L(hη
+z(x),f(x))≤X
+x∈XDz(x)
+Dz(x) + ηU(x) kX
+i=1(ziDi(x) +ηU(x)
+k)L(hi(x),f(x))!
+≤X
+x∈X kX
+i=1ziDi(x)L(hi(x),f(x))!
++X
+x∈XηMU(x)
+=kX
+i=1ziL(Di, hi, f) +ηM=kX
+i=1ziǫi+ηM≤ǫ+ηM .
+Therefore γ≤ǫ+ηM. To complete the proof, note that the following inequality holds for any
+mixture Dλ:
+L(Dλ, hη
+z, f) =k/summationdisplay
+i=1λiL(Di, hη
+z, f)≤γ+η′,
+whichisatmost ǫ+ηM+η′.
+By setting η=δ /(2M)andη′=δ/2,we canderivethefollowingtheorem.
+Theorem7. Foranytargetfunction f∈ Fandany δ >0,there exists η >0andz∈∆, suchthat
+L(Dλ, hη
+z, f)≤ǫ+δforanymixture parameter λ.
+6 Arbitrary targetfunction
+Theresultsoftheprevioussectionshowthatforany ﬁxedtargetfunctionthereisagooddistribution
+weightedcombiningrule. Inthissection,wewishtoextendtheseresultstothecasewherethetarget
+functionis not ﬁxed in advanced. Thus, we seek a single distribution weightedcombiningrule that
+can perform well for anyf∈ Fandanymixture Dλ. Unfortunately, we are not able to prove a
+boundof ǫ+o(ǫ)butonlyaboundof 3ǫ. To showthisboundwewill showthat forany f1, f2∈ F
+andanyhypothesis hthe differenceoflossisboundedbyat most 2ǫ.
+Lemma 4. Assume that the loss function Lobeysthe triangle inequality, i.e., L(f, h)≤L(f, g) +
+L(g, h). Thenforany f, f′∈ Fandanymixture DT,theinequality L(DT, h, f′)≤ L(DT, h, f)+
+2ǫholdsforanyhypothesis h.
+Proof.Since ourlossfunctionobeysthe triangleinequality,foranyfunctions f, g, h,the following
+holds, L(D, f, h )≤ L(D, f, g ) +L(D, g, h ). In our case, we observe that replacing gwith any
+f′∈Fgives, L(Dλ, f, h)≤ L(Dλ, f′, h) +L(Dλ, f, f′). We can bound the term L(Dλ, f, f′)
+with a similar inequality, L(Dλ, f, f′)≤ L(Dλ, f, h λ) +L(Dλ, f′, hλ)≤2ǫ,where hλis the
+distributionweightedcombiningruleproducedbychoosing z=λandusingTheorem2. Therefore,
+forany f, f′∈Fwehave, L(Dλ, f, h)≤ L(Dλ, f′, h) + 2ǫ,whichcompletestheproof.
+We derivedthefollowingcorollarytoTheorem7.
+C
+orollary 1. Assume that the loss function Lobeys the triangle inequality. Then, for any δ >0,
+there exists η > 0andz∈∆, such that for any mixture parameter λand any f∈ F,
+L(Dλ, hη
+z, f)≤3ǫ+δ.
+61234561.51.61.71.81.922.1MSEUniform Mixture Over 4 Domains
+  
+In−Domain
+Out−Domain
+00.20.40.60.8 11.41.61.822.22.4Mixture = α book + (1 − α) kitchen
+αMSE
+  
+weighted
+linear
+book
+kitchen
+00.2 0.4 0.6 0.8 11.41.61.822.22.4
+αMSEMixture = α dvd + (1 − α) electronics
+  
+weighted
+linear
+dvd
+electronics
+(a) ( b)
+Figure1: (a)MSEperformanceforatargetmixtureoffourdomains(1: books,2: dvd,3: electronics,
+4: kitchen 5: linear, 6: weighted). (b) MSE performance under various mixtures of two source
+domains,plotleft: bookandkitchen ,plotright: dvdandelectronics .
+7 Empirical results
+Thissectionreportstheresultsofourexperimentswithadistributionweightedcombiningruleusing
+real-world data. In our experiments, we ﬁxed a mixture target distribution Dλand considered the
+distributionweightedcombiningrule hz,withz=λ. Sinceweusedreal-worlddata,wedidnothave
+access to the domain distributions. Instead, we modeled each distribution and used large amounts
+ofunlabeleddataavailableforeachsourcetoestimatethemodel’sparameters. Onecouldhavethus
+expected potentially signiﬁcantly worse empirical results than the theoretical ones, but this turned
+outnottobeanissue inourexperiments.
+We used the sentiment analysis dataset found in [4].2The data consists of review text and rat-
+ing labels, taken from amazon.com product reviews within four different categories (domains).
+These four domains consist of book,dvd,electronics andkitchen reviews, where each do-
+maincontains2000datapoints.3Inourexperiments,weﬁxedamixturetargetdistribution Dλand
+consideredthe distributionweightedcombiningrule hz,with z=λ.
+Inourﬁrstexperiment,weconsideredmixturesofallfourdomains,wherethetestsetwasauniform
+mixtureof600points,thatistheunionof150pointstakenuniformlyatrandomfromeachdomain.
+The remaining 1,850 points from each domain were used to train the base hypotheses.4We com-
+pared our proposed weighted combining rule to the linear combining rule. The results are shown
+in Figure 1(a). They show that the base hypotheses perform poorly on the mixture test set, which
+justiﬁesthe needforadaptation. Furthermore,the distributionweightedcombiningruleis shownto
+performat least as well asthe worst in-domainperformanceofa basehypothesis,as expectedfrom
+our bounds. Finally, we observe that this real-world data experiment gives an example in which a
+linearcombiningruleperformspoorlycomparedtothedistributionweightedcombiningrule.
+In other experiments, we considered the mixture of two domains, where the mixture is varied ac-
+cordingto the parameter α∈ {0.1,0.2, . . .,1.0}. For each plot in Figure 1 (b), the test set consists
+of600αpoints from the ﬁrst domain and 600(1 −α)points from the second domain, where the
+ﬁrst and second domainsare made clear in the ﬁgure. The remaining points that were not used for
+testingwereusedto trainthe basehypotheses. Theresultsshowthe linearshift fromonedomainto
+theother,asisevidentfromtheperformanceofthetwo basehypotheses. Thedistributionweighted
+combiningruleoutperformsthe basehypothesesaswell asthelinearcombiningrule.
+2http://www.seas.upenn.edu/˜mdredze/datasets/sentiment/ .
+3The rating label, an integer between 1 and 5, was used as a regression label, and the loss measured by the
+mean squared error (MSE). All base hypotheses were generated using Support Vector Regression (SVR) [17]
+with the trade-off parameters C= 8, ǫ= 0.1, and a Gaussian kernel with parameter g= 0.00078. The SVR
+solutions were obtained using the libSVM software library ( http://www.csie.ntu.edu.tw/˜cjlin/libsvm/ ).
+Our features were deﬁned as the set of unigrams appearing ﬁve times or more in all domains. This deﬁned
+about 4000 unigrams. We used a binary feature vector encoding the presence or absence of these frequent
+unigrams to deﬁne our instances. To model the domain distributions, we used a unigram statistical language
+modeltrainedonthesamecorpusastheoneusedtodeﬁnethefeatures. Thelanguage modelwascreatedusing
+the GRMlibrary( http://www.research.att.com/˜fsmtools/grm/ ).
+4Each experiment was repeated 20 times with random folds. The standard deviation found was far below
+what could be legiblydisplayed inthe ﬁgures.
+7Thus, our preliminary experiments suggest that the distribu tion weighted combining rule performs
+well in practice and clearly outperformsa simple linear combiningrule. Furthermore, using statis-
+tical languagemodelsas approximationsto the distributionoraclesseem to be sufﬁcientin practice
+andcanhelpproduceagooddistributionweightedcombiningrule.
+8 Conclusion
+We presented a theoretical analysis of the problem of adaptation with multiple sources. Domain
+adaptation is an important problem that arises in a variety of modernapplications where limited or
+no labeled data is available for a target application and our analysis can be relevant in a variety of
+situations. The theoretical guarantees proven for the distribution weight combining rule provide it
+with a strong foundation. Its empirical performance with a real-world data set further motivates
+its use in applications. Much of the results presented were based on the assumption that the target
+distribution is some mixture of the source distributions. A further analysis suggests however that
+ourmainresultscanbeextendedtoarbitrarytargetdistributions.
+Acknowledgments
+We thank Jennifer Wortman for helpful comments on an earlier draft of this paper and Ryan McDonald for
+discussions and pointers todata sets. The workof M. Mohri and A.Rostamizadeh was partlysupported by the
+New YorkStateOfﬁce ofScience Technology andAcademic Research (NYSTAR).
+References
+[1] Shai Ben-David, John Blitzer, Koby Crammer, and Fernando Pereira. Analysis of representations for
+domain adaptation. In Proceedings of NIPS2006 . MIT Press,2007.
+[2] Jacob Benesty, M.Mohan Sondhi, andYitengHuang, editors. Springer Handbook of Speech Processing .
+Springer, 2008.
+[3] John Blitzer,Koby Crammer, A.Kulesza, Fernando Pereira,and Jennifer Wortman. Learningbounds for
+domain adaptation. In Proceedings of NIPS2007 . MIT Press,2008.
+[4] John Blitzer, Mark Dredze, and Fernando Pereira. Biographies, Bollywood, Boom-boxes and Blenders:
+DomainAdaptation for Sentiment Classiﬁcation. In ACL2007 , Prague, Czech Republic, 2007.
+[5] Koby Crammer, Michael Kearns, and Jennifer Wortman. Learning from Data of Variable Quality. In
+Proceedings of NIPS2005 , 2006.
+[6] KobyCrammer,MichaelKearns,andJenniferWortman. Learningfrommultiplesources. In Proceedings
+of NIPS2006 , 2007.
+[7] MarkDredze,JohnBlitzer,PrathaPratimTalukdar,KuzmanGanchev, JoaoGraca,andFernandoPereira.
+FrustratinglyHardDomainAdaptation for Parsing. In CoNLL2007 , Prague, CzechRepublic, 2007.
+[8] Jean-Luc Gauvain and Chin-Hui. Maximum a posteriori estimation for multivariate gaussian mixture
+observationsofmarkovchains. IEEETransactionsonSpeechandAudioProcessing ,2(2):291–298, 1994.
+[9] FrederickJelinek. Statistical Methods for Speech Recognition . The MITPress,1998.
+[10] Jing Jiangand ChengXiang Zhai. Instance Weighting for Domain Adaptation inNLP. In Proceedings of
+ACL2007 , pages 264–271, Prague, CzechRepublic, 2007. Association forComputational Linguistics.
+[11] C. J. Legetter and Phil C. Woodland. Maximum likelihood linear regression for speaker adaptation of
+continuous densityhidden markov models. Computer Speech and Language , pages 171–185, 1995.
+[12] Aleix M. Mart´ ınez. Recognizing imprecisely localized, partially occluded, and expression variant faces
+from a single sample per class. IEEETrans.PatternAnal. Mach. Intell. ,24(6):748–763, 2002.
+[13] S.DellaPietra,V.DellaPietra,R.L.Mercer,andS.Roukos. Adaptivelanguagemodelingusingminimum
+discriminant estimation. In HLT ’91: Proceedings of the workshop on Speech and Natural Language ,
+pages 103–106, Morristown, NJ,USA,1992. Associationfor Computational Linguistics.
+[14] BrianRoarkandMichielBacchiani. SupervisedandunsupervisedPCFGadaptationtonoveldomains. In
+Proceedings of HLT-NAACL ,2003.
+[15] Roni Rosenfeld. A Maximum Entropy Approach to Adaptive Statistical Language Modeling. Computer
+Speech and Language , 10:187–228, 1996.
+[16] LeslieG. Valiant. Atheory of the learnable . ACMPress New York,NY, USA,1984.
+[17] VladimirN. Vapnik. Statistical LearningTheory . Wiley-Interscience,New York, 1998.
+8

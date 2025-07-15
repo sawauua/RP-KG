@@ -1,0 +1,847 @@
+Multi-View Clustering via Canonical Correlation Analysis
+
+Kamalika Chaudhuri kamalika@soe.ucsd.edu
+ITA, UC San Diego, 9500 Gilman Drive, La Jolla, CA
+Sham M. Kakade sham@tti-c.org
+Karen Livescu klivescu@tti-c.org
+Karthik Sridharan karthik@tti-c.org
+Toyota Technological Institute at Chicago, 6045 S. Kenwood Ave., Chicago, IL
+Abstract
+Clustering data in high dimensions is be-
+lieved to be a hard problem in general. A
+number of ecient clustering algorithms de-
+veloped in recent years address this prob-
+lem by projecting the data into a lower-
+dimensional subspace, e.g. via Principal
+Components Analysis (PCA) or random pro-
+jections, before clustering. Here, we consider
+constructing such projections using multiple
+views of the data, via Canonical Correlation
+Analysis (CCA).
+Under the assumption that the views are un-
+correlated given the cluster label, we show
+that the separation conditions required for
+the algorithm to be successful are signi-
+cantly weaker than prior results in the lit-
+erature. We provide results for mixtures
+of Gaussians and mixtures of log concave
+distributions. We also provide empirical
+support from audio-visual speaker clustering
+(where we desire the clusters to correspond to
+speaker ID) and from hierarchical Wikipedia
+document clustering (where one view is the
+words in the document and the other is the
+link structure).
+1. Introduction
+The multi-view approach to learning is one in which
+we have `views' of the data (sometimes in a rather
+abstract sense) and the goal is to use the relation-
+ship between these views to alleviate the diculty of a
+learning problem of interest (Blum & Mitchell, 1998;
+Kakade & Foster, 2007; Ando & Zhang, 2007). In this
+Appearing in Proceedings of the 26thInternational Confer-
+ence on Machine Learning , Montreal, Canada, 2009. Copy-
+right 2009 by the author(s)/owner(s).work, we explore how having two `views' makes the
+clustering problem signicantly more tractable.
+Much recent work has been done on understanding
+under what conditions we can learn a mixture model.
+The basic problem is as follows: We are given indepen-
+dent samples from a mixture of kdistributions, and
+our task is to either: 1) infer properties of the under-
+lying mixture model (e.g. the mixing weights, means,
+etc.) or 2) classify a random sample according to which
+distribution in the mixture it was generated from.
+Under no restrictions on the underlying mixture, this
+problem is considered to be hard. However, in many
+applications, we are only interested in clustering the
+data when the component distributions are \well sep-
+arated". In fact, the focus of recent clustering al-
+gorithms (Dasgupta, 1999; Vempala & Wang, 2002;
+Achlioptas & McSherry, 2005; Brubaker & Vempala,
+2008) is on eciently learning with as little separa-
+tion as possible. Typically, the separation conditions
+are such that when given a random sample from the
+mixture model, the Bayes optimal classier is able to
+reliably recover which cluster generated that point.
+This work makes a natural multi-view assumption:
+that the views are (conditionally) uncorrelated, con-
+ditioned on which mixture component generated the
+views. There are many natural applications for which
+this assumption applies. For example, we can con-
+sider multi-modal views, with one view being a video
+stream and the other an audio stream, of a speaker |
+here, conditioned on the speaker identity and maybe
+the phoneme (both of which could label the generat-
+ing cluster), the views may be uncorrelated. A second
+example is the words and link structure in a document
+from a corpus such as Wikipedia { here, conditioned
+on the category of each document, the words in it and
+its link structure may be uncorrelated. In this paper,
+we provide experiments for both settings.Multi-View Clustering via Canonical Correlation Analysis
+Under this multi-view assumption, we provide a sim-
+ple and ecient subspace learning method, based
+on Canonical Correlation Analysis (CCA). This algo-
+rithm is ane invariant and is able to learn with some
+of the weakest separation conditions to date. The in-
+tuitive reason for this is that under our multi-view
+assumption, we are able to (approximately) nd the
+low-dimensional subspace spanned by the means of
+the component distributions. This subspace is impor-
+tant, because, when projected onto this subspace, the
+means of the distributions are well-separated, yet the
+typical distance between points from the same distri-
+bution is smaller than in the original space. The num-
+ber of samples we require to cluster correctly scales
+asO(d), wheredis the ambient dimension. Finally,
+we show through experiments that CCA-based algo-
+rithms consistently provide better performance than
+standard PCA-based clustering methods when applied
+to datasets in the two quite di
+erent domains of audio-
+visual speaker clustering and hierarchical Wikipedia
+document clustering by category.
+Our work adds to the growing body of results which
+show how the multi-view framework can alleviate the
+diculty of learning problems.
+Related Work. Most provably ecient clustering
+algorithms rst project the data down to some low-
+dimensional space and then cluster the data in this
+lower dimensional space (an algorithm such as sin-
+gle linkage usually suces here). Typically, these al-
+gorithms also work under a separation requirement,
+which is measured by the minimum distance between
+the means of any two mixture components.
+One of the rst provably ecient algorithms for learn-
+ing mixture models is due to (Dasgupta, 1999), who
+learns a mixture of spherical Gaussians by randomly
+projecting the mixture onto a low-dimensional sub-
+space. (Vempala & Wang, 2002) provide an algorithm
+with an improved separation requirement that learns
+a mixture of kspherical Gaussians, by projecting the
+mixture down to the k-dimensional subspace of highest
+variance. (Kannan et al., 2005; Achlioptas & McSh-
+erry, 2005) extend this result to mixtures of general
+Gaussians; however, they require a separation propor-
+tional to the maximum directional standard deviation
+of any mixture component. (Chaudhuri & Rao, 2008)
+use a canonical correlations-based algorithm to learn
+mixtures of axis-aligned Gaussians with a separation
+proportional to , the maximum directional standard
+deviation in the subspace containing the means of the
+distributions. Their algorithm requires a coordinate-
+independence property, and an additional \spreading"
+condition. None of these algorithms are ane invari-
+ant.Finally, (Brubaker & Vempala, 2008) provide an ane-
+invariant algorithm for learning mixtures of general
+Gaussians, so long as the mixture has a suitably low
+Fisher coecient when in isotropic position. However,
+their separation involves a large polynomial depen-
+dence on1
+wmin.
+The two results most closely related to ours are the
+work of (Vempala & Wang, 2002) and (Chaudhuri &
+Rao, 2008). (Vempala & Wang, 2002) show that it is
+sucient to nd the subspace spanned by the means
+of the distributions in the mixture for e
+ective clus-
+tering. Like our algorithm, (Chaudhuri & Rao, 2008)
+use a projection onto the top k 1 singular value de-
+composition subspace of the canonical correlations ma-
+trix. They also require a spreading condition , which is
+related to our requirement on the rank. We borrow
+techniques from both of these papers.
+(Blaschko & Lampert, 2008) propose a similar algo-
+rithm for multi-view clustering, in which data is pro-
+jected onto the top directions obtained by kernel CCA
+across the views. They show empirically that for clus-
+tering images using the associated text as a second
+view (where the target clustering is a human-dened
+category), CCA-based clustering methods out-perform
+PCA-based algorithms.
+This Work. Our input is data on a xed set of ob-
+jects from two views, where View jis assumed to be
+generated by a mixture of kGaussians ( Dj
+1;:::;Dj
+k),
+forj= 1;2. To generate a sample, a source iis picked
+with probability wi, andx(1)andx(2)in Views 1 and
+2 are drawn from distributions D1
+iandD2
+i. Following
+prior theoretical work, our goal is to show that our al-
+gorithm recovers the correct clustering, provided the
+input mixture obeys certain conditons.
+We impose two requirements on these mixtures. First,
+we require that conditioned on the source, the two
+views are uncorrelated. Notice that this is a weaker
+restriction than the condition that given source i, the
+samples from D1
+iandD2
+iare drawn independently .
+Moreover, this condition allows the distributions in the
+mixture within each view to be completely general, so
+long as they are uncorrelated across views. Although
+we do not prove this, our algorithm seems robust to
+small deviations from this assumption.
+Second, we require the rank of the CCA matrix across
+the views to be at least k 1, when each view is in
+isotropic position, and the k 1-th singular value of
+this matrix to be at least min. This condition ensures
+that there is sucient correlation between the views.
+If the rst two conditions hold, then we can recover
+the subspace containing the means in both views.Multi-View Clustering via Canonical Correlation Analysis
+In addition, for mixtures of Gaussians, if in at least
+one view, say View 1, we have that for every pair of
+distributions iandjin the mixture,
+jj1
+i 1
+jjj>Ck1=4p
+log(n=)
+for some constant C, then our algorithm can also de-
+termine which component each sample came from.
+Here1
+iis the mean of the i-th component in View
+1 andis the maximum directional standard devi-
+ation in the subspace containing the means in View
+1. Moreover, the number of samples required to learn
+this mixture grows (almost) linearly with d.
+This separation condition is considerably weaker than
+previous results in that only depends on the direc-
+tional variance in the subspace spanned by the means,
+which can be considerably lower than the maximum di-
+rectional variance over all directions. The only other
+algorithm which provides ane-invariant guarantees
+is due to (Brubaker & Vempala, 2008) | the implied
+separation in their work is rather large and grows with
+decreasingwmin, the minimum mixing weight. To get
+our improved sample complexity bounds, we use a re-
+sult due to (Rudelson & Vershynin, 2007) which may
+be of independent interest.
+We stress that our improved results are really due to
+the multi-view condition. Had we simply combined the
+data from both views, and applied previous algorithms
+on the combined data, we could not have obtained our
+guarantees. We also emphasize that for our algorithm
+to cluster successfully, it is sucient for the distribu-
+tions in the mixture to obey the separation condition
+inone view , so long as the multi-view and rank condi-
+tions are obeyed.
+Finally, we study through experiments the perfor-
+mance of CCA-based algorithms on data sets from two
+di
+erent domains. First, we experiment with audio-
+visual speaker clustering, in which the two views are
+audio and face images of a speaker, and the target
+cluster variable is the speaker. Our experiments show
+that CCA-based algorithms perform better than PCA-
+based algorithms on audio data and just as well on
+image data, and are more robust to occlusions of the
+images. For our second experiment, we cluster docu-
+ments in Wikipedia. The two views are the words and
+the link structure in a document, and the target cluster
+is the category. Our experiments show that a CCA-
+based hierarchical clustering algorithm out-performs
+PCA-based hierarchical clustering for this data.
+2. The Setting
+We assume that our data is generated by a mixture
+ofkdistributions. In particular, we assume that weobtain samples x= (x(1);x(2)), wherex(1)andx(2)
+are the two views, which live in the vector spaces V1
+of dimension d1andV2of dimension d2, respectively.
+We letd=d1+d2. Letj
+i, fori= 1;:::;k andj= 1;2,
+be the mean of distribution iin viewj, and letwibe
+the mixing weight for distribution i.
+For simplicity, we assume that the data have mean 0.
+We denote the covariance matrix of the data as:
+ =E[xx>]; 11=E[x(1)(x(1))>]
+22=E[x(2)(x(2))>]; 12=E[x(1)(x(2))>]
+Hence, we have:  =11 21
+12 22
+(1)
+The multi-view assumption we work with is as follows:
+Assumption 1 (Multi-View Condition) We assume
+that conditioned on the source distribution lin the mix-
+ture (where l=iis picked with probability wi), the two
+views are uncorrelated. More precisely, we assume that
+for alli2[k],
+E[x(1)(x(2))>jl=i] =E[x(1)jl=i]E[(x(2))>jl=i]
+This assumption implies that:  12=P
+iwi1
+i(2
+i)T.
+To see this, observe that
+E[x(1)(x(2))>] =X
+iEDi[x(1)(x(2))>] Pr[Di]
+=X
+iwiEDi[x(1)]EDi[(x(2))>]
+=X
+iwi1
+i(2
+i)T(2)
+As the distributions are in isotropic position, we ob-
+serve thatP
+iwi1
+i=P
+iwi2
+i= 0. Therefore, the
+above equation shows that the rank of  12is at most
+k 1. We now assume that it has rank precisely k 1.
+Assumption 2 (Non-Degeneracy Condition) We as-
+sume that 12has rankk 1and that the minimal
+non-zero singular value of 12ismin>0(where we
+are working in a coordinate system where 11and22
+are identity matrices).
+For clarity of exposition, we also work in an isotropic
+coordinate system in each view. Specically, the ex-
+pected covariance matrix of the data, in each view, is
+the identity matrix, i.e.  11=Id1;22=Id2.
+As our analysis shows, our algorithm is robust to er-
+rors, so we assume that data is whitened as a pre-
+processing step.
+One way to view the Non-Degeneracy Assumption is
+in terms of correlation coecients. Recall that for twoMulti-View Clustering via Canonical Correlation Analysis
+directionsu2V1andv2V2, the correlation coe-
+cient is dened as:
+(u;v) =E[(ux(1))(vx(2))]p
+E[(ux(1))2]E[(vx(2))2]:
+An alternative denition of min is the min-
+imal non-zero correlation coecient, min =
+minu;v:(u;v)6=0(u;v). Note 1min>0.
+We useb11andb22to denote the sample covariance
+matrices in views 1 and 2 respectively. We use b12to
+denote the sample covariance matrix combined across
+views 1 and 2. We assume these are obtained through
+empirical averages from i.i.d. samples from the under-
+lying distribution.
+3. The Clustering Algorithm
+The following lemma provides the intuition for our al-
+gorithm.
+Lemma 1 Under Assumption 2, if U;D;V is the
+`thin' SVD of 12(where the thin SVD removes all
+zero entries from the diagonal), then the subspace
+spanned by the means in view 1is precisely the col-
+umn span of U(and we have the analogous statement
+for view 2).
+The lemma is a consequence of Equation 2 and the
+rank assumption. Since samples from a mixture are
+well-separated in the space containing the means of the
+distributions, the lemma suggests the following strat-
+egy: use CCA to (approximately) project the data
+down to the subspace spanned by the means to get
+an easier clustering problem, and then apply standard
+clustering algorithms in this space.
+Our clustering algorithm, based on the above idea, is
+stated below. We can show that this algorithm clusters
+correctly with high probability, when the data in at
+least one of the views obeys a separation condition, in
+addition to our assumptions.
+The input to the algorithm is a set of samples S, and
+a numberk, and the output is a clustering of these
+samples into kclusters. For this algorithm, we assume
+that the data obeys the separation condition in View
+1; an analogous algorithm can be applied when the
+data obeys the separation condition in View 2 as well.
+Algorithm 1.
+1. Randomly partition Sinto two subsets AandB
+of equal size.
+2. Letb12(A) (b12(B) resp.) denote the empirical
+covariance matrix between views 1 and 2, com-puted from the sample set A(Bresp.). Com-
+pute the top k 1 left singular vectors of b12(A)
+(b12(B) resp.), and project the samples in B(A
+resp.) on the subspace spanned by these vectors.
+3. Apply single linkage clustering (Dunn & Everitt,
+2004) (for mixtures of log-concave distributions),
+or the algorithm in Section 3.5 of (Arora & Kan-
+nan, 2005) (for mixtures of Gaussians) on the pro-
+jected examples in View 1.
+We note that in Step 3, we apply either single linkage
+or the algorithm of (Arora & Kannan, 2005); this al-
+lows us to show theoretically that if the distributions
+in the mixture are of a certain type, and given the
+right separation conditions, the clusters can be recov-
+ered correctly. In practice, however, these algorithms
+do not perform as well due to lack of robustness, and
+one would use an algorithm such as k-means or EM to
+cluster in this low-dimensional subspace. In particular,
+a variant of the EM algorithm has been shown (Das-
+gupta & Schulman, 2000) to cluster correctly mixtures
+of Gaussians, under certain conditions.
+Moreover, in Step 1, we divide the data set into two
+halves to ensure independence between Steps 2 and 3
+for our analysis; in practice, however, these steps can
+be executed on the same sample set.
+Main Results. Our main theorem is as follows.
+Theorem 1 (Gaussians) Suppose the source distri-
+bution is a mixture of Gaussians, and suppose As-
+sumptions 1 and 2 hold. Let be the maximum di-
+rectional standard deviation of any distribution in the
+subspace spanned by f1
+igk
+i=1. If, for each pair iandj
+and for a xed constant C,
+jj1
+i 1
+jjjCk1=4r
+log(kn
+)
+then, with probability 1 , Algorithm 1 correctly clas-
+sies the examples if the number of examples used is
+cd
+()22
+minw2
+minlog2(d
+minwmin) log2(1=)
+for some constant c.
+Here we assume that a separation condition holds in
+View 1, but a similar theorem also applies to View 2.
+An analogous theorem can also be shown for mixtures
+of log-concave distributions.
+Theorem 2 (Log-concave Distributions)
+Suppose the source distribution is a mixture ofMulti-View Clustering via Canonical Correlation Analysis
+log-concave distributions, and suppose Assumptions
+1 and 2 hold. Let be the maximum directional
+standard deviation of any distribution in the subspace
+spanned byf1
+igk
+i=1. If, for each pair iandjand for
+a xed constant C,
+jj1
+i 1
+jjjCp
+klog(kn
+)
+then, with probability 1 , Algorithm 1 correctly clas-
+sies the examples if the number of examples used is
+cd
+()22
+minw2
+minlog3(d
+minwmin) log2(1=)
+for some constant c.
+The proof follows from the proof of Theorem 1, along
+with standard results on log-concave probability dis-
+tributions { see (Kannan et al., 2005; Achlioptas &
+McSherry, 2005). We do not provide a proof here due
+to space constraints.
+4. Analyzing Our Algorithm
+In this section, we prove our main theorems.
+Notation. In the sequel, we assume that we are given
+samples from a mixture which obeys Assumptions 2
+and 1. We use the notation S1(resp.S2) to denote
+the subspace containing the centers of the distributions
+in the mixture in View 1 (resp. View 2), and notation
+S01(resp.S02) to denote the orthogonal complement to
+the subspace containing the centers of the distributions
+in the mixture in View 1 (resp. View 2).
+For any matrix A, we usejjAjjto denote the L2norm
+or maximum singular value of A.
+Proofs. Now, we are ready to prove our main the-
+orem. First, we show the following two lemmas,
+which demonstrate properties of the expected cross-
+correlational matrix across the views. Their proofs
+are immediate from Assumptions 2 and 1.
+Lemma 2 Letv1andv2be any vectors in S1andS2
+respectively. Then, j(v1)T12v2j>min.
+Lemma 3 Letv1(resp.v2) be any vector in S01
+(resp.S02). Then, for any u12 V 1andu22 V 2,
+(v1)T12u2= (u1)T12v2= 0.
+Next, we show that given suciently many samples,
+the subspace spanned by the top k 1 singular vec-
+tors ofb12still approximates the subspace containing
+the means of the distributions comprising the mixture.
+Finally, we use this fact, along with some results in
+(Arora & Kannan, 2005) to prove Theorem 1. Our
+main lemma of this section is the following.Lemma 4 (Projection Subspace Lemma) Letv1
+(resp.v2) be any vector in S1(resp.S2). If the num-
+ber of samples n>cd
+22
+minwminlog2(d
+minwmin) log2(1
+)
+for some constant c, then, with probability 1 , the
+length of the projection of v1(resp.v2) in the sub-
+space spanned by the top k 1left (resp. right) sin-
+gular vectors of b12is at leastp
+1 2jjv1jj(resp.p
+1 2jjv2jj).
+The main tool in the proof of Lemma 4 is the follow-
+ing lemma, which uses a result due to (Rudelson &
+Vershynin, 2007).
+Lemma 5 (Sample Complexity Lemma) If the
+number of samples
+n>cd
+2wminlog2(d
+wmin) log2(1
+)
+for some constant c, then, with probability at least 1 ,
+jjb12 12jj.
+A consequence of Lemmas 5, 2 and 3 is the following.
+Lemma 6 Letn > Cd
+2wminlog2(d
+wmin) log2(1
+), for
+some constant C. Then, with probability 1 , the
+topk 1singular values of b12have value at least
+min . The remaining min(d1;d2) k+ 1singular
+values ofb12have value at most .
+The proof follows by a combination of Lemmas 2,3, 5.
+Proof: (Of Lemma 5) To prove this lemma, we apply
+Lemma 7. Observe the block representation of  in
+Equation 1. Moreover, with  11and  22in isotropic
+position, we have that the L2norm of  12is at most
+1. Using the triangle inequality, we can write:
+jjb12 12jj1
+2(jjb jj+jjb11 11jj+jjb22 22jj)
+(where we applied the triangle inequality to the 2 2
+block matrix with o
+-diagonal entries b12 12and
+with 0 diagonal entries). We now apply Lemma 7 three
+times, onb11 11,b22 22, and a scaled version
+ofb . The rst two applications follow directly.
+For the third application, we observe that Lemma 7
+is rotation invariant, and that scaling each covariance
+value by some factor sscales the norm of the matrix
+by at most s. We claim that we can apply Lemma
+7 onb  withs= 4. Since the covariance of any
+two random variables is at most the product of their
+standard deviations, and since  11and  22areId1
+andId2respectively, the maximum singular value of
+12is at most 1; so the maximum singular value of 
+is at most 4. Our claim follows. The lemma follows by
+plugging in nas a function of ,dandwminMulti-View Clustering via Canonical Correlation Analysis
+Lemma 7 LetXbe a set of npoints generated by
+a mixture of kGaussians over Rd, scaled such that
+E[xxT] =Id. IfMis the sample covariance matrix
+ofX, then, fornlarge enough, with probability at least
+1 ,
+jjM E[M]jjCq
+dlognlog(2n
+) log(1=)
+pwminn
+whereCis a xed constant, and wminis the minimum
+mixing weight of any Gaussian in the mixture.
+Proof: To prove this lemma, we use a concentration
+result on the L2-norms of matrices due to (Rudelson
+& Vershynin, 2007). We observe that each vector xiin
+the scaled space is generated by a Gaussian with some
+meanand maximum directional variance 2. As
+the total variance of the mixture along any direction
+is at most 1, wmin(2+2)1. Therefore, for all
+samplesxi, with probability at least 1  =2,jjxijj
+jjjj+q
+dlog(2n
+).
+We condition on the fact that the event jjxijj 
+jjjj+q
+dlog(2n
+) happens for all i= 1;:::;n . The
+probability of this event is at least 1  =2.
+Conditioned on this event, the distributions of the vec-
+torsxiare independent. Therefore, we can apply The-
+orem 3.1 in (Rudelson & Vershynin, 2007) on these
+conditional distributions, to conclude that:
+Pr[jjM E[M]jj>t]2e cnt2=2logn
+wherecis a constant, and  is an upper bound on the
+norm of any vector jjxijj. The lemma follows by plug-
+ging int=q
+2log(4=) logn
+cn, and 2p
+dlog(2n=)pwmin.
+Proof: (Of Lemma 4) For the sake of contradiction,
+suppose there exists a vector v12S1such that the
+projection of v1on the topk 1 left singular vectors of
+b12is equal top
+1 ~2jjv1jj, where ~ > . Then, there
+exists some unit vector u1inV1in the orthogonal com-
+plement of the space spanned by the top k 1 left sin-
+gular vectors of b12such that the projection of v1on
+u1is equal to ~jjv1jj. This vector u1can be written as:
+u1= ~v1+(1 ~2)1=2y1, wherey1is in the orthogonal
+complement of S1. From Lemma 2, there exists some
+vectoru2inS2, such that ( v1)>12u2min; from
+Lemma 3, for this vector u2, (u1)>12u2~min.
+Ifn > cd
+~22
+minwminlog2(d
+~minwmin) log2(1
+), then, from
+Lemma 6, ( u1)Tb12u2~
+2min.
+Now, since u1is in the orthogonal complement of
+the subspace spanned by the top k 1 left singu-
+lar vectors of b12, for any vector y2in the subspacespanned by the top k 1 right singular vectors of b12,
+(u1)>b12y2= 0. This means that there exists a vector
+z22V2, the orthogonal complement of the subspace
+spanned by the top k 1 right singular vectors of b12
+such that (u1)Tb12z2~
+2min. This implies that the
+k-th singular value of b12is at least~
+2min. However,
+from Lemma 6, all but the top k 1 singular values of
+b12are at most
+3min, which is a contradiction. 
+Proof: (Of Theorem 1) From Lemma 4, if n >
+Cd
+22
+minwminlog2(d
+minwmin) log2(1
+), then, with proba-
+bility at least 1 , the projection of any vector v
+inS1orS2onto the subspace returned by Step 2 of
+Algorithm 1 has length at leastp
+1 2jjvjj. There-
+fore, the maximum directional variance of any Diin
+this subspace is at most (1  2)()2+22, where
+2is the maximum directional variance of any Di.
+When
+, this is at most 2( )2. From the
+isotropic condition, 1pwmin. Therefore, when
+n >Cd
+()22
+minw2
+minlog2(d
+minwmin) log2(1
+), the maxi-
+mum directional variance of any Diin the mixture in
+the space output by Step 2 is at most 2( )2.
+SinceAandBare random partitions of the sample set
+S, the subspace produced by the action of Step 2 of
+Algorithm 1 on the set Ais independent of B, and vice
+versa. Therefore, when projected onto the top k 1
+SVD subspace of b12(A), the samples from Bare dis-
+tributed as a mixture of ( k 1)-dimensional Gaussians.
+The theorem follows from the previous paragraph, and
+Theorem 1 of (Arora & Kannan, 2005). 
+5. Experiments
+5.1. Audio-visual speaker clustering
+In the rst set of experiments, we consider cluster-
+ing either audio or face images of speakers. We use
+41 speakers from the VidTIMIT database (Sanderson,
+2008), speaking 10 sentences (about 20 seconds) each,
+recorded at 25 frames per second in a studio environ-
+ment with no signicant lighting or pose variation.
+The audio features are standard 12-dimensional mel
+cepstra (Davis & Mermelstein, 1980) and their deriva-
+tives and double derivatives computed every 10ms over
+a 20ms window, and nally concatenated over a win-
+dow of 440ms centered on the current frame, for a total
+of 1584 dimensions. The video features are pixels of
+the face region extracted from each image (2394 di-
+mensions). We consider the target cluster variable to
+be the speaker. We use either CCA or PCA to project
+the data to a lower dimensionality N. In the case of
+CCA, we initially project to an intermediate dimen-
+sionalityMusing PCA to reduce the e
+ects of spuri-
+ous correlations. For the results reported here, typical
+values (selected using a held-out set) are N= 40 andMulti-View Clustering via Canonical Correlation Analysis
+PCA CCA
+Images 1.1 1.4
+Audio 35.3 12.5
+Images + occlusion 6.1 1.4
+Audio + occlusion 35.3 12.5
+Images + translation 3.4 3.4
+Audio + translation 35.3 13.4
+Table 1. Conditional perplexities of the speaker given the
+cluster, using PCA or CCA bases. \+ occlusion" and \+
+translation" indicate that the images are corrupted with
+occlusion/translation; the audio is unchanged, however.
+M= 100 for images and 1000 for audio. For CCA, we
+randomize the vectors of one view in each sentence, to
+reduce correlations between the views due to other la-
+tent variables such as the current phoneme. We then
+cluster either view using k-means into 82 clusters (2
+per speaker). To alleviate the problem of local min-
+ima found by k-means, each clustering consists of 5
+runs of k-means, and the one with the lowest score is
+taken as the nal clustering.
+Similarly to (Blaschko & Lampert, 2008), we measure
+clustering performance using the conditional entropy
+of the speaker sgiven the cluster c,H(sjc). We report
+the results in terms of conditional perplexity, 2H(sjc),
+which is the mean number of speakers corresponding
+to each cluster. Table 1 shows results on the raw data,
+as well as with synthetic occlusions and translations
+of the image data. Considering the clean visual envi-
+ronment, we expect PCA to do very well on the image
+data. Indeed, PCA provides an almost perfect clus-
+tering of the raw images and CCA does not improve
+it. However, CCA far outperforms PCA when cluster-
+ing the more challenging audio view. When synthetic
+occlusions or translations are applied to the images,
+the performance of PCA-based clustering is greatly de-
+graded. CCA is una
+ected in the case of occlusion; in
+the case of translation, CCA-based image clustering
+is degraded similarly to PCA, but audio clustering is
+almost una
+ected. In other words, even when the im-
+age data are degraded, CCA is able to recover a good
+clustering in at least one of the views.1For a more
+detailed look at the clustering behavior, Figures 1(a-d)
+show the distributions of clusters for each speaker.
+1The audio task is unusually challenging, as each fea-
+ture vector corresponds to only a few phonemes. A typ-
+ical speaker classication setting uses entire sentences. If
+we force the cluster identity to be constant over each sen-
+tence (the most frequent cluster label in the sentence), per-
+formance improves greatly; e.g., in the \audio+occlusion"
+case, the perplexity improves to 8.5 (PCA) and 2.1 (CCA).5.2. Clustering Wikipedia articles
+Next we consider the task of clustering Wikipedia ar-
+ticles, based on either their text or their incoming and
+outgoing links. The link structure Lis represented as
+a concatenation of \to"and \from" link incidence vec-
+tors, where each element L(i) is the number of times
+the current article links to/from article i. The article
+text is represented as a bag-of-words feature vector,
+i.e. the raw count of each word in the article. A lex-
+icon of about 8 million words and a list of about 12
+million articles were used to construct the two feature
+vectors. Since the dimensionality of the feature vec-
+tors is very high (over 20 million for the link view), we
+use random projection to reduce the dimensionality to
+a computationally manageable level.
+We present clustering experiments on a subset of
+Wikipedia consisting of 128,327 articles. We use either
+PCA or CCA to reduce the feature vectors to the nal
+dimensionality, followed by clustering. In these experi-
+ments, we use a hierarchical clustering procedure, as a
+
+at clustering is poor with either PCA or CCA (CCA
+still usually outperforms PCA, however). In the hier-
+archical procedure, all points are initially considered
+to be in a single cluster. Next, we iteratively pick the
+largest cluster, reduce the dimensionality using PCA
+or CCA on the points in this cluster, and use k-means
+to break the cluster into smaller sub-clusters (for some
+xed k), until we reach the total desired number of
+clusters. The intuition for this is that di
+erent clus-
+ters may have di
+erent natural subspaces.
+As before, we evaluate the clustering using the condi-
+tional perplexity of the article category a(as given by
+Wikipedia) given the cluster c, 2H(ajc). For each arti-
+cle we use the rst category listed in the article. The
+128,327 articles include roughly 15,000 categories, of
+which we use the 500 most frequent ones, which cover
+73,145 articles. While the clustering is performed on
+all 128,327 articles, the reported entropies are for the
+73,145 articles. Each sub-clustering consists of 10 runs
+of k-means, and the one with the lowest k-means score
+is taken as the nal cluster assignment.
+Figure 1(e) shows the conditional perplexity versus the
+number of clusters for PCA and CCA based hierarchi-
+cal clustering. For any number of clusters, CCA pro-
+duces better clusterings, i.e. ones with lower perplex-
+ity. In addition, the tree structures of the PCA/CCA-
+based clusterings are qualitatively di
+erent. With
+PCA based clustering, most points are assigned to a
+few large clusters, with the remaining clusters being
+very small. CCA-based hierarchical clustering pro-
+duces more balanced clusters. To see this, in Fig-
+ure 1(f) we show the perplexity of the cluster distribu-Multi-View Clustering via Canonical Correlation Analysis
+clusterspeaker(a) AV: Audio, PCA basis
+20 40 60 805
+10
+15
+20
+25
+30
+35
+40
+(c) AV: Images + occlusion, PCA basis
+clusterspeaker
+20 40 60 805
+10
+15
+20
+25
+30
+35
+40
+0 20 40 60 80 100 12020406080100120140160
+number of clustersperplexity(e) Wikipedia: Category perplexity
+  
+hierarchical CCA
+hierarchical PCA
+(b) AV: Audio, CCA basis
+clusterspeaker
+20 40 60 805
+10
+15
+20
+25
+30
+35
+40
+(d) AV: Images + occlusion, CCA basis
+clusterspeaker
+20 40 60 805
+10
+15
+20
+25
+30
+35
+40
+0 20 40 60 80 100 120020406080100120
+number of clusters2Entropy(f) Wikipedia: Cluster perplexity
+  
+balanced clustering
+hierarchical CCA
+hierarchical PCA
+Figure 1. (a-d) Distributions of cluster assignments per speaker in audio-visual experiments. The color of each cell ( s; c)
+corresponds to the empirical probability p(cjs) (darker = higher). (e-f) Wikipedia experiments: (e) Conditional perplexity
+of article category given cluster (2H(ajc)). (f) Perplexity of the cluster distribution (2H(c))
+tion versus number of clusters. For about 25 or more
+clusters, the CCA-based clustering has higher perplex-
+ity, indicating a more uniform distribution of clusters.
+References
+Achlioptas, D., & McSherry, F. (2005). On spec-
+tral learning of mixtures of distributions. Conf. on
+Learning Thy (pp. 458{469).
+Ando, R. K., & Zhang, T. (2007). Two-view feature
+generation model for semi-supervised learning. Int.
+Conf. on Machine Learning (pp. 25{32).
+Arora, S., & Kannan, R. (2005). Learning mixtures
+of separated nonspherical Gaussians. Ann. Applied
+Prob. ,15, 69{92.
+Blaschko, M. B., & Lampert, C. H. (2008). Correla-
+tional spectral clustering. Conf. on Comp. Vision
+and Pattern Recognition .
+Blum, A., & Mitchell, T. (1998). Combining la-
+beled and unlabeled data with co-training. Conf.
+on Learning Thy. (pp. 92{100).
+Brubaker, S. C., & Vempala, S. (2008). Isotropic PCA
+and ane-invariant clustering. Found. of Comp. Sci.
+(pp. 551{560).
+Chaudhuri, K., & Rao, S. (2008). Learning mixtures of
+distributions using correlations and independence.
+Conf. On Learning Thy. (pp. 9{20).Dasgupta, S. (1999). Learning mixtures of Gaussians.
+Found. of Comp. Sci. (pp. 634{644).
+Dasgupta, S., & Schulman, L. (2000). A two-round
+variant of EM for Gaussian mixtures. Uncertainty
+in Art. Int. (pp. 152{159).
+Davis, S. B., & Mermelstein, P. (1980). Comparison
+of parametric representations for monosyllabic word
+recognition in continuously spoken sentences. IEEE
+Trans. Acoustics, Speech, and Signal Proc. ,28, 357{
+366.
+Dunn, G., & Everitt, B. (2004). An introduction to
+math. taxonomy . Dover Books.
+Kakade, S. M., & Foster, D. P. (2007). Multi-view
+regression via canonical correlation analysis. Conf.
+Learning Thy (pp. 82{96).
+Kannan, R., Salmasian, H., & Vempala, S. (2005). The
+spectral method for general mixture models. Conf.
+on Learning Thy (pp. 444{457).
+Rudelson, M., & Vershynin, R. (2007). Sampling
+from large matrices: An approach through geomet-
+ric functional analysis. Jour. of ACM .
+Sanderson, C. (2008). Biometric person recognition:
+Face, speech and fusion . VDM-Verlag.
+Vempala, V., & Wang, G. (2002). A spectral algo-
+rithm for learning mixtures of distributions. Found.
+of Comp. Sci. (pp. 113{123).

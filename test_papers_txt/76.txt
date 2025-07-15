@@ -1,0 +1,1016 @@
+Stronger Generalization Bounds for Deep Nets via a Compression Approach
+
+Sanjeev Arora1Rong Ge2Behnam Neyshabur3Yi Zhang1
+Abstract
+Deep nets generalize well despite having more
+parameters than the number of training samples.
+Recent works try to give an explanation using
+PAC-Bayes and Margin-based analyses, but do
+not as yet result in sample complexity bounds
+better than naive parameter counting. The cur-
+rent paper shows generalization bounds that are
+orders of magnitude better in practice. These
+rely upon new succinct reparametrizations of the
+trained net — a compression that is explicit and
+efﬁcient. These yield generalization bounds via a
+simple compression-based framework introduced
+here. Our results also provide some theoretical
+justiﬁcation for widespread empirical success in
+compressing deep nets. Analysis of correctness
+of our compression relies upon some newly iden-
+tiﬁed “noise stability”properties of trained deep
+nets, which are also experimentally veriﬁed. The
+study of these properties and resulting general-
+ization bounds are also extended to convolutional
+nets, which had eluded earlier attempts on proving
+generalization.
+1. Introduction
+A mystery about deep nets is that they generalize (i.e., pre-
+dict well on unseen data) despite having far more parameters
+than the number of training samples. One commonly voiced
+explanation is that regularization during training –whether
+implicit via use of SGD (Neyshabur et al., 2015c; Hardt
+et al., 2016) or explicit via weight decay, dropout (Srivas-
+tava et al., 2014), batch normalization (Ioffe and Szegedy,
+2015), etc. –reduces the effective capacity of the net. But
+Zhang et al. (2017) questioned this received wisdom and
+Authors listed in alphabetical order1Princeton University, Com-
+puter Science Department2Duke University, Computer Science
+Department3Institute for Advanced Study, School of Mathe-
+matics. Correspondence to: Rong Ge <rongge@cs.duke.edu >,
+Behnam Neyshabur <bneyshabur@ias.edu >, Yi Zhang
+<y.zhang@cs.princeton.edu >.
+Proceedings of the 35thInternational Conference on Machine
+Learning , Stockholm, Sweden, PMLR 80, 2018. Copyright 2018
+by the author(s).fueled research in this area by showing experimentally that
+standard architectures using SGD and regularization can
+still reach low training error on randomly labeled examples
+(which clearly won’t generalize).
+Clearly, deep nets trained on real-life data have some proper-
+ties that reduce effective capacity, but identifying them has
+proved difﬁcult —at least in a quantitative way that yields
+sample size upper bounds similar to classical analyses in
+simpler models such as SVMs (Bartlett and Mendelson,
+2002; Evgeniou et al., 2000; Smola et al., 1998) or matrix
+factorization (Fazel et al., 2001; Srebro et al., 2005).
+Qualitatively (Hochreiter and Schmidhuber, 1997; Hinton
+and Van Camp, 1993) suggested that nets that generalize
+well are ﬂat minima in the optimization landscape of the
+training loss. Recently Keskar et al. (2016) show using
+experiments with different batch-sizes that sharp minima
+do correlate with higher generalization error. A quanti-
+tative version of “ﬂatness” was suggested in (Langford
+and Caruana, 2001): the net’s output is stable to noise
+added to the net’s trainable parameters. Using PAC-Bayes
+bound (McAllester, 1998; 1999) this noise stability yielded
+generalization bounds for fully connected nets of depth 2.
+The theory has been extended to multilayer fully connected
+nets (Neyshabur et al., 2017b), although thus far yields sam-
+ple complexity bounds much worse than naive parameter
+counting. (Same holds for the earlier Bartlett and Mendel-
+son (2002); Neyshabur et al. (2015b); Bartlett et al. (2017);
+Neyshabur et al. (2017a); Golowich et al. (2017); see Fig-
+ure 3). Another notion of noise stability —closely related to
+dropout and batch normalization—is stability of the output
+with respect to the noise injected at the nodes of the network,
+which was recently shown experimentally (Morcos et al.,
+2018) to improve in tandem with generalization ability dur-
+ing training, and to be absent in nets trained on random data.
+Chaudhari et al. (2016) suggest adding noise to gradient
+descent to bias it towards ﬁnding ﬂat minima.
+While study of generalization may appear a bit academic —
+held-out data easily establishes generalization in practice—
+the ultimate hope is that it will help identify simple, measur-
+able and intuitive properties of well-trained deep nets, which
+in turn may fuel superior architectures and faster training.
+We hope the detailed study —theoretical and empirical—in
+the current paper advances this goal.Stronger Generalization Bounds for Deep Nets via a Compression Approach
+Contributions of this paper.
+1.A simple compression framework (Section 2) for prov-
+ing generalization bounds, perhaps a more explicit and
+intuitive form of the PAC-Bayes work. It also yields
+elementary short proofs of recent generalization re-
+sults (Section 2.2).
+2.Identifying new form of noise-stability for deep nets:
+the stability of each layer’s computation to noise in-
+jected at lower layers. (Earlier papers worked only
+with stability of the output layer.) Figure 1 visualizes
+the stability of network w.r.t. Gaussian injected noise.
+Formal statements require a string of other properties
+(Section 3). All are empirically studied, including their
+correlation with generalization (Section 6).
+3.Using the above properties to derive efﬁcient and prov-
+ably correct algorithms that reduce the effective num-
+ber of parameters in the nets, yielding generalization
+bounds that: (a) are better than naive parameter count-
+ing (Section 6) (b) depend on simple, intuitive and
+measurable properties of the network (Section 4) (c)
+apply also to convolutional nets (Section 5) (d) empiri-
+cally correlate with generalization (Section 6).
+The main idea is to show that noise stability allows individ-
+ual layers to be compressed via a linear-algebraic procedure
+Algorithm 1. This results in new error in the output of the
+layer. This added error is “Gaussian-like” and tends to get
+attenuated as it propagates to higher layers.
+Figure 1. Attenuation of injected noise on a VGG-19 net trained
+on CIFAR-10. The x-axis is the index of layers and y-axis denote
+the relative error due to the noise ( k^xi xik=kxik). A curve starts
+at the layer where a scaled Gaussian noise is injected to its input,
+whose`2norm is set to 10% of the norm of its original input. As
+it propagates up, the injected noise has rapidly decreasing effect
+on higher layers. This property is shown to imply compressibility.
+Other related works. Dziugaite and Roy (2017) use non-
+convex optimization to optimize the PAC-Bayes bound and
+get a non-vacuous sample bound on MNIST. While very
+creative, this provides little insight into favorable properties
+of networks. Liang et al. (2017) have suggested Fisher-
+Rao metric, a regularization based on the Fisher matrix and
+showed that this metric correlate with generalization. Un-
+fortunately, they could only apply their method to linearnetworks. Recently Kawaguchi et al. (2017) connects Path-
+Norm (Neyshabur et al., 2015a) to generalization. However,
+the proved generalization bound depends on the distribution
+and measuring it requires vector operations on exponentially
+high dimensional vectors. Other works have designed exper-
+iments to empirically evaluate potential properties of the net-
+work that helps generalization(Arpit et al., 2017; Neyshabur
+et al., 2017b; Dinh et al., 2017). The idea of compressing
+trained deep nets is very popular for low-power applications;
+for a survey see Cheng et al. (2018).
+Finally, note that the terms compression andstability are
+traditionally used in a different sense in generalization the-
+ory (Littlestone and Warmuth, 1986; Kearns and Ron, 1999;
+Shalev-Shwartz et al., 2010). Our framework is compared
+to other notions in the remarks after Theorem 2.1.
+Notation: We use standard formalization of multiclass clas-
+siﬁcation, where data consists of sample xand its labely
+(an integer from 1tok). A multiclass classiﬁer fmaps input
+xtof(x)2Rkand the maximum coordinate of f(x)is
+the predicted label. The classiﬁcation loss for any distribu-
+tionDis deﬁned as P(x;y)D[f(x)[y]<maxi6=yf(x)[j]]
+wheref(x)[y]is they-th coordinate of f(x). If
+ >0is
+some desired margin, then the expected margin loss is
+L
+(f) =P(x;y)D
+f(x)[y]
++ max
+i6=yf(x)[j]
+(Notice, the classiﬁcation loss corresponds to 
+= 0.) Let
+^L
+denote empirical estimate of the margin loss. General-
+ization error is the difference between the two.
+For most of the paper we assume that deep nets have fully
+connected layers, and use ReLU activations. We treat con-
+volutional nets in Section 5. If the net has dlayers, we
+label the vector before activation at these layers by x0,x1,
+xdfor thedlayers where x0is the input to the net, also
+denoted simply x. Soxi=Ai(xi 1)whereAiis the
+weight matrix of the ith layer. (Here (x)ifxis a vector
+applies the ReLU component-wise. The ReLU is allowed a
+trainable bias parameter, which is omitted from the notation
+because it has no effect on any calculations below.) We
+denote the number of hidden units in layer ibyhiand set
+h= maxd
+i=1hi. LetfA(x)be the function calculated by
+the above network.
+Stable rank of a matrix BiskBk2
+F=kBk2
+2, wherekkF
+denotes Frobenius norm and kk 2denotes spectral norm.
+Note that stable rank is at most (linear algebraic) rank.
+For any two layer ij, denote byMi;jthe operator for
+composition of these layers and Ji;j
+xbe the Jacobian of
+this operator at input x(a matrix whose p;qis the partial
+derivative of the pth output coordinate with respect to the
+q’th input input). Therefore, we have xj=Mi;j(xi). Fur-
+thermore, since the activation functions are ReLU, we haveStronger Generalization Bounds for Deep Nets via a Compression Approach
+Mi;j(xi) =Ji;j
+xixi.
+2. Compression and Generalization
+Our compression framework rests on the following obvious
+fact. Suppose the training data contains msamples, and f
+is a classiﬁer from a complicated class (e.g., deep nets with
+much more than mparameters) that incurs very low empir-
+ical loss. We are trying to understand if it will generalize.
+Now suppose we can compute a classiﬁer gwith discrete
+trainable parameters much less than mand which incurs
+similar loss on the training data as f. Thengmust incur
+low classiﬁcation error on the full distribution. This frame-
+work has the advantage of staying with intuitive parameter
+counting and to avoid explicitly dealing with the hypothesis
+class that includes f(see note after Theorem 2.1). Notice,
+the mapping from ftogmerely needs to exist, not to be
+efﬁciently computable. But in all our examples the map-
+ping will be explicit and fairly efﬁcient. Now we formalize
+the notions. The proofs are elementary via concentration
+bounds and appear in the appendix.
+Deﬁnition 1 ((
+,S)-compressible) .For any setAof param-
+eter values, let fbe a classiﬁer and GA=fgAjA2Ag be
+a class of classiﬁers. We say fis (
+;S)-compressible via
+GAif there exists A2A such that for any x2S, we have
+for ally
+jf(x)[y] gA(x)[y]j
+:
+We also consider a different setting where the compression
+algorithm is allowed a“helper string” s, which is arbitrary
+but ﬁxed before looking at the training samples. Often s
+will contain random numbers. A simple example is to let s
+be the random initialization used for training the deep net
+and then compress the difference between the ﬁnal weights
+ands. This can give better generalization bounds, similar
+to (Dziugaite and Roy, 2017). Other nontrivial examples
+appear later.
+Deﬁnition 2 ((
+,S)-compressible using helper string s).
+SupposeGA;s=fgA;sjA2Ag is a class of classiﬁers
+indexed by trainable parameters Aand ﬁxed strings s. A
+classiﬁerfis (
+;S)-compressible with respect to GA;sus-
+ing helper string sif there exists A2A such that for any
+x2S, we have for all y
+jf(x)[y] gA;s(x)[y]j
+:
+Theorem 2.1. SupposeGA;s=fgA;sjA2Ag whereAis
+a set ofqparameters each of which can have at most rdis-
+crete values and sis a helper string. Let Sbe a training set
+withmsamples. For any margin 
+ >0, if the trained clas-
+siﬁerfis(
+;S)-compressible via GA;swith helper string
+s, then there exists A2A such that with high probabilityover the training set,
+L0(gA)^L
+(f) +O r
+qlogr
+m!
+:
+Remarks: (1) The framework proves the generalization not
+offbut of its compression gA. (An exception is if the two
+are shown to have similar loss at every point in the domain,
+not just the training set. This is the case in Theorem 2.2.)
+(2) The previous item highlights how our framework steps
+away from uniform convergence framework, e.g., covering
+number arguments (Dudley, 2010; Anthony and Bartlett,
+2009). There, one needs to ﬁx a hypothesis class indepen-
+dent of the training set. By contrast we have no hypothesis
+class, only a single neural net that has some speciﬁc prop-
+erties (described in Section 3) on a single ﬁnite training
+set. But if we can compress this speciﬁc neural net to a
+simpler neural nets with fewer parameters then we can use
+covering number argument on this simpler class to get the
+generalization of the compressed net.
+(3) Issue (1) exists also in standard PAC-Bayes framework
+for deep nets (see tongue-in-cheek title of Langford and
+Caruana (2001)). They yield generalization bounds not for
+fbut for a noised version of f(i.e., net given by W+,
+whereWis parameter vector of fandis a noise vector).
+(4) As we will see later, our compression which is achieved
+via a randomized algorithm seems “non-destructive” and
+should not overﬁt to the training set more than the original
+network. Moreover, for us issue (1) could be ﬁxed by show-
+ing that iffsatisﬁes the properties of Section 3 on training
+data then it satisﬁes them on the entire domain. This is left
+for future work.
+2.1. Example 1: Linear classiﬁers with margin
+To illustrate the above compression method and its connec-
+tion to noise stability, we use linear classiﬁers with high
+margins. Let c2Rh(kck= 1) be a classiﬁer for binary
+classiﬁcation whose output on input xissgn(cx). Let
+Dbe a distribution on inputs (x;y)wherekxk= 1 and
+y2f 1g. Saychas margin
+if for all (x;y)in the train-
+ing set we have y(c>x)
+.
+If we add Gaussian noise vector with coordinate-wise
+variance2toc, thenE[x(c+)]iscxand the variance
+is2. (A similar analysis applies to noising of xinstead of
+c.) Thus the margin is large if and only if the classiﬁer’s
+output is somewhat noise-stable.
+A classiﬁer with margin 
+can be compressed to one that has
+onlyO(1=
+2)non-zero entries. For each coordinate i, toss a
+coin with Pr[heads ] = 8c2
+i=
+2and if it comes up heads set
+the coordinate to equal to 
+2=8ci(see Algorithm 2 in supple-
+mentary material). This yields a vector ^cwith onlyO(1=
+2)
+nonzero entries such that for any vector u, with reasonableStronger Generalization Bounds for Deep Nets via a Compression Approach
+probabilityj^c>u c>uj
+, so^candcwill make the same
+prediction. We can then apply Theorem 2.1 on a discretized
+version of ^cto show that the sparsiﬁed classiﬁer has good
+generalization with O(logd=
+2)samples.
+This compressed classiﬁer works correctly for a ﬁxed input
+xwith good probability but not high probability. To ﬁx
+this, one can recourse to the “compression with ﬁxed string”
+model. The ﬁxed string is a random linear transformation.
+When applied to unit vector x, it tends to equalize all coor-
+dinates and the guarantee j^c>u c>uj
+can hold with
+high probability. This random linear transformation can be
+ﬁxed before seeing the training data. See Section A.2 in
+supplementary material for details.
+2.2. Example 2: Existing generalization bounds
+Our compression framework gives easy and short proof of
+the generalization bounds of a recent paper; see appendix
+for slightly stronger result of Bartlett et al. (2017).
+Theorem 2.2. ((Neyshabur et al., 2017a)) For any deep
+net with layers A1;A2;:::Adand output margin 
+on a
+training setS, the generalization error can be bounded by
+~O0
+B@vuuthd2maxx2SkxkQd
+i=1kAik2
+2Pd
+i=1kAik2
+F
+kAik2
+2
+
+2m1
+CA:
+The second part of this expression (Pd
+i=1kAik2
+F
+kAik2
+2) is sum of
+stable ranks of the layers, a natural measure of their true
+parameter count. The ﬁrst part (Qd
+i=1kAik2
+2) is related to
+the Lipschitz constant of the network, namely, the maximum
+norm of the vector it can produce if the input is a unit vector.
+The Lipschitz constant of a matrix operator Bis just its
+spectral normkBk2. Since the network applies a sequence
+of matrix operations interspersed with ReLU, and ReLU is
+1-Lipschitz we conclude that the Lipschitz constant of the
+full network is at mostQd
+i=1kAik2:
+To prove Theorem 2.2 we use the following lemma to com-
+press the matrix at each layer to a matrix of smaller rank.
+Since a matrix of rank rcan be expressed as the product of
+two matrices of inner dimension r, it has 2hrparameters
+(instead of the trivial h2). (Furthermore, the parameters can
+be discretized via trivial rounding to get a compression with
+discrete parameters as needed by Deﬁnition 1.)
+Lemma 1. For any matrix A2Rmn, let ^Abe the trun-
+cated version of Awhere singular values that are smaller
+thankAk2are removed. Then k^A Ak2kAk2and^A
+has rank at mostkAk2
+F=(2kAk2
+2).
+Proof. Letrbe the rank of ^A. By construction, the max-
+imum singular value of ^A Ais at mostkAk2. Sincethe remaining singular values are at least kAk2, we have
+kAkFk^AkFprkAk2.
+For eachireplace layer iby its compression using the above
+lemma, with =
+(3kxkdQd
+i=1kAik2) 1. How much
+error does this introduce at each layer and how much does
+it affect the output after passing through the intermediate
+layers (and getting magniﬁed by their Lipschitz constants)?
+SinceA ^Aihas spectral norm (i.e., Lipschitz constant)
+at most, the error at the output due to changing layer iin
+isolation is at most kxikQd
+j=1kAjk2
+=3d.
+A simple induction (see (Neyshabur et al., 2017a) if needed)
+can now show the total error incurred in all layers is bounded
+by
+. The generalization bound follows immediately from
+Theorem 2.1.
+3. Noise Stability Properties of Deep Nets
+This section introduces noise stability properties of deep
+nets that imply better compression (and hence generaliza-
+tion). They help overcome the pessimistic error analysis of
+our proof of Theorem 2.2: when a layer was compressed,
+the resulting error was assumed to blow up in a worst-case
+manner according to the Lipschitz constant (namely, prod-
+uct of spectral norms of layers). This hurt the amount of
+compression achievable. The new noise stability properties
+roughly amount to saying that noise injected at a layer has
+very little effect on the higher layers. Our formalization
+starts with noise sensitivity, which captures how an operator
+transmits noise vs signal.
+Deﬁnition 3. IfMis a mapping from real-valued vectors to
+real-valued vectors, and Nis some noise distribution then
+noise sensitivity of Matxwith respect toN, is
+ N(M;x) =E2NkM(x+kxk) M(x)k2
+kM(x)k2
+;
+The noise sensitivity of Mwith respect toNon a set of
+inputsS, denoted N;S(M), is the maximum of  N(M;x)
+over all inputs xinS.
+To illustrate, we examine noise sensitivity of a matrix (i.e.,
+linear mapping) with respect to Gaussian distribution. Low
+sensitivity turns out to imply that the matrix has some large
+singular values (i.e., low stable rank), which give directions
+that can preferentially carry the “signal” xwhereas noise 
+attenuates because it distributes uniformly across directions.
+Proposition 3.1. The noise sensitivity of a matrix Mat any
+vectorx6= 0with respect to Gaussian distribution N(0;I)
+is exactlykMk2
+Fkxk2=kMxk2, and at least its stable rank.Stronger Generalization Bounds for Deep Nets via a Compression Approach
+Proof. Using E[>] =I, we bound the numerator by
+E[kM(x+kxk) Mxk2] =E[kxk2kMk2]
+=E[kxk2tr(M>M>)] =kxk2tr(MM>) =kMk2
+Fkxk2:
+Thus noise sensitivity  atxiskMk2
+Fkxk2=kMxk2, which
+is at least the stable rank kMk2
+F=kMk2
+2sincekMxk 
+kMk2kxk.
+The above proposition suggests that if a vector xis aligned
+to a matrixM(i.e. correlated with high singular directions
+ofM), then matrix Mbecomes less sensitive to noise at x.
+This intuition will be helpful in understanding the properties
+we deﬁne later to formalize noise stability.
+The above discussion motivates the following approach.
+We compress each layer iby an appropriate randomized
+compression algorithm, such that the noise/error in its output
+is “Gaussian-like”. If layers i+ 1 and higher have low
+sensitivity to this new noise, then the compression can be
+more extreme produce much higher noise. We formalize
+this idea using Jacobian Ji;j, which describes instantaneous
+change ofMi;j(x)under inﬁnitesimal perturbation of x.
+3.1. Formalizing Error-resilience
+Now we formalize the error-resilience properties. Section 6
+reports empirical ﬁndings about these properties. The ﬁrst
+iscushion , to be thought of roughly as reciprocal of noise
+sensitivity. We ﬁrst formalize it for single layer.
+Deﬁnition 4 (layer cushion) .Thelayer cushion of layeri
+is similarly deﬁned to be the largest number isuch that for
+anyx2S,ikAikFk(xi 1)kkAi(xi 1)k.
+Intuitively, cushion considers how much smaller the
+outputAi(xi 1)is compared to the upper bound
+kAikFk(xi 1)k. Using argument similar to Proposi-
+tion 3.1, we can see that 1=2
+iis equal to the noise sensitivity
+of matrixAiat input(xi 1)with respect to Gaussian noise
+N(0;I).
+Of course, for nonlinear operators the deﬁnition of error
+resilience is less clean. Let’s denote by Mi;j:Rhi!Rhj
+the operator corresponding to the portion of the deep net
+from layerito layerj, and byJi;jits Jacobian. If inﬁnitesi-
+mal noise is injected before level ithenMi;jpasses it like
+Ji;j, a linear operator. When the noise is small but not in-
+ﬁnitesimal then one hopes that Mi;jstill behaves roughly
+linearly (recall that ReLU nets are piecewise linear). To
+formalize this, we deﬁne Interlayer Cushion (Deﬁnition 5)
+that captures the local linear approximation of the operator
+M.
+Deﬁnition 5 (Interlayer Cushion) .For any two layers ij,
+we deﬁne the interlayer cushion i;jas the largest number
+such that for any x2S:
+i;jkJi;j
+xikFkxikkJi;j
+xixikFurthermore, for any layer iwe deﬁne the mini-
+mal interlayer cushion asi!= minijdi;j=
+minf1=p
+hi;mini<jdi;jg1.
+SinceJi;j
+xis a linear transformation, a calculation similar
+to Proposition 3.1 shows that its noise sensitivity at xiwith
+respect to Gaussian distribution N(0;I)is at most1
+2
+ij.
+The next property quantiﬁes the intuitive observation on the
+learned networks that for any training data, almost half of
+the ReLU activations at each layer are active. If the input to
+the activations is well-distributed and the activations do not
+correlate with the magnitude of the input, then one would
+expect that on average, the effect of applying activations at
+any layer is to decrease the norm of the pre-activation vector
+by at most some small constant factor.
+Deﬁnition 6 (Activation Contraction) .The activation con-
+tractioncis deﬁned as the smallest number such that for any
+layeriand anyx2S,
+k(xi)kkxik=c:
+We discussed how the interlayer cushion captures noise-
+resilience of the network if behaves linearly, namely, when
+the set of activated ReLU gates does not change upon in-
+jecting noise. In general the activations do change, but the
+deviation from linear behavior is bounded for small noise
+vectors, as quantiﬁed next.
+Deﬁnition 7 (Interlayer Smoothness) .Letbe the noise
+generated as a result of substituting weights in some of
+the layers before layer iusing Algorithm 1. We deﬁne
+interlayer smoothness to be the largest number such that
+with probability 1 over noisefor any two layers i<j
+anyx2S:
+kMi;j(xi+) Ji;j
+xi(xi+)kkkkxjk
+kxik:
+For a single layer, captures the ratio of input/weight align-
+ment to noise/weight alignment. Since the noise behaves
+similar to Gaussian, one expects this number to be greater
+than one for a single layer. When j > i + 1, the weights
+and activations create more dependencies. However, since
+these dependences are applied on both noise and input, we
+again expect that if the input is more aligned to the weights
+than noise, this should not change in higher layers. In Sec-
+tion 6, we show that the interlayer smoothness is indeed
+good: 1=is a small constant. Please see Appendix A.4
+for a more detailed discussion on interlayer smoothness.
+4. Fully Connected Networks
+We prove generalization bounds using for fully connected
+multilayer nets. Details appear in Appendix Section B.
+1Note thatJi;i
+xi=Iandi;i= 1=p
+hiStronger Generalization Bounds for Deep Nets via a Compression Approach
+Theorem 4.1. For any fully connected network fAwith
+3d, any probability 0< 1and any margin 
+,
+Algorithm 1 generates weights ~Afor the network f~Asuch
+that with probability 1 over the training set and f~A, the
+expected error L0(f~A)is bounded by
+^L
+(fA) +~O0
+B@vuutc2d2maxx2SkfA(x)k2
+2Pd
+i=11
+2
+i2
+i!
+
+2m1
+CA
+wherei,i!,candare layer cushion, interlayer cush-
+ion, activation contraction and interlayer smoothness de-
+ﬁned in Deﬁnitions 4,5,6 and 7 respectively.
+To prove this we describe a compression of the net with re-
+spect to a ﬁxed (random) string. In contrast to the determinis-
+tic compression of Lemma 1, this randomized compression
+ensures that the resulting error in the output behaves like a
+Gaussian. The proofs are similar to standard JL dimension
+reduction.
+Algorithm 1 Matrix-Project ( A,",)
+Require: Layer matrix A2Rh1h2, error parameter ",.
+Ensure: Returns ^As.t.8ﬁxed vectors u;v,
+Pr[ju>^Av u>Avk"kAkFkukkvk]:
+Samplek= log(1=)="2random matrices M1;:::;Mk
+with entries i.i.d.1(“helper string”)
+fork0= 1tokdo
+LetZk0=hA;Mk0iMk0.
+end for
+Let^A=1
+kPk
+k0=1Zk0
+Note that the helper string of random matrices Mi’s were
+chosen and ﬁxed before training set Swas picked. Each
+weight matrix is thus represented as only kreal numbers
+hA;Miifori= 1;2;:::;k .
+Lemma 2. For any 0<;"1, letG=f(Ui;xi)gm
+i=1be
+a set of matrix/vector pairs of size mwhereU2Rnh1and
+x2Rh2, let^A2Rh1h2be the output of Algorithm 1 with
+==mn and = ^A A. With probability at least 1 
+we have for any (U;x)2G,kUxk"kAkFkUkFkxk.
+Next Lemma bounds the number of parameters of the com-
+pressed network resulting from applying Algorithm 1 to all
+the layer matrices of the net. The proof does induction on
+the layers and bounds the effect of the error on the output of
+the network using properties deﬁned in Section 3.1.
+Lemma 3. For any fully connected network fAwith
+3d, any probability 0< 1and any error 0< "
+1, Algorithm 1 generates weights ~Afor a network with
+72c2d2log(mdh= )
+"2Pd
+i=11
+2
+i2
+i!total parameters such thatwith probability 1 =2over the generated weights ~A, for
+anyx2S:
+kfA(x) f~A(x)k"kfA(x)k:
+wherei,i!,candare layer cushion, interlayer cush-
+ion, activation contraction and interlayer smoothness de-
+ﬁned in Deﬁnitions 4,5,6 and 7 respectively.
+Some obvious improvements: (i) Empirically it has been
+observed that deep net training introduces fairly small
+changes to parameters as compared to the (random) ini-
+tial weights (Dziugaite and Roy, 2017). We can exploit this
+by incorporating the random initial weights into the helper
+string and do the entire proof above not with the layer matri-
+cesAibut only the difference from the initial starting point.
+Experiments in Section 6 show this improves the bounds.
+(ii) Cushions and other quantities deﬁned earlier are data-
+dependent, and required to hold for the entire training set.
+However, the proofs go through if we remove say fraction
+of outliers that violate the deﬁnitions; this allows us to use
+more favorable values for cushion etc. and lose an additive
+factorin the generalization error.
+5. Convolutional Neural Networks
+Now we sketch how to provably compress convolutional
+nets. (Details appear in Section C of supplementary.) In-
+tuitively, this feels harder because the weights are already
+compressed— they’re shared across patches!
+Theorem 5.1. For any convolutional neural network fA
+with3d, any probability 0<1and any margin 
+,
+Algorithm 4 generates weights ~Afor the network f~Asuch
+that with probability 1 over the training set and f~A:
+L0(f~A)^L
+(fA)
++~O0
+B@vuutc2d2maxx2SkfA(x)k2
+2Pd
+i=12(di=sie)2
+2
+i2
+i!
+
+2m1
+CA
+wherei,i!,c,andare layer cushion, interlayer
+cushion, activation contraction, interlayer smoothness and
+well-distributed Jacobian deﬁned in Deﬁnitions 4,8,6, 7 and
+9 respectively. Furthermore, siandiare stride and ﬁlter
+width in layer i.
+Let’s realize that obvious extensions of earlier sections fail.
+Suppose layer iof the neural network is an image of dimen-
+sionni
+1ni
+2and each pixel has hichannels, the size of the
+ﬁlter at layer iisiiwith stridesi. The convolutional
+ﬁlter has dimension hi 1hiii. Applying ma-
+trix compression (Algorithm 1) independently to each copy
+of a convolutional ﬁlter makes number of new parameters
+proportional to ni
+1ni
+2, a big blowup.Stronger Generalization Bounds for Deep Nets via a Compression Approach
+Compressing a convolutional ﬁlter once and reusing it in
+all patches doesn’t work because the interlayer analysis im-
+plicitly requires the noise generated by the compression
+behave similar to a spherical Gaussian, but the shared ﬁl-
+ters introduce correlations. Quantitatively, using the fully
+connected analysis would require the error to be less than
+interlayer cushion value i!(Deﬁnition 5) which is at most
+1=p
+hini
+1ni
+2, and this can never be achieved from compress-
+ing matrices that are far smaller than ni
+1ni
+2to begin with.
+We end up with a solution in between fully independent
+and fully dependent: p-wise independence. The algorithm
+generatesp-wise independent compressed ﬁlters ^A(a;b)for
+each convolution location (a;b)2[ni
+1][ni
+2]. It results in
+ptimes more parameters than a single compression. If p
+grows logarithmically with relevant parameters, the ﬁlters
+behave like fully independent ﬁlters. Using this idea we
+can generalize the deﬁnition of interlayer margin to the
+convolution setting:
+Deﬁnition 8 (Interlayer Cushion, Convolution Setting) .For
+any two layers ij, we deﬁne the interlayer cushion i;j
+as the largest number such that for any x2S:
+i;j1p
+ni
+1ni
+2kJi;j
+xikFkxikkJi;j
+xixik
+Furthermore, for any layer iwe deﬁne the mini-
+mal interlayer cushion asi!= minijdi;j=
+minf1=p
+hi;mini<jdi;jg2.
+Recall that interlayer cushion is related to the noise sen-
+sitivity ofJi;j
+xiatxiwith respect to Gaussian distribu-
+tionN(0;I). When we consider Ji;j
+xiapplied to a noise
+, if different pixels in are independent Gaussian ran-
+dom variables, then we can indeed expect kJi;j
+xik 
+1p
+hini
+1ni
+2kJi;j
+xikkk, which explains the extra1p
+ni
+1ni
+2fac-
+tor in Deﬁnition 8 compared to Deﬁnition 5. The proof also
+needs to assume —in line with intuition behind convolution
+architecture— that information from the entire image ﬁeld
+is incorporated somewhat uniformly across pixels. It is for-
+malized using the Jacobian which gives the partial derivative
+of the output with respect to pixels at previous layer.
+Deﬁnition 9 (Well-distributed Jacobian) .LetJi;j
+xbe
+the Jacobian of Mi;jatx, we know Ji;j
+x2
+Rhini
+1ni
+2hjnj
+1nj
+2. We say the Jacobian is well-
+distributed if for any x2S, anyi;j, any (a;b)2[ni
+1ni
+2],
+k[Ji;j
+x]:;a;b;:;:;:kFp
+ni
+1ni
+2kJi;j
+xkF
+6. Empirical Evaluation
+We study noise stability properties (deﬁned in Section 3)
+of an actual trained deep net, and compute a generalization
+2Note thatJi;i
+xi=Iandi;i= 1=p
+hibound from Theorem 5.1. Experiments were performed
+by training a VGG-19 architecture (Simonyan and Zisser-
+man, 2014) and a AlexNet (Krizhevsky et al., 2012) for
+multi-class classiﬁcation task on CIFAR-10 dataset. Opti-
+mization used SGD with mini-batch size 128, weight decay
+5e-4, momentum 0:9and initial learning rate 0:05, but de-
+cayed by factor 2 every 30 epochs. Drop-out was used
+in fully-connected layers. We trained both networks for
+299 epochs and the ﬁnal VGG-19 network achieved 100%
+training and 92:45% validation accuracy while the AlexNet
+achieved 100% training and 77:22% validation accuracy. To
+investigate the effect of corrupted label, we trained another
+AlexNet, which 100% training and 9:86% validation accu-
+racy, on CIFAR-10 dataset with randomly shufﬂed labels.
+Our estimate of the sample complexity bound used exact
+computation of norms of weight matrices (or tensors) in
+all bounds(jjAjj1;1;jjAjj1;2;jjAjj2;jjAjjF). Like previous
+bounds in generalization theory, ours also depend upon nui-
+sance parameters like depth d, logarithm of h, etc. which
+probably are an artifact of the proof. These are ignored in
+the computation (also in computing earlier bounds) for sim-
+plicity. Even the generalization based on parameter counting
+arguments does have an extra dependence on depth (Bartlett
+et al., 2017). A recent work, (Golowich et al., 2017) showed
+that many such depth dependencies can be improved.
+6.1. Empirical investigation of noise stability properties
+Section 3 identiﬁes four properties in the networks that con-
+tribute to noise-stability: layer cushion, interlayer cushion,
+contraction, interlayer smoothness. Figure 2 plots the dis-
+tribution of over different data points in the training set and
+compares to a Gaussian random network and then scaled
+properly. The layer cushion, which quantiﬁes its noise sta-
+bility, is drastically improved during the training, especially
+for the higher layers ( 8and higher) where most parameters
+live. Moreover, we observe that interlayer cushion, activa-
+tion contraction and interlayer smoothness behave nicely
+even after training. These plots suggest that the driver of
+the generalization phenomenon is layer cushion. The other
+properties are being maintained in the network and prevent
+the network from falling prey to pessimistic assumptions
+that causes the other older generalization bounds to be very
+high. The assumptions made in section 3 (also in B.1) are
+veriﬁed on the VGG-19 net in appendix D.1 by histogram-
+ming the distribution of layer cushion, interlayer cushion,
+contraction, interlayer smoothness, and well-distributedness
+of the Jacobians of each layer of the net on each data point
+in the training set. Some examples are shown in Figure 2.
+6.2. Correlation to generalization error
+We evaluate our generalization bound during the training,
+see Figure 3, Right. After 120 epochs, the training error isStronger Generalization Bounds for Deep Nets via a Compression Approach
+0.0 0.1 0.2 0.3
+a) layer cushion µirandom init
+trained0.2 0.4 0.6
+b) minimal inter-layer cushion µi!random init
+trained
+1.0 1.2 1.4
+c) contraction crandom init
+trained0.00 0.02 0.04 0.06
+d) interlayer smoothness 1/⇢random init
+trained
+Figure 2. Distribution of a) layer cushion, b) (unclipped) mini-
+mal interlayer cushion, c) activation contraction and d) interlayer
+smoothness of the 13-th layer of VGG-19 nets on on training set.
+The distributions on a randomly-initialized and a trained net are
+shown in blue and orange. Note that after clipping, the minimal
+interlayer cushion is set to 1=phifor all layers except the ﬁrst one,
+see appendix D.1.
+almost zero but the test error continues to improve in later
+epochs. Our generalization bound continues to improve,
+though not to the same level. Thus our generalization bound
+captures part of generalization phenomenon, not all. Still,
+this suggests that SGD somehow improves our generaliza-
+tion measure implicitly. Making this rigorous is a good topic
+for further research.
+Furthermore, we investigate effect of training with normal
+data and corrupted data by training two AlexNets respec-
+tively on original and corrupted CIFAR-10 with randomly
+shufﬂed labels. We identify two key properties that differ
+signiﬁcantly between the two networks: layer cushion and
+activation contraction, see D.2. Since our bound predicts
+larger cushion and lower contraction indicates better gen-
+eralization, our bound is consistent w with the fact that the
+net trained on normal data generalizes ( 77:22% validation
+accuracy).
+6.3. Comparison to other generalization bounds
+Figure 3 compares our proposed bound to other neural-net
+generalization bounds on the VGG-19 net and compares
+to naive VC dimension bound (which of course is too pes-
+simistic). All previous generalization bounds are orders
+of magnitude worse than ours; the closest one is spectral
+norms times average `1;2of the layers (Bartlett et al., 2017)
+which is still about 1018, far greater than VC dimension.
+(As mentioned we’re ignoring nuisance factors like depth
+VC-dim
+120 200 2800.0750.080.0850.090.095Figure 3. Left) Comparing neural net generalization bounds. See
+Appendix D.3 for details. Right) Comparing our bound to empiri-
+cal generalization error during training. Our bound is rescaled to
+be within the same range as the generalization error.
+andloghwhich make the comparison to VC dimension a
+bit unfair, but the comparison to previous bounds is fair.)
+This should not be surprising as all other bounds are based
+on product of norms is pessimistic (see note at the start of
+Section 3) which we avoid due to the noise stability analysis
+resulting in a bound that has more dependence on the data.
+Table 1 shows the compressibility of various layers accord-
+ing to the bounds given by our theorem. Again, this is a
+qualitative due to ignoring nuisance factors, but it gives an
+idea of which layers are important in the calculation.
+layerc2
+i2
+idi=sie2
+2
+i2
+i!actual # param compression ( %)
+1 1644.87 1728 95.18
+4 644654.14 147456 437.18
+6 3457882.42 589824 586.25
+9 36920.60 1179648 3.129
+12 22735.09 2359296 0.963
+15 26583.81 2359296 1.126
+18 5052.15 262144 1.927
+Table 1. Effective number of parameters identiﬁed by our bound.
+Compression rates can be as low as 1%in later layers (from 9 to
+19) whereas earlier layers are not so compressible. Dependence on
+depthd, log factors, constants are ignored as mentioned in the text.
+7. Conclusions
+With a new compression-based approach, the paper has
+made progress on several open issues regarding general-
+ization properties of deep nets. The approach also adapts
+specially to convolutional nets. The empirical veriﬁcation of
+the theory in Section 6 shows a rich set of new properties sat-
+isﬁed by deep nets trained on realistic data, which we hope
+will fuel further theory work on deep learning, including
+how these properties play into optimization and expressiv-
+ity. Another possibility is a more rigorous understanding of
+deep net compression, which sees copious empirical work
+motivated by low-power applications. Perhaps our p-wise in-
+dependence idea used for compressing convnets (Section 5)
+has practical implications.Stronger Generalization Bounds for Deep Nets via a Compression Approach
+Acknowledgments
+This research was done with support from NSF, ONR, Darpa,
+SRC, Simons Foundation, Mozilla Research, and Schmidt
+Foundation.
+References
+Martin Anthony and Peter L Bartlett. Neural network learn-
+ing: Theoretical foundations . cambridge university press,
+2009.
+Devansh Arpit, Stanislaw Jastrzebski, Nicolas Ballas, David
+Krueger, Emmanuel Bengio, Maxinder S Kanwal, Tegan
+Maharaj, Asja Fischer, Aaron Courville, Yoshua Bengio,
+et al. A closer look at memorization in deep networks.
+arXiv preprint arXiv:1706.05394 , 2017.
+Peter Bartlett, Dylan J Foster, and Matus Telgarsky.
+Spectrally-normalized margin bounds for neural net-
+works. arXiv preprint arXiv:1706.08498 , 2017.
+Peter L Bartlett and Shahar Mendelson. Rademacher and
+gaussian complexities: Risk bounds and structural results.
+Journal of Machine Learning Research , 3(Nov):463–482,
+2002.
+Pratik Chaudhari, Anna Choromanska, Stefano Soatto, and
+Yann LeCun. Entropy-sgd: Biasing gradient descent into
+wide valleys. arXiv preprint arXiv:1611.01838 , 2016.
+Yu Cheng, Duo Wang, Pan Zhou, and Tao Zhang. Model
+compression and acceleration for deep neural networks:
+The principles, progress, and challenges. IEEE Signal
+Proc. Magazine , 35, Jan 2018.
+Laurent Dinh, Razvan Pascanu, Samy Bengio, and Yoshua
+Bengio. Sharp minima can generalize for deep nets. arXiv
+preprint arXiv:1703.04933 , 2017.
+Richard M Dudley. Universal donsker classes and metric
+entropy. In Selected Works of RM Dudley , pages 345–365.
+Springer, 2010.
+Gintare Karolina Dziugaite and Daniel M Roy. Computing
+nonvacuous generalization bounds for deep (stochastic)
+neural networks with many more parameters than training
+data. arXiv preprint arXiv:1703.11008 , 2017.
+Theodoros Evgeniou, Massimiliano Pontil, and Tomaso
+Poggio. Regularization networks and support vector ma-
+chines. Advances in computational mathematics , 13(1):1,
+2000.
+Maryam Fazel, Haitham Hindi, and Stephen P Boyd. A rank
+minimization heuristic with application to minimum order
+system approximation. In American Control Conference,
+2001. Proceedings of the 2001 , volume 6, pages 4734–
+4739. IEEE, 2001.Noah Golowich, Alexander Rakhlin, and Ohad Shamir. Size-
+independent sample complexity of neural networks. arXiv
+preprint arXiv:1712.06541 , 2017.
+Moritz Hardt, Benjamin Recht, and Yoram Singer. Train
+faster, generalize better: Stability of stochastic gradient
+descent. In ICML , 2016.
+Geoffrey E Hinton and Drew Van Camp. Keeping the neu-
+ral networks simple by minimizing the description length
+of the weights. In Proceedings of the sixth annual con-
+ference on Computational learning theory , pages 5–13.
+ACM, 1993.
+Sepp Hochreiter and J ¨urgen Schmidhuber. Flat minima.
+Neural Computation , 9(1):1–42, 1997.
+Sergey Ioffe and Christian Szegedy. Batch normalization:
+Accelerating deep network training by reducing internal
+covariate shift. In ICML , 2015.
+Kenji Kawaguchi, Leslie Pack Kaelbling, and Yoshua Ben-
+gio. Generalization in deep learning. arXiv preprint
+arXiv:1710.05468 , 2017.
+Michael Kearns and Dana Ron. Algorithmic stability and
+sanity-check bounds for leave-one-out cross-validation.
+Neural computation , 11(6):1427–1453, 1999.
+Nitish Shirish Keskar, Dheevatsa Mudigere, Jorge Nocedal,
+Mikhail Smelyanskiy, and Ping Tak Peter Tang. On large-
+batch training for deep learning: Generalization gap and
+sharp minima. arXiv preprint arXiv:1609.04836 , 2016.
+Alex Krizhevsky, Ilya Sutskever, and Geoffrey E Hinton.
+Imagenet classiﬁcation with deep convolutional neural
+networks. In Advances in neural information processing
+systems , pages 1097–1105, 2012.
+John Langford and Rich Caruana. (not) bounding the true
+error. In Proceedings of the 14th International Confer-
+ence on Neural Information Processing Systems: Natural
+and Synthetic , pages 809–816. MIT Press, 2001.
+Tengyuan Liang, Tomaso Poggio, Alexander Rakhlin, and
+James Stokes. Fisher-rao metric, geometry, and complex-
+ity of neural networks. arXiv preprint arXiv:1711.01530 ,
+2017.
+Nick Littlestone and Manfred Warmuth. Relating data com-
+pression and learnability. Technical report, Technical
+report, University of California, Santa Cruz, 1986.
+David A McAllester. Some PAC-Bayesian theorems. In
+Proceedings of the eleventh annual conference on Com-
+putational learning theory , pages 230–234. ACM, 1998.Stronger Generalization Bounds for Deep Nets via a Compression Approach
+David A McAllester. PAC-Bayesian model averaging. In
+Proceedings of the twelfth annual conference on Compu-
+tational learning theory , pages 164–170. ACM, 1999.
+Ari Morcos, David GT Barrett, Matthew Botvinick, and
+Neil Rabinowitz. On the importance of single di-
+rections for generalization. In Proceeding of the In-
+ternational Conference on Learning Representations ,
+2018. URL https://openreview.net/forum?
+id=r1iuQjxCZ&noteId=r1iuQjxCZ .
+Behnam Neyshabur, Ruslan R Salakhutdinov, and Nati Sre-
+bro. Path-sgd: Path-normalized optimization in deep
+neural networks. In Advances in Neural Information
+Processing Systems , pages 2422–2430, 2015a.
+Behnam Neyshabur, Ryota Tomioka, and Nathan Srebro.
+Norm-based capacity control in neural networks. In
+Proceeding of the 28th Conference on Learning Theory
+(COLT) , 2015b.
+Behnam Neyshabur, Ryota Tomioka, and Nathan Srebro.
+In search of the real inductive bias: On the role of im-
+plicit regularization in deep learning. Proceeding of the
+International Conference on Learning Representations
+workshop track , 2015c.
+Behnam Neyshabur, Srinadh Bhojanapalli, David
+McAllester, and Nathan Srebro. A pac-bayesian
+approach to spectrally-normalized margin bounds for
+neural networks. arXiv preprint arXiv:1707.09564 ,
+2017a.
+Behnam Neyshabur, Srinadh Bhojanapalli, David
+McAllester, and Nati Srebro. Exploring generalization
+in deep learning. In Advances in Neural Information
+Processing Systems , pages 5949–5958, 2017b.
+Christos Pelekis and Jan Ramon. Hoeffding’s inequality
+for sums of weakly dependent random variables. arXiv
+preprint arXiv:1507.06871 , 2015.
+Shai Shalev-Shwartz, Ohad Shamir, Nathan Srebro, and
+Karthik Sridharan. Learnability, stability and uniform
+convergence. Journal of Machine Learning Research , 11
+(Oct):2635–2670, 2010.
+Karen Simonyan and Andrew Zisserman. Very deep con-
+volutional networks for large-scale image recognition.
+arXiv preprint arXiv:1409.1556 , 2014.
+Alex J Smola, Bernhard Sch ¨olkopf, and Klaus-Robert
+M¨uller. The connection between regularization opera-
+tors and support vector kernels. Neural networks , 11(4):
+637–649, 1998.
+Nathan Srebro, Jason Rennie, and Tommi S Jaakkola.
+Maximum-margin matrix factorization. In Advances inneural information processing systems , pages 1329–1336,
+2005.
+Nitish Srivastava, Geoffrey Hinton, Alex Krizhevsky, Ilya
+Sutskever, and Ruslan Salakhutdinov. Dropout: A simple
+way to prevent neural networks from overﬁtting. The
+Journal of Machine Learning Research , 15(1):1929–1958,
+2014.
+Chiyuan Zhang, Samy Bengio, Moritz Hardt, Benjamin
+Recht, and Oriol Vinyals. Understanding deep learning
+requires rethinking generalization. In International Con-
+ference on Learning Representations , 2017.
