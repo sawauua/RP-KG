@@ -15,12 +15,10 @@ Geographical = RPO.Geographical
 
 MISCLASS = {RPO.Company, OWL.Thing, RPO.Thing, RPO.Resource, RPO.Organisation}
 
-# Wikidata QIDs for fast checks
+
 Q_CITY      = "Q515"
 Q_COUNTRY   = "Q6256"
 Q_CONTINENT = "Q5107"
-
-### Wikidata helper #############################################
 
 WD_ENDPOINT = "https://query.wikidata.org/sparql"
 wd = SPARQLWrapper(WD_ENDPOINT, agent="kg-cleaner/0.1")
